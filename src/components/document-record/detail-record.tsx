@@ -4,7 +4,7 @@ import { INITIAL_WORKFLOW_VALUES, USE_CASE, type FieldValue } from "@/data/docum
 import { cn } from "@/lib/cn";
 import { ArrowLeft, ArrowRight, Check, CheckCircle2, FileCheck2, Lock, MoreHorizontal, RefreshCcw, RotateCcw, ShieldCheck, Sparkles } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState, type CSSProperties, type ReactElement } from "react";
+import { useMemo, useState, type CSSProperties, type ReactElement, type ReactNode } from "react";
 
 import { PersonAvatar, ProfileSwitcher, initials } from "@/components/profile";
 
@@ -312,16 +312,19 @@ export function DetailRecordPage() {
   );
 }
 
-function StageColumnHeader({ stage, currentUser }: { stage: StageItem; currentUser: string }) {
+function StageColumnHeader({ stage, currentUser, action }: { stage: StageItem; currentUser: string; action?: ReactNode }) {
   const ownedByMe = stage.owner === currentUser;
 
   return (
-    <div className="flex h-12 min-w-0 shrink-0 items-center justify-between gap-4 border-b border-[#ecebea] px-7" aria-label={`${stage.name} stage header`}>
+    <div className="flex min-h-[52px] shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-[#ecebea] px-7 py-2" aria-label={`${stage.name} stage header`}>
       <h2 className="font-display min-w-0 truncate text-[19px] leading-7 text-[var(--text-primary)]">{stage.name}</h2>
-      <div className="flex shrink-0 items-center gap-2 text-[13px] leading-5">
-        <span className="text-[var(--text-label)]">Stage Owner</span>
-        <PersonAvatar name={stage.owner} size={22} highlight={ownedByMe} />
-        <span className={cn("text-[var(--text-primary)]", ownedByMe && "font-semibold")}>{stage.owner}</span>
+      <div className="flex shrink-0 items-center gap-3">
+        {action}
+        <div className="flex items-center gap-2 text-[13px] leading-5">
+          <span className="text-[var(--text-label)]">Stage Owner</span>
+          <PersonAvatar name={stage.owner} size={22} highlight={ownedByMe} />
+          <span className={cn("text-[var(--text-primary)]", ownedByMe && "font-semibold")}>{stage.owner}</span>
+        </div>
       </div>
     </div>
   );
@@ -549,28 +552,33 @@ function EditableStage({ stage, currentUser }: { stage: StageItem; currentUser: 
 
   return (
     <>
-      <StageColumnHeader stage={stage} currentUser={currentUser} />
+      <StageColumnHeader
+        stage={stage}
+        currentUser={currentUser}
+        action={
+          <>
+            {riskTier ? (
+              <span
+                className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold"
+                style={{ color: riskTier.fg, background: riskTier.bg, borderColor: riskTier.border }}
+              >
+                <ShieldCheck size={11} />
+                {riskTier.tier} tier
+              </span>
+            ) : null}
+            <button
+              type="button"
+              onClick={suggestAll}
+              className="inline-flex h-8 items-center gap-1.5 rounded-full border border-[var(--accent-border)] bg-[var(--accent-soft)] px-3 text-[12px] font-medium text-[var(--accent-strong)] transition hover:bg-[#daedf3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
+            >
+              <Sparkles size={12} />
+              Suggest all
+            </button>
+          </>
+        }
+      />
 
       <section className="no-scrollbar min-h-0 flex-1 overflow-y-auto pb-6 pt-4" aria-label={`${stage.name} stage form`}>
-        <div className="mb-3 flex items-center justify-end gap-2.5 px-7">
-          {riskTier ? (
-            <span
-              className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold"
-              style={{ color: riskTier.fg, background: riskTier.bg, borderColor: riskTier.border }}
-            >
-              <ShieldCheck size={11} />
-              {riskTier.tier} tier
-            </span>
-          ) : null}
-          <button
-            type="button"
-            onClick={suggestAll}
-            className="inline-flex h-8 items-center gap-1.5 rounded-full border border-[var(--accent-border)] bg-[var(--accent-soft)] px-3 text-[12px] font-medium text-[var(--accent-strong)] transition hover:bg-[#daedf3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
-          >
-            <Sparkles size={12} />
-            Suggest all
-          </button>
-        </div>
         <div className="pt-1">
           {fields.map((field) => (
             <div key={field.label} className="grid grid-cols-[184px_minmax(0,1fr)] gap-6 px-7 py-3">
