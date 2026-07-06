@@ -789,16 +789,21 @@ function PlanRow({ label, hint, children }: { label: string; hint?: string; chil
 
 function MandateBanner() {
   return (
-    <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-[10px] border border-[#ecebea] bg-[var(--surface-muted)] px-4 py-3.5">
-      <div>
-        <div className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">Funded</div>
-        <div className="font-display text-[20px] font-medium leading-6 text-[var(--text-primary)]">GBP 180k approved</div>
+    <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-[10px] border border-[#cfe6d8] bg-gradient-to-r from-[#eef6f0] to-[#f6faf7] px-4 py-3">
+      <div className="flex items-center gap-3">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#15803d] text-white shadow-[0_1px_2px_rgba(21,128,61,0.3)]">
+          <Check size={19} strokeWidth={2.5} />
+        </span>
+        <div>
+          <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#15803d]">Funded · GTAC approved</div>
+          <div className="font-display text-[21px] leading-6 text-[var(--text-primary)]">GBP 180k approved</div>
+        </div>
       </div>
-      <div className="flex flex-1 flex-wrap items-center gap-2">
+      <div className="flex flex-1 flex-wrap items-center justify-end gap-2">
         {["2 binding conditions", "Go-live Q3 2026", "Standard tier"].map((chip) => (
           <span
             key={chip}
-            className="rounded-full border border-[#ecebea] bg-white px-2.5 py-1 text-[12px] font-medium text-[var(--text-body)]"
+            className="rounded-full border border-[#cfe6d8] bg-white/80 px-2.5 py-1 text-[12px] font-medium text-[#25603f]"
           >
             {chip}
           </span>
