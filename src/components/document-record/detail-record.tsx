@@ -295,7 +295,7 @@ export function DetailRecordPage() {
   }
 
   return (
-    <main className="flex h-screen flex-col overflow-hidden bg-white text-[var(--text-primary)]" style={RECORD_THEME}>
+    <main className="flex h-screen flex-col overflow-hidden bg-[var(--surface-muted)] text-[var(--text-primary)]" style={RECORD_THEME}>
       <RecordHeader currentUser={currentUser} onUserChange={setCurrentUser} />
       <StagePath
         activeIndex={stageIndex}
@@ -1068,7 +1068,7 @@ function RecordHeader({ currentUser, onUserChange }: { currentUser: string; onUs
   ];
 
   return (
-    <header className="z-30 shrink-0 bg-white px-7 pb-5 pt-5">
+    <header className="z-30 shrink-0 bg-[var(--surface-muted)] px-7 pb-5 pt-5">
       <div className="mb-5 flex items-center justify-between gap-4">
         <Link
           href="/"
@@ -1136,7 +1136,7 @@ function StagePath({
   }
 
   return (
-    <section className="shrink-0 bg-white px-7 py-3">
+    <section className="shrink-0 bg-[var(--surface-muted)] px-7 py-3">
       <div className="flex items-center gap-2">
         <div className="relative min-w-0 flex-1">
           <ol ref={trailRef} className="no-scrollbar flex min-w-0 items-center overflow-x-auto py-0.5">
@@ -1185,7 +1185,7 @@ function StagePath({
           </ol>
 
           {hasLess ? (
-            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center bg-gradient-to-r from-white via-white to-transparent pl-0.5 pr-10">
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center bg-gradient-to-r from-[var(--surface-muted)] via-[var(--surface-muted)] to-transparent pl-0.5 pr-10">
               <button
                 type="button"
                 onClick={() => scrollTrail(-1)}
@@ -1199,7 +1199,7 @@ function StagePath({
           ) : null}
 
           {hasMore ? (
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center bg-gradient-to-l from-white via-white to-transparent pl-10 pr-0.5">
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center bg-gradient-to-l from-[var(--surface-muted)] via-[var(--surface-muted)] to-transparent pl-10 pr-0.5">
               <button
                 type="button"
                 onClick={() => scrollTrail(1)}
