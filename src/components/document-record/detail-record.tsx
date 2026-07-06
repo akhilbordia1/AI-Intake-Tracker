@@ -2,9 +2,11 @@
 
 import { INITIAL_WORKFLOW_VALUES, USE_CASE, type FieldValue } from "@/data/document-workflow-form-schema";
 import { cn } from "@/lib/cn";
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, FileCheck2, Lock, MoreHorizontal, RefreshCcw, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, FileCheck2, Lock, MoreHorizontal, RefreshCcw, RotateCcw, ShieldCheck, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState, type CSSProperties, type ReactElement } from "react";
+
+import { PersonAvatar, ProfileSwitcher, initials } from "@/components/profile";
 
 import {
   ChipMultiSelect,
@@ -204,10 +206,6 @@ const STAGES = [
   },
 ] satisfies StageItem[];
 
-const SUPPORTING_TABS = ["Details", "Comments", "Activity"] as const;
-
-type SupportingTab = (typeof SUPPORTING_TABS)[number];
-
 // Hybrid: most stages use the generic editable form; a few high-value stages
 // get bespoke widgets ported from the reference (squad picker, milestone rail,
 // lockable success metrics). Keyed by stage name.
@@ -272,61 +270,101 @@ const ACTIVITY_ITEMS = [
 const defaultStageIndex = STAGES.findIndex((stage) => stage.name === "Assess");
 
 export function DetailRecordPage() {
-  const [activeSupportingTab, setActiveSupportingTab] = useState<SupportingTab>(SUPPORTING_TABS[0]);
   const [stageIndex, setStageIndex] = useState(defaultStageIndex);
   const [completedStageIndexes, setCompletedStageIndexes] = useState<number[]>([0, 1, 2, 3]);
+  const [currentUser, setCurrentUser] = useState("Lena Osei");
   const currentStage = STAGES[stageIndex] ?? STAGES[0];
+  const isCurrentComplete = completedStageIndexes.includes(stageIndex);
 
   function selectStage(index: number) {
     setStageIndex(index);
   }
 
-  function markCurrentStageComplete() {
-    setCompletedStageIndexes((indexes) => (indexes.includes(stageIndex) ? indexes : [...indexes, stageIndex]));
-
-    if (stageIndex < STAGES.length - 1) {
-      selectStage(stageIndex + 1);
-    }
+  // Toggle: completes the stage (and advances), or marks it incomplete again
+  // when you go back to a done stage.
+  function toggleCurrentStageComplete() {
+    const wasComplete = completedStageIndexes.includes(stageIndex);
+    setCompletedStageIndexes((indexes) =>
+      wasComplete ? indexes.filter((index) => index !== stageIndex) : [...indexes, stageIndex],
+    );
+    if (!wasComplete && stageIndex < STAGES.length - 1) selectStage(stageIndex + 1);
   }
 
   return (
     <main className="flex h-screen flex-col overflow-hidden bg-white text-[var(--text-primary)]" style={RECORD_THEME}>
-      <RecordHeader />
-      <StagePath activeIndex={stageIndex} completedIndexes={completedStageIndexes} onMarkComplete={markCurrentStageComplete} onStageChange={selectStage} />
-      <section className="mt-3 grid shrink-0 grid-cols-[minmax(0,3fr)_minmax(0,1fr)] border-t border-[#ecebea] bg-white">
-        <StageColumnHeader stage={currentStage} />
-        <aside className="min-w-0 border-b border-l border-[#ecebea] px-5" aria-label="Supporting detail tabs">
-          <TabBar tabs={SUPPORTING_TABS} active={activeSupportingTab} onChange={(tab) => setActiveSupportingTab(tab as SupportingTab)} />
-        </aside>
-      </section>
-      <section className="grid min-h-0 flex-1 grid-cols-[minmax(0,3fr)_minmax(0,1fr)] bg-white" aria-label="Use case content">
-        <StageContent isComplete={completedStageIndexes.includes(stageIndex)} stage={currentStage} />
-        <aside className="min-w-0 border-l border-[#ecebea]" aria-label="Supporting details">
-          <SupportingPanel activeTab={activeSupportingTab} />
+      <RecordHeader currentUser={currentUser} onUserChange={setCurrentUser} />
+      <StagePath
+        activeIndex={stageIndex}
+        completedIndexes={completedStageIndexes}
+        isCurrentComplete={isCurrentComplete}
+        onMarkComplete={toggleCurrentStageComplete}
+        onStageChange={selectStage}
+      />
+      <section className="grid min-h-0 flex-1 grid-cols-[minmax(0,3fr)_minmax(0,1fr)] gap-4 bg-[var(--surface-muted)] px-5 pb-5 pt-4" aria-label="Use case content">
+        <div className="flex min-h-0 flex-col overflow-hidden rounded-[12px] border border-[#ecebea] bg-white shadow-[0_1px_3px_rgba(12,10,9,0.04)]">
+          <StageWorkspace stage={currentStage} currentUser={currentUser} isComplete={isCurrentComplete} />
+        </div>
+        <aside className="flex min-h-0 flex-col overflow-hidden rounded-[12px] border border-[#ecebea] bg-white shadow-[0_1px_3px_rgba(12,10,9,0.04)]" aria-label="Supporting details">
+          <SupportingTabs />
         </aside>
       </section>
     </main>
   );
 }
 
-function StageColumnHeader({ stage }: { stage: StageItem }) {
+function StageColumnHeader({ stage, currentUser }: { stage: StageItem; currentUser: string }) {
+  const ownedByMe = stage.owner === currentUser;
+
   return (
-    <div className="flex h-12 min-w-0 items-center justify-between gap-4 border-b border-[#ecebea] px-7" aria-label={`${stage.name} stage header`}>
+    <div className="flex h-12 min-w-0 shrink-0 items-center justify-between gap-4 border-b border-[#ecebea] px-7" aria-label={`${stage.name} stage header`}>
       <h2 className="min-w-0 truncate text-[17px] font-medium leading-6 text-[var(--text-primary)]">{stage.name}</h2>
-      <p className="shrink-0 text-[13px] font-normal leading-5">
+      <div className="flex shrink-0 items-center gap-2 text-[13px] leading-5">
         <span className="text-[var(--text-label)]">Stage Owner</span>
-        <span className="ml-2 text-[var(--text-primary)]">{stage.owner}</span>
-      </p>
+        <PersonAvatar name={stage.owner} size={22} highlight={ownedByMe} />
+        <span className="text-[var(--text-primary)]">{stage.owner}</span>
+        {ownedByMe ? (
+          <span className="rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-[11px] font-semibold text-[var(--accent-strong)]">You</span>
+        ) : null}
+      </div>
     </div>
   );
 }
 
-function SupportingPanel({ activeTab }: { activeTab: SupportingTab }) {
+const SUPPORTING_TABS = [
+  { key: "Details", meta: undefined, render: () => <DetailPanel /> },
+  { key: "Comments", meta: String(COMMENT_ITEMS.length), render: () => <CommentsPanel /> },
+  { key: "Activity", meta: String(ACTIVITY_ITEMS.length), render: () => <ActivityPanel /> },
+] as const;
+
+function SupportingTabs() {
+  const [active, setActive] = useState<(typeof SUPPORTING_TABS)[number]["key"]>("Details");
+  const current = SUPPORTING_TABS.find((tab) => tab.key === active) ?? SUPPORTING_TABS[0];
+
   return (
-    <div className="h-full min-h-0">
-      {activeTab === "Details" && <DetailPanel />}
-      {activeTab === "Comments" && <CommentsPanel />}
-      {activeTab === "Activity" && <ActivityPanel />}
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="shrink-0 border-b border-[#ecebea] px-5">
+        <div className="flex items-center gap-5" role="tablist" aria-label="Supporting details">
+          {SUPPORTING_TABS.map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              role="tab"
+              aria-selected={tab.key === active}
+              onClick={() => setActive(tab.key)}
+              className={cn(
+                "flex h-12 items-center gap-1.5 border-b-2 px-0.5 text-[14px] font-medium transition focus-visible:outline-none",
+                tab.key === active
+                  ? "border-[var(--accent)] text-[var(--accent-strong)]"
+                  : "border-transparent text-[var(--text-label)] hover:text-[var(--text-primary)]",
+              )}
+            >
+              {tab.key}
+              {tab.meta ? <span className="text-[12px] font-normal text-[var(--text-muted)]">{tab.meta}</span> : null}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto">{current.render()}</div>
     </div>
   );
 }
@@ -335,25 +373,42 @@ function StageContent({ isComplete, stage }: { isComplete: boolean; stage: Stage
   const bespoke = !isComplete ? BESPOKE_STAGE_FORMS[stage.name] : undefined;
 
   return (
-    <section className="no-scrollbar min-w-0 overflow-y-auto px-7 pb-6" aria-label={`${stage.name} stage content`}>
-      <div className="max-w-5xl pt-2">
-        {isComplete ? (
-          <StageReadOnlyRows rows={stage.rows} />
-        ) : bespoke ? (
-          bespoke()
-        ) : (
-          <StageEditableForm key={stage.name} stage={stage} />
-        )}
-      </div>
+    <section className="no-scrollbar min-h-0 min-w-0 flex-1 overflow-y-auto pb-6 pt-4" aria-label={`${stage.name} stage content`}>
+      {isComplete ? <StageReadOnlyRows rows={stage.rows} /> : bespoke ? bespoke() : null}
     </section>
+  );
+}
+
+// Editable stages own their identity + toolbar; complete / bespoke stages use
+// the plain header + content pair.
+function StageWorkspace({
+  stage,
+  currentUser,
+  isComplete,
+}: {
+  stage: StageItem;
+  currentUser: string;
+  isComplete: boolean;
+}) {
+  const useEditable = !isComplete && !BESPOKE_STAGE_FORMS[stage.name];
+
+  if (useEditable) {
+    return <EditableStage key={stage.name} stage={stage} currentUser={currentUser} />;
+  }
+
+  return (
+    <>
+      <StageColumnHeader stage={stage} currentUser={currentUser} />
+      <StageContent isComplete={isComplete} stage={stage} />
+    </>
   );
 }
 
 function StageReadOnlyRows({ rows }: { rows: StageItem["rows"] }) {
   return (
-    <dl className="divide-y divide-[#ecebea] border-b border-[#ecebea]">
+    <dl className="divide-y divide-[#f0efed] border-b border-[#f0efed]">
       {rows.map(([label, value]) => (
-        <div key={label} className="grid grid-cols-[190px_minmax(0,1fr)] gap-7 px-0 py-4">
+        <div key={label} className="grid grid-cols-[190px_minmax(0,1fr)] gap-7 px-7 py-4">
           <dt className="text-[14px] font-normal leading-5 text-[var(--text-label)]">{label}</dt>
           <dd className="min-w-0 text-[15px] font-normal leading-6 text-[var(--text-primary)]">{value}</dd>
         </div>
@@ -413,7 +468,80 @@ function computeRiskTier(values: Record<string, string | string[]>) {
   return null;
 }
 
-function StageEditableForm({ stage }: { stage: StageItem }) {
+// Per-stage "read this first" guidance, ported from the reference prototype.
+const STAGE_GUIDANCE: Record<string, string> = {
+  Intake:
+    "A strong idea names one painful problem and one measurable outcome. Don't solve it yet — pitch it. We'll draft the rest from your one-liner.",
+  Screening:
+    "These answers set your governance tier. We drafted the factual ones from your intake — confirm or correct them. The judgment calls are yours; the AI won't make them for you.",
+  Prioritize:
+    "Read the pack, score it against your function's portfolio, and make one call. Your rationale travels with the record to Triage.",
+  Triage:
+    "You're setting the governance depth for this use case. The suggested tier is computed from the R1 profile — accept it or override with a reason. Your call here shapes every stage that follows.",
+  Assess:
+    "Your workspace shows only the modules Triage scoped. Findings are pre-drafted from the record — your job is professional confirmation, correction, and conditions.",
+  "Business case":
+    "The case is assembled from the record. Confirm the numbers, lock the benefit — it will be reported against for the life of this use case — and make your recommendation.",
+  GTAC:
+    "Everything the board needs is on this page. Record the outcome, the funding, and acknowledge each condition explicitly — conditions become binding on delivery.",
+  Plan: "You're converting an approval into commitments. Metrics you lock here are what Monitoring will hold this use case to.",
+  Design:
+    "Your constraints are already on the page — the R2 conditions and grounding controls are non-negotiable. Compose the blueprint around them.",
+  Build:
+    "The eval board reports against the metrics locked at Planning. Anything amber must be explicitly accepted or blocked — silence is not an option.",
+  Deploy: "Nothing ships until every guardrail from Design is verified in the build. Then — one call.",
+  Adopt: "Live adoption against the target locked at Planning. Your job: waves, interventions, and an honest risk read.",
+  Monitor: "Every locked target you've seen since Intake lands here. Report honestly — variance with a narrative beats green theater.",
+  Improve: "This is the idea you pitched. Here's what it delivered. Decide what it becomes next.",
+};
+
+function StageGuidance({
+  fields,
+  values,
+  guidance,
+}: {
+  fields: FieldSpec[];
+  values: Record<string, string | string[]>;
+  guidance?: string;
+}) {
+  const keyFields = fields.slice(0, 4);
+
+  return (
+    <div className="mb-6 grid gap-x-10 gap-y-4 rounded-[10px] border border-[#ecebea] bg-[var(--surface-muted)] px-5 py-4 md:grid-cols-[200px_minmax(0,1fr)]">
+      <div>
+        <div className="mb-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">Key fields</div>
+        <ul className="space-y-2">
+          {keyFields.map((field) => {
+            const done = isFilled(values[field.label]);
+            return (
+              <li key={field.label} className="flex items-center gap-2.5 text-[12.5px]">
+                <span
+                  className={cn(
+                    "grid h-[15px] w-[15px] shrink-0 place-items-center rounded-full text-white",
+                    done ? "bg-[#15803d]" : "border-[1.5px] border-[#d6d3d1]",
+                  )}
+                >
+                  {done ? <Check size={9} strokeWidth={4} /> : null}
+                </span>
+                <span className={done ? "text-[var(--text-body)]" : "text-[var(--text-muted)]"}>{field.label}</span>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+      {guidance ? (
+        <div className="max-w-[560px]">
+          <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">Guidance for success</div>
+          <p className="font-display text-[15px] leading-[1.55] text-[var(--text-body)]">{guidance}</p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+// Editable generic stage: identity + toolbar (suggest / save / progress) merged
+// into a single header bar, then the label-left field rows below.
+function EditableStage({ stage, currentUser }: { stage: StageItem; currentUser: string }) {
   const fields = useMemo(() => stage.rows.map(([label, value]) => buildFieldSpec(label, value)), [stage]);
   const [values, setValues] = useState<Record<string, string | string[]>>(() =>
     Object.fromEntries(fields.map((field) => [field.label, field.kind === "chips" ? [] : ""])),
@@ -422,6 +550,7 @@ function StageEditableForm({ stage }: { stage: StageItem }) {
 
   const doneCount = fields.filter((field) => isFilled(values[field.label])).length;
   const riskTier = stage.name === "Assess" ? computeRiskTier(values) : null;
+  const ownedByMe = stage.owner === currentUser;
 
   function setField(label: string, value: string | string[]) {
     setValues((current) => ({ ...current, [label]: value }));
@@ -432,45 +561,61 @@ function StageEditableForm({ stage }: { stage: StageItem }) {
   }
 
   return (
-    <div>
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+    <>
+      <div className="flex min-h-[52px] shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-[#ecebea] px-7 py-2">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <h2 className="truncate text-[16px] font-medium leading-6 text-[var(--text-primary)]">{stage.name}</h2>
+          <span className="h-3.5 w-px bg-[#e7e5e4]" aria-hidden />
+          <PersonAvatar name={stage.owner} size={20} highlight={ownedByMe} />
+          <span className="truncate text-[12px] text-[var(--text-label)]">{stage.owner}</span>
+          {ownedByMe ? (
+            <span className="rounded-full bg-[var(--accent-soft)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--accent-strong)]">You</span>
+          ) : null}
+        </div>
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={suggestAll}
-            className="inline-flex h-8 items-center gap-1.5 rounded-full border border-[var(--accent-border)] bg-[var(--accent-soft)] px-3 text-[12px] font-medium text-[var(--accent-strong)] transition hover:bg-[#daedf3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
-          >
-            <Sparkles size={13} />
-            Suggest all fields
-          </button>
           {riskTier ? (
             <span
-              className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-semibold"
+              className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold"
               style={{ color: riskTier.fg, background: riskTier.bg, borderColor: riskTier.border }}
             >
-              <ShieldCheck size={12} />
+              <ShieldCheck size={11} />
               {riskTier.tier} tier
             </span>
           ) : null}
-        </div>
-        <div className="flex items-center gap-4">
+          <button
+            type="button"
+            onClick={suggestAll}
+            className="inline-flex h-7 items-center gap-1.5 rounded-full border border-[var(--accent-border)] bg-[var(--accent-soft)] px-2.5 text-[12px] font-medium text-[var(--accent-strong)] transition hover:bg-[#daedf3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
+          >
+            <Sparkles size={12} />
+            Suggest all
+          </button>
           <SaveStatus state={saveState} />
-          <CompletionMeter done={doneCount} total={fields.length} className="w-[170px]" />
+          <CompletionMeter done={doneCount} total={fields.length} className="w-[150px]" />
         </div>
       </div>
 
-      <div className="space-y-5">
-        {fields.map((field) => (
-          <StageField
-            key={field.label}
-            spec={field}
-            value={values[field.label]}
-            onChange={(value) => setField(field.label, value)}
-            onSuggest={() => setField(field.label, field.suggestion)}
-          />
-        ))}
-      </div>
-    </div>
+      <section className="no-scrollbar min-h-0 flex-1 overflow-y-auto pb-6 pt-4" aria-label={`${stage.name} stage form`}>
+        <div className="px-7">
+          <StageGuidance fields={fields} values={values} guidance={STAGE_GUIDANCE[stage.name]} />
+        </div>
+        <div className="pt-1">
+          {fields.map((field) => (
+            <div key={field.label} className="grid grid-cols-[176px_minmax(0,1fr)] gap-6 px-7 py-3">
+              <label className="pt-2 text-[12px] font-medium leading-5 text-[var(--text-label)]">{field.label}</label>
+              <div className="min-w-0">
+                <StageField
+                  spec={field}
+                  value={values[field.label]}
+                  onChange={(value) => setField(field.label, value)}
+                  onSuggest={() => setField(field.label, field.suggestion)}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    </>
   );
 }
 
@@ -488,6 +633,7 @@ function StageField({
   if (spec.kind === "segmented") {
     return (
       <Segmented
+        hideHeader
         label={spec.label}
         options={spec.options ?? []}
         value={typeof value === "string" ? value : ""}
@@ -499,6 +645,7 @@ function StageField({
   if (spec.kind === "chips") {
     return (
       <ChipMultiSelect
+        hideHeader
         label={spec.label}
         options={spec.options ?? []}
         values={Array.isArray(value) ? value : []}
@@ -510,6 +657,7 @@ function StageField({
   if (spec.kind === "long") {
     return (
       <SmartTextarea
+        hideHeader
         label={spec.label}
         maxLength={600}
         value={typeof value === "string" ? value : ""}
@@ -521,6 +669,7 @@ function StageField({
 
   return (
     <SmartText
+      hideHeader
       label={spec.label}
       value={typeof value === "string" ? value : ""}
       onChange={onChange}
@@ -538,10 +687,10 @@ const SUGGESTED_SQUAD = [
 ];
 
 const PLAN_MILESTONES = [
-  { name: "Design complete", date: "15 Jul" },
-  { name: "Build & eval", date: "30 Aug" },
-  { name: "Pre-deploy review (R4)", date: "12 Sep" },
-  { name: "Go-live", date: "30 Sep" },
+  { name: "Design complete", date: "2026-07-15" },
+  { name: "Build & eval", date: "2026-08-30" },
+  { name: "Pre-deploy review (R4)", date: "2026-09-12" },
+  { name: "Go-live", date: "2026-09-30" },
 ];
 
 const PLAN_METRICS = [
@@ -550,53 +699,52 @@ const PLAN_METRICS = [
   "AP-team adoption ≥80% by go-live +60d",
 ];
 
-function initials(name: string) {
-  return name
-    .split(" ")
-    .map((word) => word[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-}
-
+// Plan is rendered in the same label-left row layout as the generic stage
+// forms, so its bespoke widgets (squad, milestones, metrics) read as one system.
 function PlanStageForm() {
   return (
     <div>
-      <MandateBanner />
-      <SectionLabel index="01" title="Squad" hint="AI-suggested trio · ≥ 3 required" />
-      <SquadPicker />
-      <SectionLabel index="02" title="Milestones" hint="AI-drafted · dates editable" />
-      <MilestoneRail />
-      <SectionLabel index="03" title="Success metrics" hint="lock ≥ 2 — Monitoring reports against these" />
-      <LockableMetrics />
-      <SectionLabel index="04" title="Delivery notes" />
-      <textarea
-        aria-label="Delivery notes"
-        rows={3}
-        placeholder="Optional…"
-        className="block w-full resize-none rounded-[8px] border border-[#e7e5e4] bg-white px-3 py-2.5 text-[15px] leading-6 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent-ring)] focus:ring-2 focus:ring-[var(--accent-ring)]"
-      />
+      <div className="px-7">
+        <MandateBanner />
+      </div>
+      <div className="mt-5 divide-y divide-[#f0efed] border-t border-[#f0efed]">
+        <PlanRow label="Squad" hint="AI-suggested trio · ≥ 3 required">
+          <SquadPicker />
+        </PlanRow>
+        <PlanRow label="Milestones" hint="AI-drafted · dates editable">
+          <MilestoneRail />
+        </PlanRow>
+        <PlanRow label="Success metrics" hint="Lock ≥ 2 — Monitoring reports against these">
+          <LockableMetrics />
+        </PlanRow>
+        <PlanRow label="Delivery notes">
+          <textarea
+            aria-label="Delivery notes"
+            rows={3}
+            placeholder="Optional…"
+            className="block w-full resize-none rounded-[8px] border border-[#e7e5e4] bg-white px-3 py-2.5 text-[13px] leading-5 text-[var(--text-primary)] outline-none transition focus:border-[#8fc0cf] focus:ring-2 focus:ring-[var(--accent-soft)]"
+          />
+        </PlanRow>
+      </div>
     </div>
   );
 }
 
-function SectionLabel({ index, title, hint }: { index: string; title: string; hint?: string }) {
+function PlanRow({ label, hint, children }: { label: string; hint?: string; children: ReactElement }) {
   return (
-    <div className="mb-3 mt-7 flex items-baseline gap-3">
-      <span className="grid h-6 w-6 shrink-0 place-items-center rounded-[6px] border border-[var(--accent-border)] bg-[var(--accent-soft)] text-[11px] font-semibold tabular-nums text-[var(--accent-strong)]">
-        {index}
-      </span>
-      <div className="min-w-0">
-        <h3 className="text-[15px] font-medium leading-5 text-[var(--text-primary)]">{title}</h3>
-        {hint ? <p className="mt-0.5 text-[12px] leading-4 text-[var(--text-muted)]">{hint}</p> : null}
+    <div className="grid grid-cols-[180px_minmax(0,1fr)] gap-6 px-7 py-4">
+      <div className="pt-1">
+        <div className="text-[13px] font-medium leading-5 text-[var(--text-label)]">{label}</div>
+        {hint ? <div className="mt-0.5 text-[11px] leading-4 text-[var(--text-muted)]">{hint}</div> : null}
       </div>
+      <div className="min-w-0">{children}</div>
     </div>
   );
 }
 
 function MandateBanner() {
   return (
-    <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-[10px] border border-[#ecebea] bg-[#f9f8f6] px-4 py-3.5">
+    <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-[10px] border border-[#ecebea] bg-[var(--surface-muted)] px-4 py-3.5">
       <div>
         <div className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">Funded</div>
         <div className="font-display text-[20px] font-medium leading-6 text-[var(--text-primary)]">GBP 180k approved</div>
@@ -681,10 +829,11 @@ function MilestoneRail() {
           </span>
           <span className="min-w-0 flex-1 text-[14px] font-medium text-[var(--text-primary)]">{milestone.name}</span>
           <input
+            type="date"
             aria-label={`${milestone.name} date`}
             value={dates[index]}
             onChange={(event) => setDates((current) => current.map((date, j) => (j === index ? event.target.value : date)))}
-            className="h-8 w-28 rounded-[6px] border border-[#e7e5e4] bg-white px-2.5 text-right text-[13px] font-medium text-[var(--text-primary)] outline-none transition focus:border-[var(--accent-ring)] focus:ring-2 focus:ring-[var(--accent-ring)]"
+            className="h-8 w-[150px] shrink-0 rounded-[6px] border border-[#e7e5e4] bg-white px-2.5 text-[13px] font-medium text-[var(--text-primary)] outline-none transition focus:border-[#8fc0cf] focus:ring-2 focus:ring-[var(--accent-soft)]"
           />
         </div>
       ))}
@@ -763,8 +912,8 @@ function listItems(value: string) {
 
 function DetailPanel() {
   return (
-    <div className="no-scrollbar h-full overflow-y-auto pb-5">
-      <dl className="divide-y divide-[#ecebea] border-b border-[#ecebea]">
+    <div className="pb-1">
+      <dl className="divide-y divide-[#ecebea]">
         {DETAIL_ITEMS.map(([label, value]) => (
           <div key={label} className="grid grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] gap-3 px-5 py-3.5">
             <dt className="text-[13px] font-normal leading-5 text-[var(--text-label)]">{label}</dt>
@@ -778,19 +927,17 @@ function DetailPanel() {
 
 function CommentsPanel() {
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pb-5">
-        <div className="divide-y divide-[#ecebea] border-b border-[#ecebea]">
-          {COMMENT_ITEMS.map((comment) => (
-            <article key={`${comment.author}-${comment.date}`} className="px-5 py-4">
-              <div className="flex min-w-0 items-start justify-between gap-3">
-                <h3 className="min-w-0 text-[14px] font-medium leading-5 text-[var(--text-primary)]">{comment.author}</h3>
-                <time className="shrink-0 text-[13px] font-normal leading-5 text-[var(--text-label)]">{comment.date}</time>
-              </div>
-              <p className="mt-1.5 text-[13px] font-normal leading-5 text-[var(--text-body)]">{comment.body}</p>
-            </article>
-          ))}
-        </div>
+    <div>
+      <div className="divide-y divide-[#ecebea]">
+        {COMMENT_ITEMS.map((comment) => (
+          <article key={`${comment.author}-${comment.date}`} className="px-5 py-4">
+            <div className="flex min-w-0 items-start justify-between gap-3">
+              <h3 className="min-w-0 text-[14px] font-medium leading-5 text-[var(--text-primary)]">{comment.author}</h3>
+              <time className="shrink-0 text-[13px] font-normal leading-5 text-[var(--text-label)]">{comment.date}</time>
+            </div>
+            <p className="mt-1.5 text-[13px] font-normal leading-5 text-[var(--text-body)]">{comment.body}</p>
+          </article>
+        ))}
       </div>
 
       <div className="border-t border-[#ecebea] px-5 py-4">
@@ -815,8 +962,8 @@ function CommentsPanel() {
 
 function ActivityPanel() {
   return (
-    <div className="no-scrollbar h-full overflow-y-auto pb-5">
-      <ol className="divide-y divide-[#ecebea] border-b border-[#ecebea]">
+    <div className="pb-1">
+      <ol className="divide-y divide-[#ecebea]">
         {ACTIVITY_ITEMS.map((activity) => {
           const Icon = activity.icon;
 
@@ -837,33 +984,33 @@ function ActivityPanel() {
   );
 }
 
-function RecordHeader() {
+function RecordHeader({ currentUser, onUserChange }: { currentUser: string; onUserChange: (name: string) => void }) {
   const metadata = [
     ["Use Case ID", USE_CASE.id],
     ["Use Case Owner", text(values.businessSponsor)],
   ];
 
   return (
-    <header className="z-30 shrink-0 bg-white px-7 py-4">
-      <div className="flex flex-wrap items-end justify-between gap-8">
-        <div className="min-w-0">
-          <div className="flex items-center gap-3">
-            <Link
-              href="/"
-              className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-[8px] pr-2 text-[13px] font-medium text-[var(--text-label)] transition hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
-            >
-              <ArrowLeft size={15} />
-              Back to home
-            </Link>
-          </div>
-          <h1 className="mt-1 font-display text-[28px] leading-tight">{USE_CASE.name}</h1>
-        </div>
+    <header className="z-30 shrink-0 bg-white px-7 pb-5 pt-5">
+      <div className="mb-5 flex items-center justify-between gap-4">
+        <Link
+          href="/"
+          className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[8px] pr-2 text-[13px] font-medium text-[var(--text-label)] transition hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
+        >
+          <ArrowLeft size={15} />
+          Back to home
+        </Link>
+        <ProfileSwitcher currentUser={currentUser} onUserChange={onUserChange} />
+      </div>
 
-        <dl className="flex shrink-0 flex-wrap items-end justify-end gap-x-10 gap-y-3 text-right">
+      <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
+        <h1 className="min-w-0 font-display text-[30px] leading-tight">{USE_CASE.name}</h1>
+
+        <dl className="flex shrink-0 flex-wrap items-end justify-end gap-x-12 gap-y-3 text-right">
           {metadata.map(([label, value]) => (
             <div key={label} className="min-w-[92px]">
               <dt className="text-[11px] font-medium leading-4 text-[var(--text-muted)]">{label}</dt>
-              <dd className="mt-1 truncate text-[14px] font-medium leading-5 text-[var(--text-primary)]">{value}</dd>
+              <dd className="mt-1.5 truncate text-[14px] font-medium leading-5 text-[var(--text-primary)]">{value}</dd>
             </div>
           ))}
         </dl>
@@ -875,11 +1022,13 @@ function RecordHeader() {
 function StagePath({
   activeIndex = defaultStageIndex,
   completedIndexes = [],
+  isCurrentComplete = false,
   onMarkComplete,
   onStageChange,
 }: {
   activeIndex?: number;
   completedIndexes?: number[];
+  isCurrentComplete?: boolean;
   onMarkComplete?: () => void;
   onStageChange?: (index: number) => void;
 }) {
@@ -887,65 +1036,71 @@ function StagePath({
 
   return (
     <section className="shrink-0 bg-white px-7 py-3">
-      <div className="flex items-center">
-        <div className="relative -ml-7 min-w-0 flex-1">
-          <div className="no-scrollbar min-w-0 overflow-x-auto pl-7 pr-12">
-            <ol className="flex min-w-max items-center">
-              {STAGES.map((stage, index) => {
-                const isCompleted = completedIndexes.includes(index);
-                const isActive = index === activeIndex;
-                const isPending = !isActive && !isCompleted;
-                const isCollapsed = isCompleted && !isActive;
-                const isFirst = index === 0;
-                const isLast = index === STAGES.length - 1;
-                const clipPath = "polygon(0 0, calc(100% - 18px) 0, 100% 50%, calc(100% - 18px) 100%, 0 100%, 18px 50%)";
-                const firstClipPath = "polygon(0 0, calc(100% - 18px) 0, 100% 50%, calc(100% - 18px) 100%, 0 100%)";
-                const lastClipPath = "polygon(0 0, 100% 0, 100% 100%, 0 100%, 18px 50%)";
+      <div className="flex items-center gap-2">
+        <ol className="-ml-7 flex min-w-0 flex-1 items-center overflow-hidden pl-7">
+          {STAGES.map((stage, index) => {
+            const isCompleted = completedIndexes.includes(index);
+            const isActive = index === activeIndex;
+            const isPending = !isActive && !isCompleted;
+            const isCollapsed = isCompleted && !isActive;
+            const isFirst = index === 0;
+            const isLast = index === STAGES.length - 1;
+            const clipPath = "polygon(0 0, calc(100% - 13px) 0, 100% 50%, calc(100% - 13px) 100%, 0 100%, 13px 50%)";
+            const firstClipPath = "polygon(0 0, calc(100% - 13px) 0, 100% 50%, calc(100% - 13px) 100%, 0 100%)";
+            const lastClipPath = "polygon(0 0, 100% 0, 100% 100%, 0 100%, 13px 50%)";
 
-                return (
-                  <li key={stage.name} className={cn("relative flex", index > 0 && "-ml-3")}>
-                    <button
-                      type="button"
-                      onClick={() => onStageChange?.(index)}
-                      aria-label={isCollapsed ? stage.name : undefined}
-                      aria-current={isActive ? "step" : undefined}
-                      title={stage.name}
-                      style={{ clipPath: isFirst ? firstClipPath : isLast ? lastClipPath : clipPath }}
-                      className={cn(
-                        "group relative flex h-9 items-center justify-center gap-2 whitespace-nowrap text-[13px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:ring-offset-2",
-                        isCollapsed ? (isFirst ? "w-[62px] rounded-l-[18px] pl-4 pr-6" : "w-[62px] px-6") : isFirst ? "rounded-l-[18px] py-0 pl-4 pr-7" : "px-7",
-                        isLast && "rounded-r-[18px]",
-                        isCompleted && !isActive && "bg-[var(--stage-past)] text-white hover:bg-[var(--stage-past-hover)]",
-                        isCompleted && isActive && "bg-[var(--stage-past-active)] text-white hover:bg-[var(--stage-past-active-hover)]",
-                        isActive && !isCompleted && "bg-[var(--stage-active)] text-white hover:bg-[var(--stage-active-hover)]",
-                        isPending && "bg-[var(--stage-future)] text-[var(--stage-future-text)] hover:bg-[var(--stage-future-hover)]",
-                      )}
-                    >
-                      {isCompleted && <Check size={15} strokeWidth={3} />}
-                      <span className={cn("whitespace-nowrap", isCollapsed && "sr-only")}>{stage.name}</span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ol>
-          </div>
-          <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-px bg-[#d6d3d1] shadow-[-10px_0_18px_rgba(28,25,23,0.14)]" />
-        </div>
+            return (
+              <li key={stage.name} className={cn("relative flex shrink-0", index > 0 && "-ml-3")}>
+                <button
+                  type="button"
+                  onClick={() => onStageChange?.(index)}
+                  aria-label={isCollapsed ? `${stage.name} · ${stage.owner}` : undefined}
+                  aria-current={isActive ? "step" : undefined}
+                  title={`${stage.name} · ${stage.owner}`}
+                  style={{ clipPath: isFirst ? firstClipPath : isLast ? lastClipPath : clipPath }}
+                  className={cn(
+                    "group relative flex h-10 items-center justify-center gap-1.5 whitespace-nowrap text-[12px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:ring-offset-2",
+                    isCollapsed
+                      ? isFirst
+                        ? "w-[52px] rounded-l-[20px] pl-4 pr-5"
+                        : "w-[54px] px-5"
+                      : isFirst
+                        ? "rounded-l-[20px] pl-5 pr-6"
+                        : "px-6",
+                    isLast && "rounded-r-[20px]",
+                    isCompleted && !isActive && "bg-[var(--stage-past)] text-white hover:bg-[var(--stage-past-hover)]",
+                    isCompleted && isActive && "bg-[var(--stage-past-active)] text-white hover:bg-[var(--stage-past-active-hover)]",
+                    isActive && !isCompleted && "bg-[var(--stage-active)] text-white hover:bg-[var(--stage-active-hover)]",
+                    isPending && "bg-[var(--stage-future)] text-[var(--stage-future-text)] hover:bg-[var(--stage-future-hover)]",
+                  )}
+                >
+                  {isCompleted && <Check size={13} strokeWidth={3} className="shrink-0" />}
+                  <span className={cn("whitespace-nowrap", isCollapsed && "sr-only")}>{stage.name}</span>
+                </button>
+              </li>
+            );
+          })}
+        </ol>
 
-        <div className="flex shrink-0 items-center gap-2 pl-2">
+        <div className="flex shrink-0 items-center gap-1.5 pl-3">
           <button
             type="button"
             onClick={onMarkComplete}
-            className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[var(--stage-action)] px-4 text-[13px] font-semibold text-white shadow-[var(--shadow-sm)] transition hover:bg-[var(--stage-action-hover)]"
+            className={cn(
+              "inline-flex h-10 items-center gap-1.5 rounded-[8px] px-3.5 text-[13px] font-semibold transition",
+              isCurrentComplete
+                ? "border border-[var(--border-input)] bg-white text-[var(--text-body)] hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)] hover:text-[var(--text-primary)]"
+                : "bg-[var(--stage-action)] text-white shadow-[var(--shadow-sm)] hover:bg-[var(--stage-action-hover)]",
+            )}
           >
-            <Check size={15} strokeWidth={3} />
-            Mark Stage as Complete
+            {isCurrentComplete ? <RotateCcw size={15} /> : <Check size={15} strokeWidth={3} />}
+            {isCurrentComplete ? "Mark Incomplete" : "Mark Complete"}
           </button>
           <div className="relative">
             <button
               type="button"
               onClick={() => setIsActionMenuOpen((isOpen) => !isOpen)}
-              className="grid h-9 w-9 place-items-center rounded-[8px] border border-[var(--border-input)] bg-white text-[var(--text-muted)] transition hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)] hover:text-[var(--text-primary)]"
+              className="grid h-10 w-10 place-items-center rounded-[8px] border border-[var(--border-default)] bg-white text-[var(--text-muted)] transition hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)] hover:text-[var(--text-primary)]"
               aria-expanded={isActionMenuOpen}
               aria-haspopup="menu"
               aria-label="More stage actions"
@@ -974,32 +1129,6 @@ function StageActionMenu({ onSelect }: { onSelect: () => void }) {
           role="menuitem"
         >
           {label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function TabBar({ active, onChange, tabs }: {
-  active: string;
-  onChange?: (tab: string) => void;
-  tabs: readonly string[];
-}) {
-  return (
-    <div className="flex min-w-0 items-center gap-5 overflow-x-auto">
-      {tabs.map((tab) => (
-        <button
-          key={tab}
-          type="button"
-          onClick={() => onChange?.(tab)}
-          className={cn(
-            "h-12 shrink-0 border-b-2 px-0.5 text-[15px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:ring-offset-2",
-            tab === active
-              ? "border-[var(--accent)] text-[var(--accent-strong)]"
-              : "border-transparent text-[var(--text-label)] hover:border-[#d6d3d1] hover:text-[var(--text-primary)]",
-          )}
-        >
-          {tab}
         </button>
       ))}
     </div>

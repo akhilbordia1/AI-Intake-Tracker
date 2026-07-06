@@ -142,6 +142,12 @@ button {
   cursor: pointer;
 }
 
+/* Native date picker: tint the calendar highlight / Today to the brand accent */
+input[type="date"] {
+  accent-color: var(--accent);
+  color-scheme: light;
+}
+
 ::selection {
   background: #e7e5e4;
   color: var(--text-primary);

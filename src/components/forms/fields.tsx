@@ -22,17 +22,7 @@ function borderClass(error?: string) {
 
 // ── Field chrome ──────────────────────────────────────────────────────────
 
-export function FieldHeader({
-  label,
-  required,
-  hint,
-  onSuggest,
-}: {
-  label: string;
-  required?: boolean;
-  hint?: string;
-  onSuggest?: () => void;
-}) {
+export function FieldHeader({ label, required, hint }: { label: string; required?: boolean; hint?: string }) {
   return (
     <div className="mb-1.5 flex items-center gap-2">
       <span className="text-[12px] font-medium text-[var(--text-primary)]">
@@ -48,19 +38,25 @@ export function FieldHeader({
           <HelpCircle size={13} />
         </span>
       ) : null}
-      <span className="min-w-0 flex-1" />
-      {onSuggest ? (
-        <button
-          type="button"
-          onClick={onSuggest}
-          title="Suggest a draft"
-          aria-label="Suggest a draft"
-          className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[var(--text-muted)] transition hover:bg-[#e8f4f8] hover:text-[#0c5f7a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e8f4f8]"
-        >
-          <Sparkles size={13} />
-        </button>
-      ) : null}
     </div>
+  );
+}
+
+// AI-suggest affordance that lives inside a text field, pinned to the right.
+function SuggestButton({ onClick, className }: { onClick: () => void; className?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title="Suggest a draft"
+      aria-label="Suggest a draft"
+      className={cn(
+        "absolute inline-flex h-6 w-6 items-center justify-center rounded-full text-[var(--text-muted)] transition hover:bg-[#e8f4f8] hover:text-[#0c5f7a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e8f4f8]",
+        className,
+      )}
+    >
+      <Sparkles size={13} />
+    </button>
   );
 }
 
@@ -75,6 +71,9 @@ type FieldChrome = {
   hint?: string;
   error?: string;
   onSuggest?: () => void;
+  // When true the field renders bare (no top label) — the caller supplies the
+  // label externally, e.g. in a left/right row layout.
+  hideHeader?: boolean;
 };
 
 // ── Text ────────────────────────────────────────────────────────────────
@@ -87,6 +86,7 @@ export function SmartText({
   required,
   hint,
   error,
+  hideHeader,
   onSuggest,
 }: FieldChrome & {
   value: string;
@@ -95,14 +95,17 @@ export function SmartText({
 }) {
   return (
     <div className="min-w-0">
-      <FieldHeader label={label} required={required} hint={hint} onSuggest={onSuggest} />
-      <input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        aria-invalid={Boolean(error)}
-        className={cn(BASE_INPUT, borderClass(error))}
-      />
+      {hideHeader ? null : <FieldHeader label={label} required={required} hint={hint} />}
+      <div className="relative">
+        <input
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+          aria-invalid={Boolean(error)}
+          className={cn(BASE_INPUT, borderClass(error), onSuggest && "pr-9")}
+        />
+        {onSuggest ? <SuggestButton onClick={onSuggest} className="right-1.5 top-1/2 -translate-y-1/2" /> : null}
+      </div>
       <FieldError error={error} />
     </div>
   );
@@ -116,6 +119,7 @@ export function SmartTextarea({
   required,
   hint,
   error,
+  hideHeader,
   onSuggest,
   rows = 3,
   maxLength,
@@ -128,20 +132,24 @@ export function SmartTextarea({
 }) {
   return (
     <div className="min-w-0">
-      <FieldHeader label={label} required={required} hint={hint} onSuggest={onSuggest} />
-      <textarea
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        rows={rows}
-        maxLength={maxLength}
-        aria-invalid={Boolean(error)}
-        className={cn(
-          "w-full resize-none rounded-[8px] border bg-white px-3 py-2.5 text-[13px] leading-5 text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)]",
-          FOCUS_RING,
-          borderClass(error),
-        )}
-      />
+      {hideHeader ? null : <FieldHeader label={label} required={required} hint={hint} />}
+      <div className="relative">
+        <textarea
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+          rows={rows}
+          maxLength={maxLength}
+          aria-invalid={Boolean(error)}
+          className={cn(
+            "w-full resize-none rounded-[8px] border bg-white py-2.5 pl-3 text-[13px] leading-5 text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)]",
+            FOCUS_RING,
+            borderClass(error),
+            onSuggest ? "pr-10" : "pr-3",
+          )}
+        />
+        {onSuggest ? <SuggestButton onClick={onSuggest} className="right-2 top-2" /> : null}
+      </div>
       <div className="mt-1 flex items-start justify-between gap-3">
         <FieldError error={error} />
         <span className="ml-auto shrink-0 text-[11px] tabular-nums text-[var(--text-muted)]">
@@ -164,6 +172,7 @@ export function SearchableSelect({
   required,
   hint,
   error,
+  hideHeader,
 }: FieldChrome & {
   value: string;
   options: string[];
@@ -182,7 +191,7 @@ export function SearchableSelect({
 
   return (
     <div className="min-w-0">
-      <FieldHeader label={label} required={required} hint={hint} />
+      {hideHeader ? null : <FieldHeader label={label} required={required} hint={hint} />}
       <div ref={menuRef} className="relative">
         <button
           type="button"
@@ -249,6 +258,7 @@ export function Segmented({
   required,
   hint,
   error,
+  hideHeader,
 }: FieldChrome & {
   value: string;
   options: string[];
@@ -256,7 +266,7 @@ export function Segmented({
 }) {
   return (
     <div className="min-w-0">
-      <FieldHeader label={label} required={required} hint={hint} />
+      {hideHeader ? null : <FieldHeader label={label} required={required} hint={hint} />}
       <div className="flex flex-wrap gap-2" role="group" aria-label={label}>
         {options.map((option) => {
           const selected = value === option;
@@ -293,6 +303,7 @@ export function ChipMultiSelect({
   required,
   hint,
   error,
+  hideHeader,
 }: FieldChrome & {
   values: string[];
   options: string[];
@@ -304,7 +315,7 @@ export function ChipMultiSelect({
 
   return (
     <div className="min-w-0">
-      <FieldHeader label={label} required={required} hint={hint} />
+      {hideHeader ? null : <FieldHeader label={label} required={required} hint={hint} />}
       <div className="flex flex-wrap gap-2">
         {options.map((option) => {
           const selected = values.includes(option);
@@ -345,7 +356,7 @@ export function CurrencyField({
   required,
   hint,
   error,
-  onSuggest,
+  hideHeader,
   placeholder,
 }: FieldChrome & {
   amount: string;
@@ -358,7 +369,7 @@ export function CurrencyField({
 }) {
   return (
     <div className="min-w-0">
-      <FieldHeader label={label} required={required} hint={hint} onSuggest={onSuggest} />
+      {hideHeader ? null : <FieldHeader label={label} required={required} hint={hint} />}
       <div className={cn("flex h-9 items-stretch overflow-hidden rounded-[8px] border bg-white transition focus-within:border-[#8fc0cf] focus-within:ring-2 focus-within:ring-[#e8f4f8]", borderClass(error))}>
         <select
           value={currency}
@@ -395,14 +406,14 @@ export function DatePicker({
   required,
   hint,
   error,
-  onSuggest,
+  hideHeader,
 }: FieldChrome & {
   value: string;
   onChange: (value: string) => void;
 }) {
   return (
     <div className="min-w-0">
-      <FieldHeader label={label} required={required} hint={hint} onSuggest={onSuggest} />
+      {hideHeader ? null : <FieldHeader label={label} required={required} hint={hint} />}
       <input
         type="date"
         value={value}

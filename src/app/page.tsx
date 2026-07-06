@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronDown, Columns3, Plus, Search, SlidersHorizontal, Table2 } from "lucide-react";
+import { ChevronDown, Columns3, Plus, Search, Table2 } from "lucide-react";
 import { useMemo, useRef, useState, type ReactNode } from "react";
 
+import { PersonAvatar, ProfileSwitcher } from "@/components/profile";
 import { useClickOutside } from "@/lib/use-click-outside";
 
 type ViewKey = "stage" | "people" | "priority" | "due";
@@ -227,15 +228,14 @@ export default function HomePage() {
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("all");
   const [attentionOnly, setAttentionOnly] = useState(false);
   const [search, setSearch] = useState("");
+  const [activeProfile, setActiveProfile] = useState(currentUser);
   const scopedUseCases = useMemo(() => filterUseCasesByScope(useCases, scopeFilter), [scopeFilter]);
   const attentionCount = useMemo(
     () => scopedUseCases.filter((card) => card.needsAttention).length,
     [scopedUseCases],
   );
   const filteredUseCases = useMemo(() => {
-    const visibleUseCases = attentionOnly
-      ? scopedUseCases.filter((card) => card.needsAttention)
-      : scopedUseCases;
+    const visibleUseCases = attentionOnly ? scopedUseCases.filter((card) => card.needsAttention) : scopedUseCases;
     const query = search.trim().toLowerCase();
     if (!query) return visibleUseCases;
 
@@ -272,13 +272,16 @@ export default function HomePage() {
             </h1>
           </div>
 
-          <Link
-            href="/intake"
-            className="inline-flex h-9 w-fit items-center gap-2 rounded-[8px] bg-[#0e7090] px-3.5 text-[13px] font-medium text-white shadow-[0_1px_3px_rgba(15,23,42,0.08)] transition hover:bg-[#0c5f7a]"
-          >
-            <Plus size={15} />
-            New Use Case
-          </Link>
+          <div className="flex w-fit items-center gap-3">
+            <ProfileSwitcher currentUser={activeProfile} onUserChange={setActiveProfile} />
+            <Link
+              href="/intake"
+              className="inline-flex h-9 w-fit items-center gap-2 rounded-[8px] bg-[#0e7090] px-3.5 text-[13px] font-medium text-white shadow-[0_1px_3px_rgba(15,23,42,0.08)] transition hover:bg-[#0c5f7a]"
+            >
+              <Plus size={15} />
+              New Use Case
+            </Link>
+          </div>
         </header>
 
         <Toolbar
@@ -375,13 +378,6 @@ function Toolbar({
           >
             {attentionCount}
           </span>
-        </button>
-        <button
-          type="button"
-          className="inline-flex h-8 items-center gap-2 rounded-[8px] border border-[#e7e5e4] bg-white px-3 text-[12px] font-medium text-[var(--text-body)] transition hover:border-[#8fc0cf] hover:bg-[#f4fafb] hover:text-[#0c5f7a]"
-        >
-          <SlidersHorizontal size={14} />
-          Filters
         </button>
       </div>
 
@@ -748,7 +744,15 @@ function KanbanColumn({ column }: { column: BoardColumn }) {
   );
 }
 
+const PRIORITY_BADGE: Record<UseCaseCard["priority"], string> = {
+  High: "bg-[#f7eaea] text-[#b32020]",
+  Medium: "bg-[#f6f0e6] text-[#a15c11]",
+  Low: "bg-[#eef4ee] text-[#15803d]",
+};
+
 function UseCaseBoardCard({ card }: { card: UseCaseCard }) {
+  const isFunded = card.dueGroup === "Funded";
+
   return (
     <Link
       href={card.href}
@@ -756,10 +760,20 @@ function UseCaseBoardCard({ card }: { card: UseCaseCard }) {
     >
       <div className="relative z-10 rounded-[8px] border border-[#e7e5e4] bg-white shadow-[0_1px_3px_rgba(15,23,42,0.05)] transition group-hover:border-[#8fc0cf] group-hover:bg-[#f4fafb]">
         <div className="px-3.5 py-3">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#0e7090]">
-            {card.id}
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#0e7090]">
+              {card.id}
+            </div>
+            <div className="flex shrink-0 items-center gap-1.5">
+              {isFunded ? (
+                <span className="rounded-full bg-[#eef4ee] px-2 py-0.5 text-[10px] font-semibold text-[#15803d]">Funded</span>
+              ) : null}
+              <span className={["rounded-full px-2 py-0.5 text-[10px] font-semibold", PRIORITY_BADGE[card.priority]].join(" ")}>
+                {card.priority}
+              </span>
+            </div>
           </div>
-          <h3 className="mt-1 text-[15px] font-semibold leading-5 text-[var(--text-primary)]">{card.title}</h3>
+          <h3 className="mt-1.5 text-[15px] font-semibold leading-5 text-[var(--text-primary)]">{card.title}</h3>
 
           <p className="mt-2 line-clamp-2 text-[12px] leading-5 text-[var(--text-body)]">{card.description}</p>
         </div>
@@ -768,13 +782,16 @@ function UseCaseBoardCard({ card }: { card: UseCaseCard }) {
             <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
               Stage owner
             </div>
-            <div className="mt-1 truncate text-[12px] font-medium text-[var(--text-primary)]">{formatStageOwner(card)}</div>
+            <div className="mt-1.5 flex items-center gap-1.5">
+              <PersonAvatar name={card.owner} size={18} />
+              <span className="truncate text-[12px] font-medium text-[var(--text-primary)]">{formatStageOwner(card)}</span>
+            </div>
           </div>
           <div className="min-w-0">
             <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
               Due
             </div>
-            <div className="mt-1 truncate text-[12px] font-medium text-[var(--text-primary)]">{card.due}</div>
+            <div className="mt-1.5 truncate text-[12px] font-medium text-[var(--text-primary)]">{card.due}</div>
           </div>
         </div>
       </div>
