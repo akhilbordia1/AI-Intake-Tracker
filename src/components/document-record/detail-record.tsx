@@ -401,16 +401,76 @@ function StageWorkspace({
   );
 }
 
+const PERSON_LABEL_RE = /(assessor|sponsor|owner|lead|created by)/i;
+const STATUS_LABEL_RE = /(decision|outcome|verdict|recommendation|tier|ready|sign-off|resolution|board|drift|risk$|impact$)/i;
+
+function statusTone(value: string) {
+  const v = value.toLowerCase();
+  if (/(block|reject|upheld|no-?go|blocked|fail|high|serious|critical)/.test(v)) return { fg: "#b32020", bg: "#f7eaea", border: "#e6c3c3" };
+  if (/(condition|watch|pending|partial|needs|revise|minor|standard|medium|reindex|re-index)/.test(v)) return { fg: "#a15c11", bg: "#f6f0e6", border: "#e6d4b8" };
+  if (/(go\b|approve|cleared|committed|continue|proceed|recommend|locked|full|resolved|ready|yes|confirmed|complete|low|spawned)/.test(v)) return { fg: "#15803d", bg: "#eef4ee", border: "#bfdcc7" };
+  return { fg: "var(--text-body)", bg: "var(--surface-muted)", border: "var(--border-default)" };
+}
+
+function ReadValue({ label, value }: { label: string; value: string }) {
+  const items = listItems(value);
+  const single = items.length === 1;
+  const short = value.length <= 30;
+
+  if (items.length > 1 && items.every((item) => item.length <= 32)) {
+    return (
+      <div className="flex flex-wrap gap-1.5">
+        {items.map((item) => (
+          <span
+            key={item}
+            className="rounded-full border border-[#e7e5e4] bg-[var(--surface-muted)] px-2.5 py-1 text-[12.5px] font-medium text-[var(--text-body)]"
+          >
+            {item}
+          </span>
+        ))}
+      </div>
+    );
+  }
+
+  if (single && short && PERSON_LABEL_RE.test(label) && /^[A-Z]/.test(value)) {
+    return (
+      <span className="inline-flex items-center gap-2">
+        <PersonAvatar name={value} size={22} />
+        <span className="text-[14px] font-medium text-[var(--text-primary)]">{value}</span>
+      </span>
+    );
+  }
+
+  if (single && short && STATUS_LABEL_RE.test(label)) {
+    const tone = statusTone(value);
+    return (
+      <span
+        className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12.5px] font-semibold"
+        style={{ color: tone.fg, background: tone.bg, borderColor: tone.border }}
+      >
+        <span className="h-1.5 w-1.5 rounded-full" style={{ background: tone.fg }} />
+        {value}
+      </span>
+    );
+  }
+
+  return <span className="text-[15px] leading-6 text-[var(--text-primary)]">{value}</span>;
+}
+
 function StageReadOnlyRows({ rows }: { rows: StageItem["rows"] }) {
   return (
-    <dl className="divide-y divide-[#f0efed] border-b border-[#f0efed]">
-      {rows.map(([label, value]) => (
-        <div key={label} className="grid grid-cols-[190px_minmax(0,1fr)] gap-7 px-7 py-4">
-          <dt className="text-[14px] font-normal leading-5 text-[var(--text-label)]">{label}</dt>
-          <dd className="min-w-0 text-[15px] font-normal leading-6 text-[var(--text-primary)]">{value}</dd>
-        </div>
-      ))}
-    </dl>
+    <div>
+      <dl className="divide-y divide-[#f0efed] border-b border-[#f0efed]">
+        {rows.map(([label, value]) => (
+          <div key={label} className="grid grid-cols-[190px_minmax(0,1fr)] gap-7 px-7 py-4">
+            <dt className="pt-1 text-[13px] font-medium leading-5 text-[var(--text-label)]">{label}</dt>
+            <dd className="min-w-0">
+              <ReadValue label={label} value={value} />
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }
 
@@ -513,7 +573,7 @@ function StageGuidance({
   onSuggestAll?: () => void;
 }) {
   return (
-    <div className="mb-6 grid gap-x-8 gap-y-4 rounded-[10px] border border-[var(--border-default)] bg-[var(--surface-muted)] px-5 py-4 md:grid-cols-[minmax(0,180px)_minmax(0,1fr)_auto]">
+    <div className="mb-6 grid gap-x-8 gap-y-4 rounded-[10px] border border-[var(--border-default)] bg-[#fcfbfa] px-5 py-4 md:grid-cols-[minmax(0,180px)_minmax(0,1fr)_auto]">
       <div>
         <div className="mb-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-label)]">Key fields</div>
         <ul className="space-y-2">
