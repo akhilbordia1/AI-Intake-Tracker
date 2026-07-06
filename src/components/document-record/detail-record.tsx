@@ -2,7 +2,7 @@
 
 import { INITIAL_WORKFLOW_VALUES, USE_CASE, type FieldValue } from "@/data/document-workflow-form-schema";
 import { cn } from "@/lib/cn";
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronRight, FileCheck2, Lock, MoreHorizontal, RefreshCcw, RotateCcw, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronLeft, ChevronRight, FileCheck2, Lock, MoreHorizontal, RefreshCcw, RotateCcw, ShieldCheck, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement, type ReactNode } from "react";
 
@@ -1112,11 +1112,15 @@ function StagePath({
   const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
   const trailRef = useRef<HTMLOListElement>(null);
   const [hasMore, setHasMore] = useState(false);
+  const [hasLess, setHasLess] = useState(false);
 
   useEffect(() => {
     const trail = trailRef.current;
     if (!trail) return;
-    const update = () => setHasMore(trail.scrollLeft + trail.clientWidth < trail.scrollWidth - 2);
+    const update = () => {
+      setHasMore(trail.scrollLeft + trail.clientWidth < trail.scrollWidth - 2);
+      setHasLess(trail.scrollLeft > 2);
+    };
     update();
     trail.addEventListener("scroll", update, { passive: true });
     const observer = new ResizeObserver(update);
@@ -1127,15 +1131,15 @@ function StagePath({
     };
   }, []);
 
-  function scrollTrail() {
-    trailRef.current?.scrollBy({ left: 240, behavior: "smooth" });
+  function scrollTrail(direction: 1 | -1) {
+    trailRef.current?.scrollBy({ left: direction * 240, behavior: "smooth" });
   }
 
   return (
     <section className="shrink-0 bg-white px-7 py-3">
       <div className="flex items-center gap-2">
         <div className="relative min-w-0 flex-1">
-          <ol ref={trailRef} className="no-scrollbar -ml-7 flex min-w-0 items-center overflow-x-auto pl-7">
+          <ol ref={trailRef} className="no-scrollbar flex min-w-0 items-center overflow-x-auto py-0.5">
           {STAGES.map((stage, index) => {
             const isCompleted = completedIndexes.includes(index);
             const isActive = index === activeIndex;
@@ -1180,12 +1184,26 @@ function StagePath({
           })}
           </ol>
 
-          {hasMore ? (
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center gap-1 bg-gradient-to-l from-white via-white to-transparent pl-10 pr-0.5">
+          {hasLess ? (
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center bg-gradient-to-r from-white via-white to-transparent pl-0.5 pr-10">
               <button
                 type="button"
-                onClick={scrollTrail}
-                aria-label="Scroll stages"
+                onClick={() => scrollTrail(-1)}
+                aria-label="Scroll stages left"
+                className="pointer-events-auto inline-flex h-7 items-center gap-0.5 rounded-full border border-[var(--border-default)] bg-white px-1.5 text-[var(--text-muted)] shadow-[var(--shadow-sm)] transition hover:text-[var(--text-primary)]"
+              >
+                <ChevronLeft size={14} />
+                <MoreHorizontal size={14} />
+              </button>
+            </div>
+          ) : null}
+
+          {hasMore ? (
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center bg-gradient-to-l from-white via-white to-transparent pl-10 pr-0.5">
+              <button
+                type="button"
+                onClick={() => scrollTrail(1)}
+                aria-label="Scroll stages right"
                 className="pointer-events-auto inline-flex h-7 items-center gap-0.5 rounded-full border border-[var(--border-default)] bg-white px-1.5 text-[var(--text-muted)] shadow-[var(--shadow-sm)] transition hover:text-[var(--text-primary)]"
               >
                 <MoreHorizontal size={14} />
