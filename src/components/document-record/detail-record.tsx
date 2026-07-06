@@ -492,7 +492,6 @@ function StageField({
         options={spec.options ?? []}
         value={typeof value === "string" ? value : ""}
         onChange={onChange}
-        onSuggest={onSuggest}
       />
     );
   }
@@ -504,7 +503,6 @@ function StageField({
         options={spec.options ?? []}
         values={Array.isArray(value) ? value : []}
         onChange={onChange}
-        onSuggest={onSuggest}
       />
     );
   }

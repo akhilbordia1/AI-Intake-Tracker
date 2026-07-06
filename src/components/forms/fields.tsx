@@ -27,13 +27,11 @@ export function FieldHeader({
   required,
   hint,
   onSuggest,
-  suggestLabel = "Suggest",
 }: {
   label: string;
   required?: boolean;
   hint?: string;
   onSuggest?: () => void;
-  suggestLabel?: string;
 }) {
   return (
     <div className="mb-1.5 flex items-center gap-2">
@@ -55,10 +53,11 @@ export function FieldHeader({
         <button
           type="button"
           onClick={onSuggest}
-          className="inline-flex h-6 shrink-0 items-center gap-1 rounded-full border border-[#c5e2ea] bg-[#f4fafb] px-2 text-[11px] font-medium text-[#0c5f7a] transition hover:bg-[#e8f4f8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e8f4f8]"
+          title="Suggest a draft"
+          aria-label="Suggest a draft"
+          className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[var(--text-muted)] transition hover:bg-[#e8f4f8] hover:text-[#0c5f7a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e8f4f8]"
         >
-          <Sparkles size={11} />
-          {suggestLabel}
+          <Sparkles size={13} />
         </button>
       ) : null}
     </div>
@@ -165,7 +164,6 @@ export function SearchableSelect({
   required,
   hint,
   error,
-  onSuggest,
 }: FieldChrome & {
   value: string;
   options: string[];
@@ -184,7 +182,7 @@ export function SearchableSelect({
 
   return (
     <div className="min-w-0">
-      <FieldHeader label={label} required={required} hint={hint} onSuggest={onSuggest} />
+      <FieldHeader label={label} required={required} hint={hint} />
       <div ref={menuRef} className="relative">
         <button
           type="button"
@@ -251,7 +249,6 @@ export function Segmented({
   required,
   hint,
   error,
-  onSuggest,
 }: FieldChrome & {
   value: string;
   options: string[];
@@ -259,7 +256,7 @@ export function Segmented({
 }) {
   return (
     <div className="min-w-0">
-      <FieldHeader label={label} required={required} hint={hint} onSuggest={onSuggest} />
+      <FieldHeader label={label} required={required} hint={hint} />
       <div className="flex flex-wrap gap-2" role="group" aria-label={label}>
         {options.map((option) => {
           const selected = value === option;
@@ -296,7 +293,6 @@ export function ChipMultiSelect({
   required,
   hint,
   error,
-  onSuggest,
 }: FieldChrome & {
   values: string[];
   options: string[];
@@ -308,7 +304,7 @@ export function ChipMultiSelect({
 
   return (
     <div className="min-w-0">
-      <FieldHeader label={label} required={required} hint={hint} onSuggest={onSuggest} />
+      <FieldHeader label={label} required={required} hint={hint} />
       <div className="flex flex-wrap gap-2">
         {options.map((option) => {
           const selected = values.includes(option);
