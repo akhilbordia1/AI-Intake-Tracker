@@ -2,7 +2,7 @@
 
 import { INITIAL_WORKFLOW_VALUES, USE_CASE, type FieldValue } from "@/data/document-workflow-form-schema";
 import { cn } from "@/lib/cn";
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronLeft, ChevronRight, FileCheck2, Lock, MoreHorizontal, RefreshCcw, RotateCcw, ShieldCheck, Sparkles } from "lucide-react";
+import { Activity, ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronLeft, ChevronRight, FileCheck2, FileText, Lock, MessageSquare, MoreHorizontal, RefreshCcw, RotateCcw, ShieldCheck, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement, type ReactNode } from "react";
 
@@ -304,7 +304,7 @@ export function DetailRecordPage() {
         onMarkComplete={toggleCurrentStageComplete}
         onStageChange={selectStage}
       />
-      <section className="grid min-h-0 flex-1 grid-cols-[minmax(0,3fr)_minmax(0,1fr)] gap-4 bg-[var(--surface-muted)] px-5 pb-5 pt-4" aria-label="Use case content">
+      <section className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(320px,384px)] gap-4 bg-[var(--surface-muted)] px-5 pb-5 pt-4" aria-label="Use case content">
         <div className="flex min-h-0 flex-col overflow-hidden rounded-[12px] border border-[#ecebea] bg-white shadow-[0_1px_3px_rgba(12,10,9,0.04)]">
           <StageWorkspace stage={currentStage} currentUser={currentUser} isComplete={isCurrentComplete} />
         </div>
@@ -343,9 +343,9 @@ function StageColumnHeader({ stage, currentUser, action }: { stage: StageItem; c
 }
 
 const SUPPORTING_TABS = [
-  { key: "Details", meta: undefined, render: () => <DetailPanel /> },
-  { key: "Comments", meta: String(COMMENT_ITEMS.length), render: () => <CommentsPanel /> },
-  { key: "Activity", meta: String(ACTIVITY_ITEMS.length), render: () => <ActivityPanel /> },
+  { key: "Details", icon: FileText, meta: undefined, render: () => <DetailPanel /> },
+  { key: "Comments", icon: MessageSquare, meta: String(COMMENT_ITEMS.length), render: () => <CommentsPanel /> },
+  { key: "Activity", icon: Activity, meta: String(ACTIVITY_ITEMS.length), render: () => <ActivityPanel /> },
 ] as const;
 
 function SupportingTabs() {
@@ -356,24 +356,28 @@ function SupportingTabs() {
     <div className="flex h-full min-h-0 flex-col">
       <div className="shrink-0 border-b border-[#ecebea] px-5">
         <div className="flex items-center gap-5" role="tablist" aria-label="Supporting details">
-          {SUPPORTING_TABS.map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              role="tab"
-              aria-selected={tab.key === active}
-              onClick={() => setActive(tab.key)}
-              className={cn(
-                "flex h-12 items-center gap-1.5 border-b-2 px-0.5 text-[14px] font-medium transition focus-visible:outline-none",
-                tab.key === active
-                  ? "border-[var(--accent)] text-[var(--accent-strong)]"
-                  : "border-transparent text-[var(--text-label)] hover:text-[var(--text-primary)]",
-              )}
-            >
-              {tab.key}
-              {tab.meta ? <span className="text-[12px] font-normal text-[var(--text-muted)]">{tab.meta}</span> : null}
-            </button>
-          ))}
+          {SUPPORTING_TABS.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                role="tab"
+                aria-selected={tab.key === active}
+                onClick={() => setActive(tab.key)}
+                className={cn(
+                  "flex h-12 items-center gap-1.5 border-b-2 px-0.5 text-[14px] font-medium transition focus-visible:outline-none",
+                  tab.key === active
+                    ? "border-[var(--accent)] text-[var(--accent-strong)]"
+                    : "border-transparent text-[var(--text-label)] hover:text-[var(--text-primary)]",
+                )}
+              >
+                <Icon size={13} className={cn(tab.key === active ? "text-[var(--accent)]" : "text-[var(--text-muted)]")} />
+                {tab.key}
+                {tab.meta ? <span className="text-[12px] font-normal text-[var(--text-muted)]">{tab.meta}</span> : null}
+              </button>
+            );
+          })}
         </div>
       </div>
       <div className="flex min-h-0 flex-1 flex-col">{current.render()}</div>
@@ -427,11 +431,14 @@ function statusTone(value: string) {
   return { fg: "var(--text-body)", bg: "var(--surface-muted)", border: "var(--border-default)" };
 }
 
+const TAG_LABEL_RE = /(archetype|function|delivery|sensitivity|exposure|reversibility|basis|users|complexity|path|department|team|country|window|cohort)/i;
+
 function ReadValue({ label, value }: { label: string; value: string }) {
   const items = listItems(value);
   const single = items.length === 1;
   const short = value.length <= 30;
 
+  // Multi-value → chips
   if (items.length > 1 && items.every((item) => item.length <= 32)) {
     return (
       <div className="flex flex-wrap gap-1.5">
@@ -447,6 +454,7 @@ function ReadValue({ label, value }: { label: string; value: string }) {
     );
   }
 
+  // People → avatar + name
   if (single && short && PERSON_LABEL_RE.test(label) && /^[A-Z]/.test(value)) {
     return (
       <span className="inline-flex items-center gap-2">
@@ -456,7 +464,17 @@ function ReadValue({ label, value }: { label: string; value: string }) {
     );
   }
 
-  if (single && short && STATUS_LABEL_RE.test(label)) {
+  // Currency amounts → distinct styled value
+  if (CURRENCY_RE.test(value)) {
+    return (
+      <span className="inline-block rounded-[6px] bg-[var(--surface-muted)] px-2.5 py-1 text-[14px] font-semibold tabular-nums text-[var(--text-primary)]">
+        {value}
+      </span>
+    );
+  }
+
+  // Decisions / tiers / risk / PII / autonomy → colored status badge
+  if (single && short && (STATUS_LABEL_RE.test(label) || /(pii|autonomy|oversight)/i.test(label))) {
     const tone = statusTone(value);
     return (
       <span
@@ -469,7 +487,17 @@ function ReadValue({ label, value }: { label: string; value: string }) {
     );
   }
 
-  return <span className="text-[15px] leading-6 text-[var(--text-primary)]">{value}</span>;
+  // Short attribute fields → neutral tag
+  if (single && short && TAG_LABEL_RE.test(label)) {
+    return (
+      <span className="inline-block rounded-full border border-[var(--border-default)] bg-white px-2.5 py-1 text-[13px] font-medium text-[var(--text-body)]">
+        {value}
+      </span>
+    );
+  }
+
+  // Prose → capped measure for readability
+  return <span className="block max-w-[62ch] text-[15px] leading-6 text-[var(--text-primary)]">{value}</span>;
 }
 
 function StageReadOnlyRows({ rows }: { rows: StageItem["rows"] }) {
@@ -1062,13 +1090,10 @@ function ActivityPanel() {
 }
 
 function RecordHeader({ currentUser, onUserChange }: { currentUser: string; onUserChange: (name: string) => void }) {
-  const metadata = [
-    ["Use Case ID", USE_CASE.id],
-    ["Use Case Owner", text(values.businessSponsor)],
-  ];
+  const ownerName = text(values.businessSponsor);
 
   return (
-    <header className="z-30 shrink-0 bg-[var(--surface-muted)] px-7 pb-5 pt-5">
+    <header className="z-30 shrink-0 border-b border-[#ecebea] bg-[var(--surface-muted)] px-7 pb-5 pt-5">
       <div className="mb-5 flex items-center justify-between gap-4">
         <Link
           href="/"
@@ -1083,14 +1108,22 @@ function RecordHeader({ currentUser, onUserChange }: { currentUser: string; onUs
       <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
         <h1 className="min-w-0 font-display text-[30px] leading-tight">{USE_CASE.name}</h1>
 
-        <dl className="flex shrink-0 flex-wrap items-end justify-end gap-x-12 gap-y-3 text-right">
-          {metadata.map(([label, value]) => (
-            <div key={label} className="min-w-[92px]">
-              <dt className="text-[11px] font-medium leading-4 text-[var(--text-muted)]">{label}</dt>
-              <dd className="mt-1.5 truncate text-[14px] font-medium leading-5 text-[var(--text-primary)]">{value}</dd>
+        <div className="flex shrink-0 items-center gap-5">
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">Use Case ID</div>
+            <span className="mt-1.5 inline-block rounded-[6px] bg-[var(--accent-soft)] px-2 py-0.5 text-[13px] font-semibold tracking-[0.02em] text-[var(--accent-strong)]">
+              {USE_CASE.id}
+            </span>
+          </div>
+          <span className="h-9 w-px bg-[#ecebea]" aria-hidden />
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">Use Case Owner</div>
+            <div className="mt-1 flex items-center gap-2">
+              <PersonAvatar name={ownerName} size={24} />
+              <span className="text-[14px] font-medium leading-5 text-[var(--text-primary)]">{ownerName}</span>
             </div>
-          ))}
-        </dl>
+          </div>
+        </div>
       </div>
     </header>
   );
@@ -1185,29 +1218,27 @@ function StagePath({
           </ol>
 
           {hasLess ? (
-            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center bg-gradient-to-r from-[var(--surface-muted)] via-[var(--surface-muted)] to-transparent pl-0.5 pr-10">
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center bg-gradient-to-r from-[var(--surface-muted)] via-[var(--surface-muted)] to-transparent pl-0.5 pr-12">
               <button
                 type="button"
                 onClick={() => scrollTrail(-1)}
                 aria-label="Scroll stages left"
-                className="pointer-events-auto inline-flex h-7 items-center gap-0.5 rounded-full border border-[var(--border-default)] bg-white px-1.5 text-[var(--text-muted)] shadow-[var(--shadow-sm)] transition hover:text-[var(--text-primary)]"
+                className="pointer-events-auto grid h-8 w-8 place-items-center text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
               >
-                <ChevronLeft size={14} />
-                <MoreHorizontal size={14} />
+                <ChevronLeft size={20} />
               </button>
             </div>
           ) : null}
 
           {hasMore ? (
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center bg-gradient-to-l from-[var(--surface-muted)] via-[var(--surface-muted)] to-transparent pl-10 pr-0.5">
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center justify-end bg-gradient-to-l from-[var(--surface-muted)] via-[var(--surface-muted)] to-transparent pl-12 pr-0.5">
               <button
                 type="button"
                 onClick={() => scrollTrail(1)}
                 aria-label="Scroll stages right"
-                className="pointer-events-auto inline-flex h-7 items-center gap-0.5 rounded-full border border-[var(--border-default)] bg-white px-1.5 text-[var(--text-muted)] shadow-[var(--shadow-sm)] transition hover:text-[var(--text-primary)]"
+                className="pointer-events-auto grid h-8 w-8 place-items-center text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
               >
-                <MoreHorizontal size={14} />
-                <ChevronRight size={14} />
+                <ChevronRight size={20} />
               </button>
             </div>
           ) : null}

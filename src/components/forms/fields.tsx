@@ -728,13 +728,12 @@ export function LevelSlider({
     if (options[index] !== value) onChange(options[index]);
   }
 
-  // Position along the track (with 10px inset on each side for the thumb).
   const pos = selected >= 0 ? selected / (count - 1) : 0;
 
   return (
     <div className="min-w-0">
       {hideHeader ? null : <FieldHeader label={label} required={required} hint={hint} />}
-      <div className="max-w-[400px] select-none">
+      <div className="max-w-full select-none" style={{ width: count * 92 }}>
         <div
           ref={trackRef}
           role="slider"
@@ -754,7 +753,7 @@ export function LevelSlider({
               if (selected > 0) onChange(options[selected - 1]);
             }
           }}
-          className="relative flex h-6 cursor-pointer touch-none items-center"
+          className="relative flex h-6 cursor-pointer touch-none items-center px-2.5"
           onPointerDown={(event) => {
             setDragging(true);
             event.currentTarget.setPointerCapture(event.pointerId);
@@ -767,7 +766,7 @@ export function LevelSlider({
           onPointerCancel={() => setDragging(false)}
         >
           <span className="absolute inset-x-2.5 h-[4px] rounded-full bg-[var(--border-default)]" />
-          {selected >= 0 ? (
+          {selected > 0 ? (
             <span className="absolute left-2.5 h-[4px] rounded-full bg-[var(--accent)]" style={{ width: `calc((100% - 20px) * ${pos})` }} />
           ) : null}
           {options.map((_, index) => (
@@ -779,12 +778,12 @@ export function LevelSlider({
           ))}
           {selected >= 0 ? (
             <span
-              className="absolute z-10 h-5 w-5 -translate-x-1/2 rounded-full border-2 border-[var(--accent)] bg-white shadow-[0_1px_3px_rgba(12,10,9,0.18)]"
+              className="pointer-events-none absolute z-10 h-5 w-5 -translate-x-1/2 rounded-full border-2 border-[var(--accent)] bg-white shadow-[0_1px_3px_rgba(12,10,9,0.18)]"
               style={{ left: `calc(10px + (100% - 20px) * ${pos})` }}
             />
           ) : null}
         </div>
-        <div className="mt-2 flex items-center justify-between">
+        <div className="mt-2 flex items-center justify-between px-2.5">
           {options.map((option, index) => (
             <button
               key={option}
@@ -792,6 +791,7 @@ export function LevelSlider({
               onClick={() => onChange(option)}
               className={cn(
                 "text-[12px] transition",
+                index === 0 ? "text-left" : index === count - 1 ? "text-right" : "text-center",
                 index === selected ? "font-semibold text-[var(--text-primary)]" : "text-[var(--text-muted)] hover:text-[var(--text-body)]",
               )}
             >
