@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, HelpCircle, Search, Sparkles } from "lucide-react";
+import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, HelpCircle, Minus, Plus, Search, Sparkles } from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
@@ -294,6 +294,52 @@ export function Segmented({
   );
 }
 
+// ── Segmented toggle (connected iOS-style single-select) ────────────────────
+
+export function SegmentedToggle({
+  value,
+  options,
+  onChange,
+  label,
+  required,
+  hint,
+  error,
+  hideHeader,
+}: FieldChrome & {
+  value: string;
+  options: string[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="min-w-0">
+      {hideHeader ? null : <FieldHeader label={label} required={required} hint={hint} />}
+      <div className="inline-flex flex-wrap gap-1 rounded-[9px] border border-[#e7e5e4] bg-[var(--surface-muted)] p-1" role="radiogroup" aria-label={label}>
+        {options.map((option) => {
+          const selected = value === option;
+          return (
+            <button
+              key={option}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              onClick={() => onChange(option)}
+              className={cn(
+                "rounded-[6px] px-3 py-1.5 text-[13px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e8f4f8]",
+                selected
+                  ? "bg-white text-[var(--text-primary)] shadow-[0_1px_2px_rgba(12,10,9,0.12)]"
+                  : "text-[var(--text-label)] hover:text-[var(--text-primary)]",
+              )}
+            >
+              {option}
+            </button>
+          );
+        })}
+      </div>
+      <FieldError error={error} />
+    </div>
+  );
+}
+
 // ── Chip multi-select ─────────────────────────────────────────────────────
 
 export function ChipMultiSelect({
@@ -346,6 +392,20 @@ export function ChipMultiSelect({
 
 // ── Currency ──────────────────────────────────────────────────────────────
 
+// Adjust the numeric part of an amount string (keeping a k/m unit + any
+// trailing text like "/yr - locked") by delta currency units.
+function stepAmount(amount: string, delta: number): string {
+  const match = /^(\s*)(-?[\d,]*\.?\d+)\s*(k|m)?(.*)$/i.exec(amount.trim());
+  if (!match) return String(Math.max(0, delta));
+  const [, , numStr, unit, rest] = match;
+  const lower = unit?.toLowerCase();
+  const mult = lower === "m" ? 1_000_000 : lower === "k" ? 1_000 : 1;
+  const next = Math.max(0, parseFloat(numStr.replace(/,/g, "")) * mult + delta);
+  const scaled = next / mult;
+  const out = Number.isInteger(scaled) ? String(scaled) : scaled.toFixed(2).replace(/\.?0+$/, "");
+  return `${out}${unit ?? ""}${rest}`;
+}
+
 export function CurrencyField({
   amount,
   onAmount,
@@ -353,6 +413,7 @@ export function CurrencyField({
   currencies,
   onCurrency,
   suffix,
+  stepBy,
   label,
   required,
   hint,
@@ -366,12 +427,15 @@ export function CurrencyField({
   currencies: string[];
   onCurrency: (value: string) => void;
   suffix?: string;
+  stepBy?: number;
   placeholder?: string;
 }) {
+  const stepLabel = stepBy && stepBy >= 1_000_000 ? `${stepBy / 1_000_000}M` : stepBy && stepBy >= 1_000 ? `${stepBy / 1_000}K` : String(stepBy);
+
   return (
-    <div className="min-w-0">
+    <div className="group min-w-0">
       {hideHeader ? null : <FieldHeader label={label} required={required} hint={hint} />}
-      <div className={cn("flex h-9 max-w-[300px] items-stretch overflow-hidden rounded-[8px] border bg-white transition focus-within:border-[#8fc0cf] focus-within:ring-2 focus-within:ring-[#e8f4f8]", borderClass(error))}>
+      <div className={cn("flex h-9 max-w-[360px] items-stretch overflow-hidden rounded-[8px] border bg-white transition focus-within:border-[#8fc0cf] focus-within:ring-2 focus-within:ring-[#e8f4f8]", borderClass(error))}>
         <div className="relative shrink-0 border-r border-[#e7e5e4] bg-[#faf9f6]">
           <select
             value={currency}
@@ -395,6 +459,30 @@ export function CurrencyField({
           className="h-full min-w-0 flex-1 bg-transparent px-3 text-[13px] tabular-nums text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
         />
         {suffix ? <span className="flex h-full shrink-0 items-center pr-3 text-[12px] text-[var(--text-muted)]">{suffix}</span> : null}
+        {stepBy ? (
+          <div className="hidden shrink-0 items-stretch group-focus-within:flex">
+            <button
+              type="button"
+              aria-label={`Decrease by ${stepBy.toLocaleString()}`}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => onAmount(stepAmount(amount, -stepBy))}
+              className="flex items-center gap-0.5 border-l border-[#e7e5e4] px-2 text-[11px] font-semibold tabular-nums text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
+            >
+              <Minus size={11} />
+              {stepLabel}
+            </button>
+            <button
+              type="button"
+              aria-label={`Increase by ${stepBy.toLocaleString()}`}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => onAmount(stepAmount(amount, stepBy))}
+              className="flex items-center gap-0.5 border-l border-[#e7e5e4] px-2 text-[11px] font-semibold tabular-nums text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
+            >
+              <Plus size={11} />
+              {stepLabel}
+            </button>
+          </div>
+        ) : null}
       </div>
       <FieldError error={error} />
     </div>

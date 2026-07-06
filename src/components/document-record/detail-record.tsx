@@ -14,10 +14,9 @@ import {
   CurrencyField,
   DateField,
   LevelSlider,
-  RadioGroup,
   RatingStepper,
   SearchableSelect,
-  Segmented,
+  SegmentedToggle,
   SmartText,
   SmartTextarea,
 } from "@/components/forms/fields";
@@ -600,7 +599,14 @@ function computeRiskTier(values: Record<string, string | string[]>) {
 function EditableStage({ stage, currentUser }: { stage: StageItem; currentUser: string }) {
   const fields = useMemo(() => stage.rows.map(([label, value]) => buildFieldSpec(label, value)), [stage]);
   const [values, setValues] = useState<Record<string, string | string[]>>(() =>
-    Object.fromEntries(fields.map((field) => [field.label, field.kind === "cards" || field.kind === "chips" ? [] : ""])),
+    Object.fromEntries(
+      fields.map((field) => {
+        if (field.kind === "cards" || field.kind === "chips") return [field.label, []];
+        // Toggles always show a selection — default to the first option.
+        if ((field.kind === "segmented" || field.kind === "radio") && field.options?.length) return [field.label, field.options[0]];
+        return [field.label, ""];
+      }),
+    ),
   );
   const riskTier = stage.name === "Assess" ? computeRiskTier(values) : null;
 
@@ -707,6 +713,7 @@ function StageField({
         amount={amount}
         currency={currency}
         currencies={["GBP", "USD", "EUR"]}
+        stepBy={10000}
         onAmount={(next) => onChange(`${currency} ${next}`.trim())}
         onCurrency={(next) => onChange(`${next} ${amount}`.trim())}
       />
@@ -721,12 +728,8 @@ function StageField({
     return <DateField hideHeader label={spec.label} value={text} onChange={onChange} />;
   }
 
-  if (spec.kind === "segmented") {
-    return <Segmented hideHeader label={spec.label} options={spec.options ?? []} value={text} onChange={onChange} />;
-  }
-
-  if (spec.kind === "radio") {
-    return <RadioGroup hideHeader label={spec.label} options={spec.options ?? []} value={text} onChange={onChange} />;
+  if (spec.kind === "segmented" || spec.kind === "radio") {
+    return <SegmentedToggle hideHeader label={spec.label} options={spec.options ?? []} value={text} onChange={onChange} />;
   }
 
   if (spec.kind === "cards") {
