@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=EB+Garamond:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,380;9..144,450;9..144,540&family=Inter:wght@400;450;500;600&family=JetBrains+Mono:wght@400;500&display=swap");
 @import "tailwindcss";
 
 :root {
@@ -78,8 +78,8 @@
   --green-btn: var(--accent);
   --green-btn-hover: var(--accent-hover);
 
-  /* Typography */
-  --serif: "EB Garamond", "Times New Roman", Georgia, serif;
+  /* Typography — Fraunces (editorial serif display) + Inter (UI sans) */
+  --serif: "Fraunces", "EB Garamond", Georgia, "Times New Roman", serif;
   --sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
 
@@ -176,11 +176,20 @@ input[type="date"] {
   display: none;
 }
 
-/* ── Editorial display type (Waldenburg → EB Garamond substitute) ── */
+/* ── Editorial display type (Fraunces, optical-sized) ── */
 .font-display {
   font-family: var(--serif);
-  font-weight: 400;
-  letter-spacing: -0.01em;
+  font-weight: 450;
+  letter-spacing: -0.012em;
+  font-optical-sizing: auto;
+}
+
+/* Serif body — for editorial prose (guidance, quotes) at reading sizes */
+.font-serif-body {
+  font-family: var(--serif);
+  font-weight: 380;
+  letter-spacing: 0;
+  font-optical-sizing: auto;
 }
 
 .font-mono {

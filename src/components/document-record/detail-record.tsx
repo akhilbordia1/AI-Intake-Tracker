@@ -10,12 +10,12 @@ import { PersonAvatar, ProfileSwitcher, initials } from "@/components/profile";
 
 import {
   ChipMultiSelect,
-  CompletionMeter,
-  SaveStatus,
-  Segmented,
+  DateField,
+  RadioGroup,
+  RatingStepper,
+  SearchableSelect,
   SmartText,
   SmartTextarea,
-  useSaveStatus,
 } from "@/components/forms/fields";
 
 const RECORD_THEME = {
@@ -317,14 +317,11 @@ function StageColumnHeader({ stage, currentUser }: { stage: StageItem; currentUs
 
   return (
     <div className="flex h-12 min-w-0 shrink-0 items-center justify-between gap-4 border-b border-[#ecebea] px-7" aria-label={`${stage.name} stage header`}>
-      <h2 className="min-w-0 truncate text-[17px] font-medium leading-6 text-[var(--text-primary)]">{stage.name}</h2>
+      <h2 className="font-display min-w-0 truncate text-[19px] leading-7 text-[var(--text-primary)]">{stage.name}</h2>
       <div className="flex shrink-0 items-center gap-2 text-[13px] leading-5">
         <span className="text-[var(--text-label)]">Stage Owner</span>
         <PersonAvatar name={stage.owner} size={22} highlight={ownedByMe} />
-        <span className="text-[var(--text-primary)]">{stage.owner}</span>
-        {ownedByMe ? (
-          <span className="rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-[11px] font-semibold text-[var(--accent-strong)]">You</span>
-        ) : null}
+        <span className={cn("text-[var(--text-primary)]", ownedByMe && "font-semibold")}>{stage.owner}</span>
       </div>
     </div>
   );
@@ -364,7 +361,7 @@ function SupportingTabs() {
           ))}
         </div>
       </div>
-      <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto">{current.render()}</div>
+      <div className="flex min-h-0 flex-1 flex-col">{current.render()}</div>
     </div>
   );
 }
@@ -417,13 +414,14 @@ function StageReadOnlyRows({ rows }: { rows: StageItem["rows"] }) {
   );
 }
 
-type FieldKind = "segmented" | "chips" | "long" | "text";
+type FieldKind = "segmented" | "select" | "scale" | "chips" | "date" | "long" | "text";
 
 type FieldSpec = {
   label: string;
   kind: FieldKind;
   options?: string[];
   suggestion: string | string[];
+  max?: number;
 };
 
 const LONG_LABELS = new Set([
@@ -442,7 +440,15 @@ const LONG_LABELS = new Set([
 
 function buildFieldSpec(label: string, value: string): FieldSpec {
   const options = choiceOptions(label, value);
-  if (options) return { label, kind: "segmented", options, suggestion: value };
+  if (options) {
+    // N/M rating scales → slider
+    if (options.every((option) => /^\d+\/\d+$/.test(option))) {
+      return { label, kind: "scale", suggestion: value, max: Number(options[0].split("/")[1]) };
+    }
+    // long option lists read better as a dropdown than a row of pills
+    if (options.length > 5) return { label, kind: "select", options, suggestion: value };
+    return { label, kind: "segmented", options, suggestion: value };
+  }
 
   const items = listItems(value);
   if (isChecklistField(label) && items.length > 1) {
@@ -496,61 +502,82 @@ const STAGE_GUIDANCE: Record<string, string> = {
 };
 
 function StageGuidance({
-  fields,
-  values,
+  keyFields,
   guidance,
+  riskTier,
+  onSuggestAll,
 }: {
-  fields: FieldSpec[];
-  values: Record<string, string | string[]>;
+  keyFields: Array<{ label: string; done: boolean }>;
   guidance?: string;
+  riskTier?: { tier: string; fg: string; bg: string; border: string } | null;
+  onSuggestAll?: () => void;
 }) {
-  const keyFields = fields.slice(0, 4);
-
   return (
-    <div className="mb-6 grid gap-x-10 gap-y-4 rounded-[10px] border border-[#ecebea] bg-[var(--surface-muted)] px-5 py-4 md:grid-cols-[200px_minmax(0,1fr)]">
+    <div className="mb-6 grid gap-x-8 gap-y-4 rounded-[10px] border border-[var(--border-default)] bg-[var(--surface-muted)] px-5 py-4 md:grid-cols-[minmax(0,180px)_minmax(0,1fr)_auto]">
       <div>
-        <div className="mb-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">Key fields</div>
+        <div className="mb-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-label)]">Key fields</div>
         <ul className="space-y-2">
-          {keyFields.map((field) => {
-            const done = isFilled(values[field.label]);
-            return (
-              <li key={field.label} className="flex items-center gap-2.5 text-[12.5px]">
-                <span
-                  className={cn(
-                    "grid h-[15px] w-[15px] shrink-0 place-items-center rounded-full text-white",
-                    done ? "bg-[#15803d]" : "border-[1.5px] border-[#d6d3d1]",
-                  )}
-                >
-                  {done ? <Check size={9} strokeWidth={4} /> : null}
-                </span>
-                <span className={done ? "text-[var(--text-body)]" : "text-[var(--text-muted)]"}>{field.label}</span>
-              </li>
-            );
-          })}
+          {keyFields.map((field) => (
+            <li key={field.label} className="flex items-center gap-2.5 text-[12.5px]">
+              <span
+                className={cn(
+                  "grid h-[15px] w-[15px] shrink-0 place-items-center rounded-full text-white",
+                  field.done ? "bg-[#15803d]" : "border-[1.5px] border-[#bdb8b1]",
+                )}
+              >
+                {field.done ? <Check size={9} strokeWidth={4} /> : null}
+              </span>
+              <span className={field.done ? "font-medium text-[var(--text-primary)]" : "text-[var(--text-body)]"}>{field.label}</span>
+            </li>
+          ))}
         </ul>
       </div>
+
       {guidance ? (
         <div className="max-w-[560px]">
-          <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">Guidance for success</div>
-          <p className="font-display text-[15px] leading-[1.55] text-[var(--text-body)]">{guidance}</p>
+          <div className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-label)]">
+            <Sparkles size={11} className="text-[var(--accent)]" />
+            Guidance for success
+          </div>
+          <p className="font-serif-body text-[14px] leading-[1.55] text-[var(--text-primary)]">{guidance}</p>
         </div>
-      ) : null}
+      ) : (
+        <div />
+      )}
+
+      <div className="flex flex-col items-start gap-2 md:items-end">
+        {onSuggestAll ? (
+          <button
+            type="button"
+            onClick={onSuggestAll}
+            className="inline-flex h-8 items-center gap-1.5 rounded-full border border-[var(--accent-border)] bg-white px-3 text-[12px] font-medium text-[var(--accent-strong)] transition hover:bg-[var(--accent-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
+          >
+            <Sparkles size={12} />
+            Suggest all
+          </button>
+        ) : null}
+        {riskTier ? (
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold"
+            style={{ color: riskTier.fg, background: riskTier.bg, borderColor: riskTier.border }}
+          >
+            <ShieldCheck size={11} />
+            {riskTier.tier} tier
+          </span>
+        ) : null}
+      </div>
     </div>
   );
 }
 
-// Editable generic stage: identity + toolbar (suggest / save / progress) merged
-// into a single header bar, then the label-left field rows below.
+// Editable generic stage: identity header, then a guidance strip (with the
+// suggest-all action + live risk tier) above the label-left field rows.
 function EditableStage({ stage, currentUser }: { stage: StageItem; currentUser: string }) {
   const fields = useMemo(() => stage.rows.map(([label, value]) => buildFieldSpec(label, value)), [stage]);
   const [values, setValues] = useState<Record<string, string | string[]>>(() =>
     Object.fromEntries(fields.map((field) => [field.label, field.kind === "chips" ? [] : ""])),
   );
-  const saveState = useSaveStatus(JSON.stringify(values));
-
-  const doneCount = fields.filter((field) => isFilled(values[field.label])).length;
   const riskTier = stage.name === "Assess" ? computeRiskTier(values) : null;
-  const ownedByMe = stage.owner === currentUser;
 
   function setField(label: string, value: string | string[]) {
     setValues((current) => ({ ...current, [label]: value }));
@@ -562,42 +589,16 @@ function EditableStage({ stage, currentUser }: { stage: StageItem; currentUser: 
 
   return (
     <>
-      <div className="flex min-h-[52px] shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-[#ecebea] px-7 py-2">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <h2 className="truncate text-[16px] font-medium leading-6 text-[var(--text-primary)]">{stage.name}</h2>
-          <span className="h-3.5 w-px bg-[#e7e5e4]" aria-hidden />
-          <PersonAvatar name={stage.owner} size={20} highlight={ownedByMe} />
-          <span className="truncate text-[12px] text-[var(--text-label)]">{stage.owner}</span>
-          {ownedByMe ? (
-            <span className="rounded-full bg-[var(--accent-soft)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--accent-strong)]">You</span>
-          ) : null}
-        </div>
-        <div className="flex items-center gap-3">
-          {riskTier ? (
-            <span
-              className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold"
-              style={{ color: riskTier.fg, background: riskTier.bg, borderColor: riskTier.border }}
-            >
-              <ShieldCheck size={11} />
-              {riskTier.tier} tier
-            </span>
-          ) : null}
-          <button
-            type="button"
-            onClick={suggestAll}
-            className="inline-flex h-7 items-center gap-1.5 rounded-full border border-[var(--accent-border)] bg-[var(--accent-soft)] px-2.5 text-[12px] font-medium text-[var(--accent-strong)] transition hover:bg-[#daedf3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
-          >
-            <Sparkles size={12} />
-            Suggest all
-          </button>
-          <SaveStatus state={saveState} />
-          <CompletionMeter done={doneCount} total={fields.length} className="w-[150px]" />
-        </div>
-      </div>
+      <StageColumnHeader stage={stage} currentUser={currentUser} />
 
       <section className="no-scrollbar min-h-0 flex-1 overflow-y-auto pb-6 pt-4" aria-label={`${stage.name} stage form`}>
         <div className="px-7">
-          <StageGuidance fields={fields} values={values} guidance={STAGE_GUIDANCE[stage.name]} />
+          <StageGuidance
+            keyFields={fields.slice(0, 4).map((field) => ({ label: field.label, done: isFilled(values[field.label]) }))}
+            guidance={STAGE_GUIDANCE[stage.name]}
+            riskTier={riskTier}
+            onSuggestAll={suggestAll}
+          />
         </div>
         <div className="pt-1">
           {fields.map((field) => (
@@ -630,9 +631,44 @@ function StageField({
   onChange: (value: string | string[]) => void;
   onSuggest: () => void;
 }) {
+  if (spec.kind === "scale") {
+    return (
+      <RatingStepper
+        hideHeader
+        label={spec.label}
+        max={spec.max ?? 5}
+        value={typeof value === "string" ? value : ""}
+        onChange={onChange}
+      />
+    );
+  }
+
+  if (spec.kind === "select") {
+    return (
+      <SearchableSelect
+        hideHeader
+        label={spec.label}
+        options={spec.options ?? []}
+        value={typeof value === "string" ? value : ""}
+        onChange={onChange}
+      />
+    );
+  }
+
+  if (spec.kind === "date") {
+    return (
+      <DateField
+        hideHeader
+        label={spec.label}
+        value={typeof value === "string" ? value : ""}
+        onChange={onChange}
+      />
+    );
+  }
+
   if (spec.kind === "segmented") {
     return (
-      <Segmented
+      <RadioGroup
         hideHeader
         label={spec.label}
         options={spec.options ?? []}
@@ -705,6 +741,15 @@ function PlanStageForm() {
   return (
     <div>
       <div className="px-7">
+        <StageGuidance
+          keyFields={[
+            { label: "Squad", done: true },
+            { label: "Milestones", done: true },
+            { label: "Success metrics", done: false },
+            { label: "Delivery notes", done: false },
+          ]}
+          guidance={STAGE_GUIDANCE.Plan}
+        />
         <MandateBanner />
       </div>
       <div className="mt-5 divide-y divide-[#f0efed] border-t border-[#f0efed]">
@@ -772,7 +817,7 @@ function SquadPicker() {
 
   return (
     <div>
-      <div className="flex flex-col gap-2">
+      <div className="grid gap-2.5 sm:grid-cols-3">
         {SUGGESTED_SQUAD.map((member) => {
           const on = selected.includes(member.name);
 
@@ -783,34 +828,38 @@ function SquadPicker() {
               aria-pressed={on}
               onClick={() => toggle(member.name)}
               className={cn(
-                "flex items-center gap-3 rounded-[8px] border px-3 py-2.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]",
+                "relative flex flex-col items-start gap-2.5 rounded-[10px] border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]",
                 on
-                  ? "border-[var(--accent-border)] bg-[var(--accent-soft)]"
+                  ? "border-[var(--accent-border)] bg-[var(--accent-soft)] shadow-[0_1px_2px_rgba(12,10,9,0.04)]"
                   : "border-[#e7e5e4] bg-white hover:border-[var(--accent-border)] hover:bg-[var(--accent-hover-bg)]",
               )}
             >
+              <span className="absolute right-2.5 top-2.5">
+                {on ? (
+                  <span className="grid h-[18px] w-[18px] place-items-center rounded-full bg-[var(--accent)] text-white">
+                    <Check size={11} strokeWidth={3} />
+                  </span>
+                ) : (
+                  <span className="block h-[18px] w-[18px] rounded-full border-[1.5px] border-[var(--border-input)]" />
+                )}
+              </span>
               <span
                 className={cn(
-                  "grid h-8 w-8 shrink-0 place-items-center rounded-full text-[11px] font-semibold",
+                  "grid h-9 w-9 shrink-0 place-items-center rounded-full text-[12px] font-semibold",
                   on ? "bg-[var(--accent)] text-white" : "bg-[#f0efed] text-[var(--text-label)]",
                 )}
               >
                 {initials(member.name)}
               </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-[14px] font-medium leading-5 text-[var(--text-primary)]">{member.name}</span>
-                <span className="block text-[12px] leading-4 text-[var(--text-muted)]">{member.role}</span>
+              <span className="min-w-0">
+                <span className="block truncate text-[13.5px] font-semibold leading-5 text-[var(--text-primary)]">{member.name}</span>
+                <span className="block truncate text-[11.5px] leading-4 text-[var(--text-muted)]">{member.role}</span>
               </span>
-              {on ? (
-                <Check size={16} strokeWidth={2.5} className="shrink-0 text-[var(--accent)]" />
-              ) : (
-                <span className="text-[18px] leading-none text-[var(--text-faint)]">+</span>
-              )}
             </button>
           );
         })}
       </div>
-      <span className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-[var(--accent-border)] bg-[var(--accent-soft)] px-2.5 py-1 text-[11px] font-medium text-[var(--accent-strong)]">
+      <span className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-[var(--accent-border)] bg-white px-2.5 py-1 text-[11px] font-medium text-[var(--accent-strong)]">
         <Sparkles size={12} /> matched to RAG pattern
       </span>
     </div>
@@ -821,22 +870,31 @@ function MilestoneRail() {
   const [dates, setDates] = useState(PLAN_MILESTONES.map((milestone) => milestone.date));
 
   return (
-    <div className="flex flex-col gap-2">
-      {PLAN_MILESTONES.map((milestone, index) => (
-        <div key={milestone.name} className="flex items-center gap-3 rounded-[8px] border border-[#e7e5e4] bg-white px-3 py-2">
-          <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[#f0efed] text-[11px] font-semibold text-[var(--text-label)]">
-            {index + 1}
-          </span>
-          <span className="min-w-0 flex-1 text-[14px] font-medium text-[var(--text-primary)]">{milestone.name}</span>
-          <input
-            type="date"
-            aria-label={`${milestone.name} date`}
-            value={dates[index]}
-            onChange={(event) => setDates((current) => current.map((date, j) => (j === index ? event.target.value : date)))}
-            className="h-8 w-[150px] shrink-0 rounded-[6px] border border-[#e7e5e4] bg-white px-2.5 text-[13px] font-medium text-[var(--text-primary)] outline-none transition focus:border-[#8fc0cf] focus:ring-2 focus:ring-[var(--accent-soft)]"
-          />
-        </div>
-      ))}
+    <div className="flex flex-col">
+      {PLAN_MILESTONES.map((milestone, index) => {
+        const isLast = index === PLAN_MILESTONES.length - 1;
+        return (
+          <div key={milestone.name} className="flex gap-3.5">
+            <div className="flex flex-col items-center">
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full border-[1.5px] border-[var(--accent-border)] bg-[var(--accent-soft)] text-[11px] font-semibold text-[var(--accent-strong)]">
+                {index + 1}
+              </span>
+              {isLast ? null : <span className="w-px flex-1 bg-[var(--border-default)]" />}
+            </div>
+            <div className={cn("flex flex-1 items-center justify-between gap-3", isLast ? "pb-0.5" : "pb-4")}>
+              <span className="text-[14px] font-medium text-[var(--text-primary)]">{milestone.name}</span>
+              <div className="w-[176px] shrink-0">
+                <DateField
+                  hideHeader
+                  label={`${milestone.name} date`}
+                  value={dates[index]}
+                  onChange={(next) => setDates((current) => current.map((date, j) => (j === index ? next : date)))}
+                />
+              </div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -846,36 +904,38 @@ function LockableMetrics() {
   const lockedCount = locked.filter(Boolean).length;
 
   return (
-    <div className="flex flex-col gap-2">
-      {PLAN_METRICS.map((metric, index) => {
-        const isLocked = locked[index];
+    <div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        {PLAN_METRICS.map((metric, index) => {
+          const isLocked = locked[index];
 
-        return (
-          <div
-            key={metric}
-            className={cn(
-              "flex items-center gap-3 rounded-[9px] border px-3.5 py-3 transition",
-              isLocked ? "border-[#a9d9bc] bg-[#f2f8f4]" : "border-[#e7e5e4] bg-white",
-            )}
-          >
-            <span className="min-w-0 flex-1 text-[14px] font-medium text-[var(--text-primary)]">{metric}</span>
-            {isLocked ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-[#a9d9bc] bg-white px-2.5 py-1 text-[12px] font-semibold text-[#15803d]">
-                <Lock size={12} /> Locked
-              </span>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setLocked((current) => current.map((value, j) => (j === index ? true : value)))}
-                className="inline-flex items-center gap-1.5 rounded-full border border-[#e7e5e4] bg-white px-2.5 py-1 text-[12px] font-medium text-[var(--text-body)] transition hover:border-[var(--accent-border)] hover:text-[var(--accent-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
-              >
-                <Lock size={12} /> Lock
-              </button>
-            )}
-          </div>
-        );
-      })}
-      <p className="mt-1 text-[12px] leading-4 text-[var(--text-muted)]">
+          return (
+            <div
+              key={metric}
+              className={cn(
+                "flex flex-col justify-between gap-3 rounded-[10px] border p-3.5 transition",
+                isLocked ? "border-[#a9d9bc] bg-[#f2f8f4]" : "border-[#e7e5e4] bg-white",
+              )}
+            >
+              <span className="text-[13px] font-medium leading-5 text-[var(--text-primary)]">{metric}</span>
+              {isLocked ? (
+                <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-[#a9d9bc] bg-white px-2.5 py-1 text-[12px] font-semibold text-[#15803d]">
+                  <Lock size={12} /> Locked
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setLocked((current) => current.map((value, j) => (j === index ? true : value)))}
+                  className="inline-flex w-fit items-center gap-1.5 rounded-full border border-[#e7e5e4] bg-white px-2.5 py-1 text-[12px] font-medium text-[var(--text-body)] transition hover:border-[var(--accent-border)] hover:text-[var(--accent-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
+                >
+                  <Lock size={12} /> Lock
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <p className="mt-2.5 text-[12px] leading-4 text-[var(--text-muted)]">
         {lockedCount} of {PLAN_METRICS.length} locked · lock ≥ 2 before mobilizing
       </p>
     </div>
@@ -912,7 +972,7 @@ function listItems(value: string) {
 
 function DetailPanel() {
   return (
-    <div className="pb-1">
+    <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pb-2">
       <dl className="divide-y divide-[#ecebea]">
         {DETAIL_ITEMS.map(([label, value]) => (
           <div key={label} className="grid grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] gap-3 px-5 py-3.5">
@@ -927,25 +987,28 @@ function DetailPanel() {
 
 function CommentsPanel() {
   return (
-    <div>
-      <div className="divide-y divide-[#ecebea]">
-        {COMMENT_ITEMS.map((comment) => (
-          <article key={`${comment.author}-${comment.date}`} className="px-5 py-4">
-            <div className="flex min-w-0 items-start justify-between gap-3">
-              <h3 className="min-w-0 text-[14px] font-medium leading-5 text-[var(--text-primary)]">{comment.author}</h3>
-              <time className="shrink-0 text-[13px] font-normal leading-5 text-[var(--text-label)]">{comment.date}</time>
-            </div>
-            <p className="mt-1.5 text-[13px] font-normal leading-5 text-[var(--text-body)]">{comment.body}</p>
-          </article>
-        ))}
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto">
+        <div className="divide-y divide-[#ecebea]">
+          {COMMENT_ITEMS.map((comment) => (
+            <article key={`${comment.author}-${comment.date}`} className="px-5 py-4">
+              <div className="flex min-w-0 items-start justify-between gap-3">
+                <h3 className="min-w-0 text-[14px] font-medium leading-5 text-[var(--text-primary)]">{comment.author}</h3>
+                <time className="shrink-0 text-[13px] font-normal leading-5 text-[var(--text-label)]">{comment.date}</time>
+              </div>
+              <p className="mt-1.5 text-[13px] font-normal leading-5 text-[var(--text-body)]">{comment.body}</p>
+            </article>
+          ))}
+        </div>
       </div>
 
-      <div className="border-t border-[#ecebea] px-5 py-4">
-        <div className="flex h-9 items-center gap-3">
-          <input
+      <div className="shrink-0 border-t border-[#ecebea] p-3">
+        <div className="flex items-end gap-2 rounded-[10px] border border-[var(--border-input)] bg-white px-3 py-2 transition focus-within:border-[#8fc0cf] focus-within:ring-2 focus-within:ring-[var(--accent-soft)]">
+          <textarea
             aria-label="Add comment"
-            placeholder="Write a comment..."
-            className="min-w-0 flex-1 border-0 bg-transparent p-0 text-[14px] font-normal leading-5 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
+            placeholder="Write a comment…"
+            rows={2}
+            className="no-scrollbar max-h-24 min-h-[36px] min-w-0 flex-1 resize-none border-0 bg-transparent p-0 text-[13px] font-normal leading-5 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
           />
           <button
             type="button"
@@ -962,7 +1025,7 @@ function CommentsPanel() {
 
 function ActivityPanel() {
   return (
-    <div className="pb-1">
+    <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pb-2">
       <ol className="divide-y divide-[#ecebea]">
         {ACTIVITY_ITEMS.map((activity) => {
           const Icon = activity.icon;

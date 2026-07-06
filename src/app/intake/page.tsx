@@ -7,7 +7,7 @@ import { ArrowLeft, ArrowRight, NotebookPen, Paperclip, Sparkles } from "lucide-
 
 import {
   CompletionMeter,
-  DatePicker,
+  DateField,
   SaveStatus,
   SearchableSelect,
   SmartText,
@@ -406,7 +406,7 @@ export default function IntakePage() {
                     error={errors.businessSponsor}
                     placeholder="Select sponsor"
                   />
-                  <DatePicker
+                  <DateField
                     label="Target go-live date"
                     required
                     value={form.goLiveDate}
