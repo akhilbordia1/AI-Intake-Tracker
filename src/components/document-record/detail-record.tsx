@@ -2,14 +2,15 @@
 
 import { INITIAL_WORKFLOW_VALUES, USE_CASE, type FieldValue } from "@/data/document-workflow-form-schema";
 import { cn } from "@/lib/cn";
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, FileCheck2, Lock, MoreHorizontal, RefreshCcw, RotateCcw, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronRight, FileCheck2, Lock, MoreHorizontal, RefreshCcw, RotateCcw, ShieldCheck, Sparkles } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState, type CSSProperties, type ReactElement, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement, type ReactNode } from "react";
 
 import { PersonAvatar, ProfileSwitcher, initials } from "@/components/profile";
 
 import {
   CardMultiSelect,
+  ChipMultiSelect,
   CurrencyField,
   DateField,
   LevelSlider,
@@ -317,18 +318,26 @@ export function DetailRecordPage() {
 
 function StageColumnHeader({ stage, currentUser, action }: { stage: StageItem; currentUser: string; action?: ReactNode }) {
   const ownedByMe = stage.owner === currentUser;
+  const owner = (
+    <div className="flex items-center gap-2 text-[13px] leading-5">
+      <span className="text-[var(--text-label)]">Stage Owner</span>
+      <PersonAvatar name={stage.owner} size={22} highlight={ownedByMe} />
+      <span className={cn("text-[var(--text-primary)]", ownedByMe && "font-semibold")}>{stage.owner}</span>
+    </div>
+  );
 
   return (
     <div className="flex min-h-[52px] shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-[#ecebea] px-7 py-2" aria-label={`${stage.name} stage header`}>
-      <h2 className="font-display min-w-0 truncate text-[19px] leading-7 text-[var(--text-primary)]">{stage.name}</h2>
-      <div className="flex shrink-0 items-center gap-3">
-        {action}
-        <div className="flex items-center gap-2 text-[13px] leading-5">
-          <span className="text-[var(--text-label)]">Stage Owner</span>
-          <PersonAvatar name={stage.owner} size={22} highlight={ownedByMe} />
-          <span className={cn("text-[var(--text-primary)]", ownedByMe && "font-semibold")}>{stage.owner}</span>
-        </div>
+      <div className="flex min-w-0 items-center gap-3">
+        <h2 className="font-display min-w-0 truncate text-[19px] leading-7 text-[var(--text-primary)]">{stage.name}</h2>
+        {action ? (
+          <>
+            <span className="h-4 w-px bg-[#e7e5e4]" aria-hidden />
+            {owner}
+          </>
+        ) : null}
       </div>
+      <div className="flex shrink-0 items-center gap-3">{action ?? owner}</div>
     </div>
   );
 }
@@ -480,7 +489,10 @@ function StageReadOnlyRows({ rows }: { rows: StageItem["rows"] }) {
   );
 }
 
-type FieldKind = "segmented" | "radio" | "select" | "scale" | "level" | "cards" | "currency" | "date" | "long" | "text";
+type FieldKind = "segmented" | "radio" | "select" | "scale" | "level" | "cards" | "chips" | "currency" | "date" | "long" | "text";
+
+// Multi-selects that render as tile cards; the rest stay as pill chips.
+const CARD_FIELDS = new Set(["Pipeline", "Grounding controls"]);
 
 type FieldSpec = {
   label: string;
@@ -537,7 +549,7 @@ function buildFieldSpec(label: string, value: string): FieldSpec {
 
   const items = listItems(value);
   if (isChecklistField(label) && items.length > 1) {
-    return { label, kind: "cards", options: items, suggestion: items };
+    return { label, kind: CARD_FIELDS.has(label) ? "cards" : "chips", options: items, suggestion: items };
   }
 
   if (value.length > 96 || LONG_LABELS.has(label)) return { label, kind: "long", suggestion: value };
@@ -560,7 +572,7 @@ function computeRiskTier(values: Record<string, string | string[]>) {
 function EditableStage({ stage, currentUser }: { stage: StageItem; currentUser: string }) {
   const fields = useMemo(() => stage.rows.map(([label, value]) => buildFieldSpec(label, value)), [stage]);
   const [values, setValues] = useState<Record<string, string | string[]>>(() =>
-    Object.fromEntries(fields.map((field) => [field.label, field.kind === "cards" ? [] : ""])),
+    Object.fromEntries(fields.map((field) => [field.label, field.kind === "cards" || field.kind === "chips" ? [] : ""])),
   );
   const riskTier = stage.name === "Assess" ? computeRiskTier(values) : null;
 
@@ -591,30 +603,43 @@ function EditableStage({ stage, currentUser }: { stage: StageItem; currentUser: 
             <button
               type="button"
               onClick={suggestAll}
-              className="inline-flex h-8 items-center gap-1.5 rounded-full border border-[var(--accent-border)] bg-[var(--accent-soft)] px-3 text-[12px] font-medium text-[var(--accent-strong)] transition hover:bg-[#daedf3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
+              title="Draft all fields"
+              className="inline-flex h-7 items-center gap-1 rounded-full border border-[var(--accent-border)] bg-[var(--accent-soft)] pl-2 pr-2.5 text-[11.5px] font-medium text-[var(--accent-strong)] transition hover:bg-[#daedf3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
             >
-              <Sparkles size={12} />
-              Suggest all
+              <Sparkles size={11} />
+              Suggest
             </button>
           </>
         }
       />
 
-      <section className="no-scrollbar min-h-0 flex-1 overflow-y-auto pb-6 pt-4" aria-label={`${stage.name} stage form`}>
+      <section className="no-scrollbar min-h-0 flex-1 overflow-y-auto pb-8 pt-4" aria-label={`${stage.name} stage form`}>
         <div className="pt-1">
-          {fields.map((field) => (
-            <div key={field.label} className="grid grid-cols-[184px_minmax(0,1fr)] gap-6 px-7 py-3">
-              <label className="pt-2 text-[13.5px] font-medium leading-5 text-[var(--text-label)]">{field.label}</label>
-              <div className="min-w-0">
-                <StageField
-                  spec={field}
-                  value={values[field.label]}
-                  onChange={(value) => setField(field.label, value)}
-                  onSuggest={() => setField(field.label, field.suggestion)}
-                />
+          {fields.map((field) => {
+            const singleLine = !["cards", "chips", "long"].includes(field.kind);
+            return (
+              <div key={field.label} className="grid grid-cols-[184px_minmax(0,1fr)] gap-8 px-7 py-[18px]">
+                <label
+                  className={cn(
+                    "text-[13.5px] font-medium leading-5 text-[var(--text-label)]",
+                    singleLine ? "flex min-h-9 items-center" : "pt-1.5",
+                  )}
+                >
+                  {field.label}
+                </label>
+                <div className={cn("min-w-0", singleLine && "flex min-h-9 items-center")}>
+                  <div className="w-full min-w-0">
+                    <StageField
+                      spec={field}
+                      value={values[field.label]}
+                      onChange={(value) => setField(field.label, value)}
+                      onSuggest={() => setField(field.label, field.suggestion)}
+                    />
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </section>
     </>
@@ -679,6 +704,18 @@ function StageField({
   if (spec.kind === "cards") {
     return (
       <CardMultiSelect
+        hideHeader
+        label={spec.label}
+        options={spec.options ?? []}
+        values={Array.isArray(value) ? value : []}
+        onChange={onChange}
+      />
+    );
+  }
+
+  if (spec.kind === "chips") {
+    return (
+      <ChipMultiSelect
         hideHeader
         label={spec.label}
         options={spec.options ?? []}
@@ -928,7 +965,7 @@ function choiceOptions(label: string, value: string) {
   if (lowerLabel.includes("required")) return ["Yes", "No", "Not sure"];
   if (lowerLabel.includes("model") || lowerLabel.includes("architecture")) return [value, "Workflow", "Classification", "Extraction"];
   if (lowerLabel.includes("autonomy")) return ["Suggests to human", "Human approves", "Acts automatically"];
-  if (lowerLabel.includes("pii")) return ["No", "Unsure", "Present"];
+  if (lowerLabel.includes("pii")) return ["Present", "No", "Not sure"];
   if (lowerLabel.includes("readiness") || lowerLabel.includes("value to function")) return ["1/5", "2/5", "3/5", "4/5", "5/5"];
   if (lowerLabel.includes("delivery model")) return ["In-house squad", "Vendor", "Hybrid"];
 
@@ -1073,11 +1110,32 @@ function StagePath({
   onStageChange?: (index: number) => void;
 }) {
   const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
+  const trailRef = useRef<HTMLOListElement>(null);
+  const [hasMore, setHasMore] = useState(false);
+
+  useEffect(() => {
+    const trail = trailRef.current;
+    if (!trail) return;
+    const update = () => setHasMore(trail.scrollLeft + trail.clientWidth < trail.scrollWidth - 2);
+    update();
+    trail.addEventListener("scroll", update, { passive: true });
+    const observer = new ResizeObserver(update);
+    observer.observe(trail);
+    return () => {
+      trail.removeEventListener("scroll", update);
+      observer.disconnect();
+    };
+  }, []);
+
+  function scrollTrail() {
+    trailRef.current?.scrollBy({ left: 240, behavior: "smooth" });
+  }
 
   return (
     <section className="shrink-0 bg-white px-7 py-3">
       <div className="flex items-center gap-2">
-        <ol className="-ml-7 flex min-w-0 flex-1 items-center overflow-hidden pl-7">
+        <div className="relative min-w-0 flex-1">
+          <ol ref={trailRef} className="no-scrollbar -ml-7 flex min-w-0 items-center overflow-x-auto pl-7">
           {STAGES.map((stage, index) => {
             const isCompleted = completedIndexes.includes(index);
             const isActive = index === activeIndex;
@@ -1105,8 +1163,8 @@ function StagePath({
                         ? "w-[52px] rounded-l-[20px] pl-4 pr-5"
                         : "w-[54px] px-5"
                       : isFirst
-                        ? "rounded-l-[20px] pl-5 pr-6"
-                        : "px-6",
+                        ? "rounded-l-[20px] pl-6 pr-8"
+                        : "px-8",
                     isLast && "rounded-r-[20px]",
                     isCompleted && !isActive && "bg-[var(--stage-past)] text-white hover:bg-[var(--stage-past-hover)]",
                     isCompleted && isActive && "bg-[var(--stage-past-active)] text-white hover:bg-[var(--stage-past-active-hover)]",
@@ -1115,12 +1173,27 @@ function StagePath({
                   )}
                 >
                   {isCompleted && <Check size={13} strokeWidth={3} className="shrink-0" />}
-                  <span className={cn("whitespace-nowrap", isCollapsed && "sr-only")}>{stage.name}</span>
+                  <span className={cn("max-w-[130px] truncate", isCollapsed && "sr-only")}>{stage.name}</span>
                 </button>
               </li>
             );
           })}
-        </ol>
+          </ol>
+
+          {hasMore ? (
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center gap-1 bg-gradient-to-l from-white via-white to-transparent pl-10 pr-0.5">
+              <button
+                type="button"
+                onClick={scrollTrail}
+                aria-label="Scroll stages"
+                className="pointer-events-auto inline-flex h-7 items-center gap-0.5 rounded-full border border-[var(--border-default)] bg-white px-1.5 text-[var(--text-muted)] shadow-[var(--shadow-sm)] transition hover:text-[var(--text-primary)]"
+              >
+                <MoreHorizontal size={14} />
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          ) : null}
+        </div>
 
         <div className="flex shrink-0 items-center gap-1.5 pl-3">
           <button

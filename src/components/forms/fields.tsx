@@ -371,19 +371,22 @@ export function CurrencyField({
   return (
     <div className="min-w-0">
       {hideHeader ? null : <FieldHeader label={label} required={required} hint={hint} />}
-      <div className={cn("flex h-9 items-stretch overflow-hidden rounded-[8px] border bg-white transition focus-within:border-[#8fc0cf] focus-within:ring-2 focus-within:ring-[#e8f4f8]", borderClass(error))}>
-        <select
-          value={currency}
-          onChange={(event) => onCurrency(event.target.value)}
-          aria-label="Currency"
-          className="h-full shrink-0 border-r border-[#e7e5e4] bg-[#faf9f6] pl-2.5 pr-1.5 text-[12px] font-medium text-[var(--text-label)] outline-none"
-        >
-          {currencies.map((code) => (
-            <option key={code} value={code}>
-              {code}
-            </option>
-          ))}
-        </select>
+      <div className={cn("flex h-9 max-w-[300px] items-stretch overflow-hidden rounded-[8px] border bg-white transition focus-within:border-[#8fc0cf] focus-within:ring-2 focus-within:ring-[#e8f4f8]", borderClass(error))}>
+        <div className="relative shrink-0 border-r border-[#e7e5e4] bg-[#faf9f6]">
+          <select
+            value={currency}
+            onChange={(event) => onCurrency(event.target.value)}
+            aria-label="Currency"
+            className="h-full appearance-none bg-transparent pl-3 pr-8 text-[12px] font-medium text-[var(--text-label)] outline-none"
+          >
+            {currencies.map((code) => (
+              <option key={code} value={code}>
+                {code}
+              </option>
+            ))}
+          </select>
+          <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+        </div>
         <input
           inputMode="decimal"
           value={amount}
@@ -712,45 +715,88 @@ export function LevelSlider({
   onChange: (value: string) => void;
 }) {
   const selected = options.indexOf(value);
+  const count = options.length;
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [dragging, setDragging] = useState(false);
+
+  function pickFromX(clientX: number) {
+    const track = trackRef.current;
+    if (!track || count < 2) return;
+    const rect = track.getBoundingClientRect();
+    const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+    const index = Math.round(ratio * (count - 1));
+    if (options[index] !== value) onChange(options[index]);
+  }
+
+  // Position along the track (with 10px inset on each side for the thumb).
+  const pos = selected >= 0 ? selected / (count - 1) : 0;
 
   return (
     <div className="min-w-0">
       {hideHeader ? null : <FieldHeader label={label} required={required} hint={hint} />}
-      <div className="max-w-[400px]">
-        <div className="flex items-center px-2.5">
-          {options.map((option, index) => {
-            const filled = selected >= 0 && index <= selected;
-            const isSelected = index === selected;
-            return (
-              <Fragment key={option}>
-                {index > 0 ? (
-                  <span className={cn("h-[3px] flex-1 rounded-full", filled ? "bg-[var(--accent)]" : "bg-[var(--border-default)]")} />
-                ) : null}
-                <button
-                  type="button"
-                  aria-label={option}
-                  aria-pressed={isSelected}
-                  onClick={() => onChange(option)}
-                  className={cn(
-                    "grid h-5 w-5 shrink-0 place-items-center rounded-full border-[1.5px] transition",
-                    filled ? "border-[var(--accent)] bg-[var(--accent)]" : "border-[var(--border-input)] bg-white hover:border-[var(--accent-border)]",
-                    isSelected ? "ring-2 ring-[var(--accent-soft)]" : "",
-                  )}
-                >
-                  {isSelected ? <span className="h-1.5 w-1.5 rounded-full bg-white" /> : null}
-                </button>
-              </Fragment>
-            );
-          })}
+      <div className="max-w-[400px] select-none">
+        <div
+          ref={trackRef}
+          role="slider"
+          tabIndex={0}
+          aria-valuemin={0}
+          aria-valuemax={count - 1}
+          aria-valuenow={selected >= 0 ? selected : 0}
+          aria-valuetext={value || undefined}
+          aria-label={label}
+          onKeyDown={(event) => {
+            if (selected < 0) return;
+            if (event.key === "ArrowRight" || event.key === "ArrowUp") {
+              event.preventDefault();
+              if (selected < count - 1) onChange(options[selected + 1]);
+            } else if (event.key === "ArrowLeft" || event.key === "ArrowDown") {
+              event.preventDefault();
+              if (selected > 0) onChange(options[selected - 1]);
+            }
+          }}
+          className="relative flex h-6 cursor-pointer touch-none items-center"
+          onPointerDown={(event) => {
+            setDragging(true);
+            event.currentTarget.setPointerCapture(event.pointerId);
+            pickFromX(event.clientX);
+          }}
+          onPointerMove={(event) => {
+            if (dragging) pickFromX(event.clientX);
+          }}
+          onPointerUp={() => setDragging(false)}
+          onPointerCancel={() => setDragging(false)}
+        >
+          <span className="absolute inset-x-2.5 h-[4px] rounded-full bg-[var(--border-default)]" />
+          {selected >= 0 ? (
+            <span className="absolute left-2.5 h-[4px] rounded-full bg-[var(--accent)]" style={{ width: `calc((100% - 20px) * ${pos})` }} />
+          ) : null}
+          {options.map((_, index) => (
+            <span
+              key={index}
+              className={cn("absolute h-2 w-2 -translate-x-1/2 rounded-full", selected >= 0 && index <= selected ? "bg-[var(--accent)]" : "bg-[var(--border-input)]")}
+              style={{ left: `calc(10px + (100% - 20px) * ${index / (count - 1)})` }}
+            />
+          ))}
+          {selected >= 0 ? (
+            <span
+              className="absolute z-10 h-5 w-5 -translate-x-1/2 rounded-full border-2 border-[var(--accent)] bg-white shadow-[0_1px_3px_rgba(12,10,9,0.18)]"
+              style={{ left: `calc(10px + (100% - 20px) * ${pos})` }}
+            />
+          ) : null}
         </div>
         <div className="mt-2 flex items-center justify-between">
           {options.map((option, index) => (
-            <span
+            <button
               key={option}
-              className={cn("text-[12px]", index === selected ? "font-semibold text-[var(--text-primary)]" : "text-[var(--text-muted)]")}
+              type="button"
+              onClick={() => onChange(option)}
+              className={cn(
+                "text-[12px] transition",
+                index === selected ? "font-semibold text-[var(--text-primary)]" : "text-[var(--text-muted)] hover:text-[var(--text-body)]",
+              )}
             >
               {option}
-            </span>
+            </button>
           ))}
         </div>
       </div>
