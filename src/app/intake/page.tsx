@@ -1,11 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, ChevronDown, NotebookPen, Paperclip, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, NotebookPen, Paperclip, Sparkles } from "lucide-react";
 
-import { useClickOutside } from "@/lib/use-click-outside";
+import {
+  CompletionMeter,
+  DatePicker,
+  SaveStatus,
+  SearchableSelect,
+  SmartText,
+  SmartTextarea,
+  useSaveStatus,
+} from "@/components/forms/fields";
 
 type IntakeForm = {
   idea: string;
@@ -130,27 +138,60 @@ const teams = ["Tier 1 Support", "AP Operations", "HR Shared Services", "Legal O
 const countries = ["United States", "United Kingdom", "India", "Germany", "Singapore", "Global / multi-country"];
 const sponsors = ["Mira Kapoor", "Aarav Mehta", "Lina Martin", "Ravi Shah", "Elena Weber"];
 
+const REQUIRED_FIELDS: (keyof IntakeForm)[] = [
+  "useCaseName",
+  "oneLineDescription",
+  "businessProblem",
+  "desiredOutcome",
+  "department",
+  "functionArea",
+  "businessSponsor",
+  "goLiveDate",
+];
+
+type IntakeErrors = Partial<Record<keyof IntakeForm, string>>;
+
 export default function IntakePage() {
   const router = useRouter();
   const [form, setForm] = useState<IntakeForm>(emptyForm);
   const [mode, setMode] = useState<"ai" | "manual">("ai");
+  const [errors, setErrors] = useState<IntakeErrors>({});
+  const saveState = useSaveStatus(JSON.stringify(form));
+
+  const doneCount = REQUIRED_FIELDS.filter((key) => form[key].trim()).length;
+  const hasErrors = Object.values(errors).some(Boolean);
 
   function updateField(key: keyof IntakeForm, value: string) {
     setForm((current) => ({ ...current, [key]: value }));
+    setErrors((current) => (current[key] ? { ...current, [key]: undefined } : current));
+  }
+
+  // AI-assist: fill one field with its context draft.
+  function suggest(key: keyof IntakeForm) {
+    const value = aiDraft[key];
+    if (value) updateField(key, value);
   }
 
   function applyTemplate(template: string) {
     setForm((current) => ({ ...current, ...templateDrafts[template], template }));
+    setErrors({});
     setMode("manual");
   }
 
   function generateDraft() {
     setForm((current) => ({ ...current, ...aiDraft, idea: current.idea || aiDraft.idea || "" }));
+    setErrors({});
     setMode("manual");
   }
 
   function submitIntake(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const nextErrors: IntakeErrors = {};
+    REQUIRED_FIELDS.forEach((key) => {
+      if (!form[key].trim()) nextErrors[key] = "Required";
+    });
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
     router.push("/detail");
   }
 
@@ -251,249 +292,155 @@ export default function IntakePage() {
             {mode === "manual" ? (
               <form
                 onSubmit={submitIntake}
+                noValidate
                 className="mt-7 rounded-[10px] border border-[#e7e5e4] bg-white shadow-[0_1px_3px_rgba(15,23,42,0.05)]"
               >
-                <div className="border-b border-[#f0efed] px-5 py-4">
+                <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b border-[#f0efed] px-5 py-4">
                   <div className="text-[13px] font-medium text-[var(--text-primary)]">Initial submission form</div>
+                  <div className="flex items-center gap-4">
+                    <SaveStatus state={saveState} />
+                    <CompletionMeter done={doneCount} total={REQUIRED_FIELDS.length} className="w-[180px]" />
+                  </div>
                 </div>
 
-              <div className="grid gap-4 px-5 py-5 md:grid-cols-2">
-                <Field label="Use case name">
-                  <TextInput
+                <div className="grid gap-4 px-5 py-5 md:grid-cols-2">
+                  <SmartText
+                    label="Use case name"
+                    required
                     value={form.useCaseName}
                     onChange={(value) => updateField("useCaseName", value)}
+                    onSuggest={() => suggest("useCaseName")}
+                    error={errors.useCaseName}
                     placeholder="Support Ticket Response Agent"
                   />
-                </Field>
-                <Field label="One-line description">
-                  <TextInput
+                  <SmartText
+                    label="One-line description"
+                    required
                     value={form.oneLineDescription}
                     onChange={(value) => updateField("oneLineDescription", value)}
+                    onSuggest={() => suggest("oneLineDescription")}
+                    error={errors.oneLineDescription}
                     placeholder="Short summary of the use case"
                   />
-                </Field>
-                <Field label="Business problem" className="md:col-span-2">
-                  <TextArea
-                    value={form.businessProblem}
-                    onChange={(value) => updateField("businessProblem", value)}
-                    placeholder="What problem does this solve?"
-                  />
-                </Field>
-                <Field label="Desired outcome" className="md:col-span-2">
-                  <TextArea
-                    value={form.desiredOutcome}
-                    onChange={(value) => updateField("desiredOutcome", value)}
-                    placeholder="What should be true after this is live?"
-                  />
-                </Field>
-                <Field label="Expected impact / value" hint="Formal KPIs are locked at GTAC" className="md:col-span-2">
-                  <TextInput
-                    value={form.expectedImpact}
-                    onChange={(value) => updateField("expectedImpact", value)}
-                    placeholder="Hours saved, faster turnaround, improved consistency..."
-                  />
-                </Field>
-                <Field label="Target users" className="md:col-span-2">
-                  <TextInput
-                    value={form.targetUsers}
-                    onChange={(value) => updateField("targetUsers", value)}
-                    placeholder="Customer support agents, team leads..."
-                  />
-                </Field>
-                <Field label="Department">
-                  <SelectField
+                  <div className="md:col-span-2">
+                    <SmartTextarea
+                      label="Business problem"
+                      required
+                      maxLength={400}
+                      value={form.businessProblem}
+                      onChange={(value) => updateField("businessProblem", value)}
+                      onSuggest={() => suggest("businessProblem")}
+                      error={errors.businessProblem}
+                      placeholder="What problem does this solve?"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <SmartTextarea
+                      label="Desired outcome"
+                      required
+                      maxLength={400}
+                      value={form.desiredOutcome}
+                      onChange={(value) => updateField("desiredOutcome", value)}
+                      onSuggest={() => suggest("desiredOutcome")}
+                      error={errors.desiredOutcome}
+                      placeholder="What should be true after this is live?"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <SmartText
+                      label="Expected impact / value"
+                      hint="Formal KPIs are locked at GTAC"
+                      value={form.expectedImpact}
+                      onChange={(value) => updateField("expectedImpact", value)}
+                      onSuggest={() => suggest("expectedImpact")}
+                      placeholder="Hours saved, faster turnaround, improved consistency..."
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <SmartText
+                      label="Target users"
+                      value={form.targetUsers}
+                      onChange={(value) => updateField("targetUsers", value)}
+                      onSuggest={() => suggest("targetUsers")}
+                      placeholder="Customer support agents, team leads..."
+                    />
+                  </div>
+                  <SearchableSelect
+                    label="Department"
+                    required
                     value={form.department}
-                    placeholder="Select department"
                     options={departments}
                     onChange={(value) => updateField("department", value)}
+                    error={errors.department}
+                    placeholder="Select department"
                   />
-                </Field>
-                <Field label="Function">
-                  <SelectField
+                  <SearchableSelect
+                    label="Function"
+                    required
                     value={form.functionArea}
-                    placeholder="Select function"
                     options={functions}
                     onChange={(value) => updateField("functionArea", value)}
+                    error={errors.functionArea}
+                    placeholder="Select function"
                   />
-                </Field>
-                <Field label="Team">
-                  <SelectField
+                  <SearchableSelect
+                    label="Team"
                     value={form.team}
-                    placeholder="Select team"
                     options={teams}
                     onChange={(value) => updateField("team", value)}
+                    placeholder="Select team"
                   />
-                </Field>
-                <Field label="Country">
-                  <SelectField
+                  <SearchableSelect
+                    label="Country"
                     value={form.country}
-                    placeholder="Select country"
                     options={countries}
                     onChange={(value) => updateField("country", value)}
+                    placeholder="Select country"
                   />
-                </Field>
-                <Field label="Business sponsor">
-                  <SelectField
+                  <SearchableSelect
+                    label="Business sponsor"
+                    required
                     value={form.businessSponsor}
-                    placeholder="Select sponsor"
                     options={sponsors}
                     onChange={(value) => updateField("businessSponsor", value)}
+                    error={errors.businessSponsor}
+                    placeholder="Select sponsor"
                   />
-                </Field>
-                <Field label="Target go-live date">
-                  <input
-                    type="date"
+                  <DatePicker
+                    label="Target go-live date"
+                    required
                     value={form.goLiveDate}
-                    onChange={(event) => updateField("goLiveDate", event.target.value)}
-                    className={inputClassName}
+                    onChange={(value) => updateField("goLiveDate", value)}
+                    error={errors.goLiveDate}
                   />
-                </Field>
-              </div>
+                </div>
 
-              <div className="flex items-center justify-end gap-2 border-t border-[#f0efed] px-5 py-4">
-                <Link
-                  href="/"
-                  className="inline-flex h-9 items-center rounded-[8px] border border-[#e7e5e4] bg-white px-3.5 text-[13px] font-medium text-[var(--text-body)] transition hover:border-[#8fc0cf] hover:bg-[#f4fafb] hover:text-[#0c5f7a]"
-                >
-                  Cancel
-                </Link>
-                <button
-                  type="submit"
-                  className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#0e7090] px-3.5 text-[13px] font-medium text-white shadow-[0_1px_3px_rgba(15,23,42,0.08)] transition hover:bg-[#0c5f7a]"
-                >
-                  Submit Use Case
-                  <ArrowRight size={14} />
-                </button>
-              </div>
+                <div className="flex items-center justify-between gap-3 border-t border-[#f0efed] px-5 py-4">
+                  <span className="text-[11px] text-[#b4471d]">
+                    {hasErrors ? "Fill the required fields to submit." : ""}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Link
+                      href="/"
+                      className="inline-flex h-9 items-center rounded-[8px] border border-[#e7e5e4] bg-white px-3.5 text-[13px] font-medium text-[var(--text-body)] transition hover:border-[#8fc0cf] hover:bg-[#f4fafb] hover:text-[#0c5f7a]"
+                    >
+                      Cancel
+                    </Link>
+                    <button
+                      type="submit"
+                      className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#0e7090] px-3.5 text-[13px] font-medium text-white shadow-[0_1px_3px_rgba(15,23,42,0.08)] transition hover:bg-[#0c5f7a]"
+                    >
+                      Submit Use Case
+                      <ArrowRight size={14} />
+                    </button>
+                  </div>
+                </div>
               </form>
             ) : null}
           </div>
         </div>
       </div>
     </main>
-  );
-}
-
-function Field({
-  label,
-  hint,
-  className = "",
-  children,
-}: {
-  label: string;
-  hint?: string;
-  className?: string;
-  children: ReactNode;
-}) {
-  return (
-    <label className={["block min-w-0", className].join(" ")}>
-      <div className="mb-1.5 flex items-center gap-2">
-        <span className="text-[12px] font-medium text-[var(--text-primary)]">{label}</span>
-      </div>
-      {children}
-      {hint ? <div className="mt-1.5 text-[11px] leading-4 text-[var(--text-muted)]">{hint}</div> : null}
-    </label>
-  );
-}
-
-const inputClassName =
-  "h-9 w-full rounded-[8px] border border-[#e7e5e4] bg-white px-3 text-[13px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[#8fc0cf] focus:ring-2 focus:ring-[#e8f4f8]";
-
-function TextInput({
-  value,
-  onChange,
-  placeholder,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  placeholder: string;
-}) {
-  return (
-    <input
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      placeholder={placeholder}
-      className={inputClassName}
-    />
-  );
-}
-
-function TextArea({
-  value,
-  onChange,
-  placeholder,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  placeholder: string;
-}) {
-  return (
-    <textarea
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      rows={3}
-      placeholder={placeholder}
-      className="min-h-[92px] w-full resize-none rounded-[8px] border border-[#e7e5e4] bg-white px-3 py-2.5 text-[13px] leading-5 text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[#8fc0cf] focus:ring-2 focus:ring-[#e8f4f8]"
-    />
-  );
-}
-
-function SelectField({
-  value,
-  placeholder,
-  options,
-  onChange,
-}: {
-  value: string;
-  placeholder: string;
-  options: string[];
-  onChange: (value: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-  useClickOutside(menuRef, () => setOpen(false), open);
-
-  return (
-    <div ref={menuRef} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((current) => !current)}
-        className={[
-          inputClassName,
-          "flex items-center justify-between gap-3 text-left",
-          value ? "" : "text-[var(--text-muted)]",
-        ].join(" ")}
-      >
-        <span className="truncate">{value || placeholder}</span>
-        <ChevronDown
-          size={14}
-          className={["shrink-0 text-[var(--text-muted)] transition", open ? "rotate-180" : ""].join(" ")}
-        />
-      </button>
-
-      {open ? (
-        <div className="absolute left-0 right-0 top-10 z-20 max-h-[220px] overflow-y-auto rounded-[8px] border border-[#e7e5e4] bg-white p-1 shadow-[0_8px_28px_rgba(15,23,42,0.08)]">
-          {options.map((option) => (
-            <button
-              key={option}
-              type="button"
-              onClick={() => {
-                onChange(option);
-                setOpen(false);
-              }}
-              className={[
-                "block h-8 w-full rounded-[6px] px-2.5 text-left text-[12px] font-medium transition",
-                value === option
-                  ? "bg-[#e8f4f8] text-[#0c5f7a]"
-                  : "text-[var(--text-body)] hover:bg-[#faf9f6] hover:text-[var(--text-primary)]",
-              ].join(" ")}
-            >
-              {option}
-            </button>
-          ))}
-        </div>
-      ) : null}
-    </div>
   );
 }
 

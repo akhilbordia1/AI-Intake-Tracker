@@ -4,7 +4,17 @@ import { INITIAL_WORKFLOW_VALUES, USE_CASE, type FieldValue } from "@/data/docum
 import { cn } from "@/lib/cn";
 import { ArrowLeft, ArrowRight, Check, CheckCircle2, FileCheck2, Lock, MoreHorizontal, RefreshCcw, ShieldCheck, Sparkles } from "lucide-react";
 import Link from "next/link";
-import { useState, type CSSProperties, type ReactElement } from "react";
+import { useMemo, useState, type CSSProperties, type ReactElement } from "react";
+
+import {
+  ChipMultiSelect,
+  CompletionMeter,
+  SaveStatus,
+  Segmented,
+  SmartText,
+  SmartTextarea,
+  useSaveStatus,
+} from "@/components/forms/fields";
 
 const RECORD_THEME = {
   "--accent": "#0e7090",
@@ -332,7 +342,7 @@ function StageContent({ isComplete, stage }: { isComplete: boolean; stage: Stage
         ) : bespoke ? (
           bespoke()
         ) : (
-          <StageEditableForm stage={stage} />
+          <StageEditableForm key={stage.name} stage={stage} />
         )}
       </div>
     </section>
@@ -352,96 +362,172 @@ function StageReadOnlyRows({ rows }: { rows: StageItem["rows"] }) {
   );
 }
 
-function StageEditableForm({ stage }: { stage: StageItem }) {
-  return (
-    <div className="divide-y divide-[#ecebea] border-b border-[#ecebea]">
-      {stage.rows.map(([label, value]) => (
-        <EditableField key={label} label={label} value={value} />
-      ))}
-    </div>
-  );
+type FieldKind = "segmented" | "chips" | "long" | "text";
+
+type FieldSpec = {
+  label: string;
+  kind: FieldKind;
+  options?: string[];
+  suggestion: string | string[];
+};
+
+const LONG_LABELS = new Set([
+  "Rationale",
+  "Exec summary",
+  "Rollback",
+  "Variance",
+  "Improvements",
+  "Business problem",
+  "Desired outcome",
+  "Conditions",
+  "Triage notes",
+  "Board notes",
+  "Assessment scope",
+]);
+
+function buildFieldSpec(label: string, value: string): FieldSpec {
+  const options = choiceOptions(label, value);
+  if (options) return { label, kind: "segmented", options, suggestion: value };
+
+  const items = listItems(value);
+  if (isChecklistField(label) && items.length > 1) {
+    return { label, kind: "chips", options: items, suggestion: items };
+  }
+
+  if (value.length > 96 || LONG_LABELS.has(label)) return { label, kind: "long", suggestion: value };
+  return { label, kind: "text", suggestion: value };
 }
 
-function EditableField({ label, value }: { label: string; value: string }) {
-  const options = choiceOptions(label, value);
-  const checklistItems = listItems(value);
-  const isChecklist = isChecklistField(label) && checklistItems.length > 1;
-  const isLong = value.length > 96 || ["Rationale", "Exec summary", "Rollback", "Variance", "Improvements", "Business problem", "Desired outcome", "Conditions"].includes(label);
+function isFilled(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value.length > 0 : Boolean(value && value.trim());
+}
+
+// Live governance tier, recomputed from the Assess answers as the user fills them.
+function computeRiskTier(values: Record<string, string | string[]>) {
+  const risk = String(values["Hallucination risk"] ?? "");
+  const dpia = String(values["DPIA required"] ?? "");
+
+  if (risk === "High" || dpia === "Yes") return { tier: "Full", fg: "#b32020", bg: "#f7eaea", border: "#e6c3c3" };
+  if (risk === "Medium") return { tier: "Standard", fg: "#a15c11", bg: "#f6f0e6", border: "#e6d4b8" };
+  if (risk === "Low") return { tier: "Light", fg: "#15803d", bg: "#eef4ee", border: "#bfdcc7" };
+  return null;
+}
+
+function StageEditableForm({ stage }: { stage: StageItem }) {
+  const fields = useMemo(() => stage.rows.map(([label, value]) => buildFieldSpec(label, value)), [stage]);
+  const [values, setValues] = useState<Record<string, string | string[]>>(() =>
+    Object.fromEntries(fields.map((field) => [field.label, field.kind === "chips" ? [] : ""])),
+  );
+  const saveState = useSaveStatus(JSON.stringify(values));
+
+  const doneCount = fields.filter((field) => isFilled(values[field.label])).length;
+  const riskTier = stage.name === "Assess" ? computeRiskTier(values) : null;
+
+  function setField(label: string, value: string | string[]) {
+    setValues((current) => ({ ...current, [label]: value }));
+  }
+
+  function suggestAll() {
+    setValues(Object.fromEntries(fields.map((field) => [field.label, field.suggestion])));
+  }
 
   return (
-    <div className="grid grid-cols-[190px_minmax(0,1fr)] gap-7 px-0 py-4">
-      <label className="text-[14px] font-normal leading-5 text-[var(--text-label)]">{label}</label>
-      <div className="min-w-0">
-        {options ? (
-          <SegmentedChoices label={label} options={options} value={value} />
-        ) : isChecklist ? (
-          <Checklist items={checklistItems} />
-        ) : isLong ? (
-          <textarea
-            aria-label={label}
-            defaultValue={value}
-            rows={3}
-            className="block w-full resize-none rounded-[8px] border border-[#e7e5e4] bg-white px-3 py-2.5 text-[15px] font-normal leading-6 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent-ring)] focus:ring-2 focus:ring-[var(--accent-ring)]"
+    <div>
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={suggestAll}
+            className="inline-flex h-8 items-center gap-1.5 rounded-full border border-[var(--accent-border)] bg-[var(--accent-soft)] px-3 text-[12px] font-medium text-[var(--accent-strong)] transition hover:bg-[#daedf3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
+          >
+            <Sparkles size={13} />
+            Suggest all fields
+          </button>
+          {riskTier ? (
+            <span
+              className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-semibold"
+              style={{ color: riskTier.fg, background: riskTier.bg, borderColor: riskTier.border }}
+            >
+              <ShieldCheck size={12} />
+              {riskTier.tier} tier
+            </span>
+          ) : null}
+        </div>
+        <div className="flex items-center gap-4">
+          <SaveStatus state={saveState} />
+          <CompletionMeter done={doneCount} total={fields.length} className="w-[170px]" />
+        </div>
+      </div>
+
+      <div className="space-y-5">
+        {fields.map((field) => (
+          <StageField
+            key={field.label}
+            spec={field}
+            value={values[field.label]}
+            onChange={(value) => setField(field.label, value)}
+            onSuggest={() => setField(field.label, field.suggestion)}
           />
-        ) : (
-          <input
-            aria-label={label}
-            defaultValue={value}
-            className="block h-9 w-full rounded-[8px] border border-[#e7e5e4] bg-white px-3 text-[15px] font-normal text-[var(--text-primary)] outline-none transition focus:border-[var(--accent-ring)] focus:ring-2 focus:ring-[var(--accent-ring)]"
-          />
-        )}
+        ))}
       </div>
     </div>
   );
 }
 
-function SegmentedChoices({ label, options, value }: { label: string; options: string[]; value: string }) {
-  const [selected, setSelected] = useState(value);
+function StageField({
+  spec,
+  value,
+  onChange,
+  onSuggest,
+}: {
+  spec: FieldSpec;
+  value: string | string[];
+  onChange: (value: string | string[]) => void;
+  onSuggest: () => void;
+}) {
+  if (spec.kind === "segmented") {
+    return (
+      <Segmented
+        label={spec.label}
+        options={spec.options ?? []}
+        value={typeof value === "string" ? value : ""}
+        onChange={onChange}
+        onSuggest={onSuggest}
+      />
+    );
+  }
+
+  if (spec.kind === "chips") {
+    return (
+      <ChipMultiSelect
+        label={spec.label}
+        options={spec.options ?? []}
+        values={Array.isArray(value) ? value : []}
+        onChange={onChange}
+        onSuggest={onSuggest}
+      />
+    );
+  }
+
+  if (spec.kind === "long") {
+    return (
+      <SmartTextarea
+        label={spec.label}
+        maxLength={600}
+        value={typeof value === "string" ? value : ""}
+        onChange={onChange}
+        onSuggest={onSuggest}
+      />
+    );
+  }
 
   return (
-    <div className="flex flex-wrap gap-2" role="group" aria-label={label}>
-      {options.map((option) => {
-        const isSelected = selected.toLowerCase().includes(option.toLowerCase());
-
-        return (
-          <button
-            key={option}
-            type="button"
-            aria-pressed={isSelected}
-            onClick={() => setSelected(option)}
-            className={cn(
-              "h-9 rounded-[8px] border px-3 text-[14px] font-normal transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]",
-              isSelected
-                ? "border-[var(--accent)] bg-white text-[var(--accent-strong)] shadow-[inset_0_0_0_1px_var(--accent)]"
-                : "border-[#e7e5e4] bg-white text-[var(--text-primary)] hover:border-[var(--accent-border)] hover:bg-[var(--accent-hover-bg)]",
-            )}
-          >
-            {option}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function Checklist({ items }: { items: string[] }) {
-  return (
-    <div className="space-y-2">
-      {items.map((item, index) => (
-        <ChecklistItem key={item} defaultChecked={index < Math.min(2, items.length)} item={item} />
-      ))}
-    </div>
-  );
-}
-
-function ChecklistItem({ defaultChecked, item }: { defaultChecked: boolean; item: string }) {
-  const [checked, setChecked] = useState(defaultChecked);
-
-  return (
-    <label className="flex min-h-7 items-start gap-3">
-      <input type="checkbox" checked={checked} onChange={(event) => setChecked(event.target.checked)} className="mt-1 h-4 w-4 accent-[var(--accent)]" />
-      <span className="text-[14px] font-normal leading-5 text-[var(--text-primary)]">{item}</span>
-    </label>
+    <SmartText
+      label={spec.label}
+      value={typeof value === "string" ? value : ""}
+      onChange={onChange}
+      onSuggest={onSuggest}
+    />
   );
 }
 
