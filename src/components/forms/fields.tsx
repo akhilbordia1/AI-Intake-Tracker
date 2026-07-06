@@ -695,6 +695,128 @@ export function RatingStepper({
   );
 }
 
+// ── Level slider (ordinal option scales, e.g. Low / Medium / High) ──────────
+
+export function LevelSlider({
+  value,
+  options,
+  onChange,
+  label,
+  required,
+  hint,
+  error,
+  hideHeader,
+}: FieldChrome & {
+  value: string;
+  options: string[];
+  onChange: (value: string) => void;
+}) {
+  const selected = options.indexOf(value);
+
+  return (
+    <div className="min-w-0">
+      {hideHeader ? null : <FieldHeader label={label} required={required} hint={hint} />}
+      <div className="max-w-[400px]">
+        <div className="flex items-center px-2.5">
+          {options.map((option, index) => {
+            const filled = selected >= 0 && index <= selected;
+            const isSelected = index === selected;
+            return (
+              <Fragment key={option}>
+                {index > 0 ? (
+                  <span className={cn("h-[3px] flex-1 rounded-full", filled ? "bg-[var(--accent)]" : "bg-[var(--border-default)]")} />
+                ) : null}
+                <button
+                  type="button"
+                  aria-label={option}
+                  aria-pressed={isSelected}
+                  onClick={() => onChange(option)}
+                  className={cn(
+                    "grid h-5 w-5 shrink-0 place-items-center rounded-full border-[1.5px] transition",
+                    filled ? "border-[var(--accent)] bg-[var(--accent)]" : "border-[var(--border-input)] bg-white hover:border-[var(--accent-border)]",
+                    isSelected ? "ring-2 ring-[var(--accent-soft)]" : "",
+                  )}
+                >
+                  {isSelected ? <span className="h-1.5 w-1.5 rounded-full bg-white" /> : null}
+                </button>
+              </Fragment>
+            );
+          })}
+        </div>
+        <div className="mt-2 flex items-center justify-between">
+          {options.map((option, index) => (
+            <span
+              key={option}
+              className={cn("text-[12px]", index === selected ? "font-semibold text-[var(--text-primary)]" : "text-[var(--text-muted)]")}
+            >
+              {option}
+            </span>
+          ))}
+        </div>
+      </div>
+      <FieldError error={error} />
+    </div>
+  );
+}
+
+// ── Card multi-select (selectable tiles) ────────────────────────────────────
+
+export function CardMultiSelect({
+  values,
+  options,
+  onChange,
+  label,
+  required,
+  hint,
+  error,
+  hideHeader,
+}: FieldChrome & {
+  values: string[];
+  options: string[];
+  onChange: (values: string[]) => void;
+}) {
+  function toggle(option: string) {
+    onChange(values.includes(option) ? values.filter((value) => value !== option) : [...values, option]);
+  }
+
+  return (
+    <div className="min-w-0">
+      {hideHeader ? null : <FieldHeader label={label} required={required} hint={hint} />}
+      <div className="grid gap-2 sm:grid-cols-2">
+        {options.map((option) => {
+          const on = values.includes(option);
+          return (
+            <button
+              key={option}
+              type="button"
+              aria-pressed={on}
+              onClick={() => toggle(option)}
+              className={cn(
+                "relative rounded-[10px] border p-3 pr-9 text-left text-[13px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]",
+                on
+                  ? "border-[var(--accent-border)] bg-[var(--accent-soft)] text-[var(--text-primary)]"
+                  : "border-[#e7e5e4] bg-white text-[var(--text-body)] hover:border-[var(--accent-border)] hover:bg-[var(--accent-hover-bg)]",
+              )}
+            >
+              {option}
+              <span className="absolute right-2.5 top-1/2 -translate-y-1/2">
+                {on ? (
+                  <span className="grid h-[18px] w-[18px] place-items-center rounded-full bg-[var(--accent)] text-white">
+                    <Check size={11} strokeWidth={3} />
+                  </span>
+                ) : (
+                  <span className="block h-[18px] w-[18px] rounded-[5px] border-[1.5px] border-[var(--border-input)]" />
+                )}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <FieldError error={error} />
+    </div>
+  );
+}
+
 // ── Completion meter ──────────────────────────────────────────────────────
 
 export function CompletionMeter({ done, total, className }: { done: number; total: number; className?: string }) {

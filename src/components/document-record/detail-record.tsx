@@ -9,11 +9,14 @@ import { useMemo, useState, type CSSProperties, type ReactElement, type ReactNod
 import { PersonAvatar, ProfileSwitcher, initials } from "@/components/profile";
 
 import {
-  ChipMultiSelect,
+  CardMultiSelect,
+  CurrencyField,
   DateField,
+  LevelSlider,
   RadioGroup,
   RatingStepper,
   SearchableSelect,
+  Segmented,
   SmartText,
   SmartTextarea,
 } from "@/components/forms/fields";
@@ -477,7 +480,7 @@ function StageReadOnlyRows({ rows }: { rows: StageItem["rows"] }) {
   );
 }
 
-type FieldKind = "segmented" | "select" | "scale" | "chips" | "date" | "long" | "text";
+type FieldKind = "segmented" | "radio" | "select" | "scale" | "level" | "cards" | "currency" | "date" | "long" | "text";
 
 type FieldSpec = {
   label: string;
@@ -486,6 +489,18 @@ type FieldSpec = {
   suggestion: string | string[];
   max?: number;
 };
+
+// Ordinal option sets render as a labeled slider rather than a picker.
+const ORDINAL_SETS = [
+  ["Low", "Medium", "High"],
+  ["Light", "Standard", "Full"],
+];
+
+function isOrdinalSet(options: string[]) {
+  return ORDINAL_SETS.some((set) => set.length === options.length && set.every((item, index) => options[index] === item));
+}
+
+const CURRENCY_RE = /^\s*(GBP|USD|EUR|£|\$|€)/;
 
 const LONG_LABELS = new Set([
   "Rationale",
@@ -502,20 +517,27 @@ const LONG_LABELS = new Set([
 ]);
 
 function buildFieldSpec(label: string, value: string): FieldSpec {
+  // Currency amounts get a dedicated control (currency dropdown + amount)
+  if (CURRENCY_RE.test(value)) return { label, kind: "currency", suggestion: value };
+
   const options = choiceOptions(label, value);
   if (options) {
-    // N/M rating scales → slider
+    // N/M rating scales → numbered stepper
     if (options.every((option) => /^\d+\/\d+$/.test(option))) {
       return { label, kind: "scale", suggestion: value, max: Number(options[0].split("/")[1]) };
     }
-    // long option lists read better as a dropdown than a row of pills
+    // Low/Medium/High, Light/Standard/Full → labeled slider
+    if (isOrdinalSet(options)) return { label, kind: "level", options, suggestion: value };
+    // long option lists read better as a dropdown
     if (options.length > 5) return { label, kind: "select", options, suggestion: value };
-    return { label, kind: "segmented", options, suggestion: value };
+    // short enums → segmented pill toggle; longer-label enums → radios
+    if (options.every((option) => option.length <= 10)) return { label, kind: "segmented", options, suggestion: value };
+    return { label, kind: "radio", options, suggestion: value };
   }
 
   const items = listItems(value);
   if (isChecklistField(label) && items.length > 1) {
-    return { label, kind: "chips", options: items, suggestion: items };
+    return { label, kind: "cards", options: items, suggestion: items };
   }
 
   if (value.length > 96 || LONG_LABELS.has(label)) return { label, kind: "long", suggestion: value };
@@ -538,7 +560,7 @@ function computeRiskTier(values: Record<string, string | string[]>) {
 function EditableStage({ stage, currentUser }: { stage: StageItem; currentUser: string }) {
   const fields = useMemo(() => stage.rows.map(([label, value]) => buildFieldSpec(label, value)), [stage]);
   const [values, setValues] = useState<Record<string, string | string[]>>(() =>
-    Object.fromEntries(fields.map((field) => [field.label, field.kind === "chips" ? [] : ""])),
+    Object.fromEntries(fields.map((field) => [field.label, field.kind === "cards" ? [] : ""])),
   );
   const riskTier = stage.name === "Assess" ? computeRiskTier(values) : null;
 
@@ -610,56 +632,53 @@ function StageField({
   onChange: (value: string | string[]) => void;
   onSuggest: () => void;
 }) {
+  const text = typeof value === "string" ? value : "";
+
   if (spec.kind === "scale") {
+    return <RatingStepper hideHeader label={spec.label} max={spec.max ?? 5} value={text} onChange={onChange} />;
+  }
+
+  if (spec.kind === "level") {
+    return <LevelSlider hideHeader label={spec.label} options={spec.options ?? []} value={text} onChange={onChange} />;
+  }
+
+  if (spec.kind === "currency") {
+    const match = /^\s*(GBP|USD|EUR|£|\$|€)\s*(.*)$/.exec(text);
+    const symbolToCode: Record<string, string> = { "£": "GBP", $: "USD", "€": "EUR" };
+    const currency = match ? symbolToCode[match[1]] ?? match[1] : "GBP";
+    const amount = match ? match[2] : text;
     return (
-      <RatingStepper
+      <CurrencyField
         hideHeader
         label={spec.label}
-        max={spec.max ?? 5}
-        value={typeof value === "string" ? value : ""}
-        onChange={onChange}
+        amount={amount}
+        currency={currency}
+        currencies={["GBP", "USD", "EUR"]}
+        onAmount={(next) => onChange(`${currency} ${next}`.trim())}
+        onCurrency={(next) => onChange(`${next} ${amount}`.trim())}
       />
     );
   }
 
   if (spec.kind === "select") {
-    return (
-      <SearchableSelect
-        hideHeader
-        label={spec.label}
-        options={spec.options ?? []}
-        value={typeof value === "string" ? value : ""}
-        onChange={onChange}
-      />
-    );
+    return <SearchableSelect hideHeader label={spec.label} options={spec.options ?? []} value={text} onChange={onChange} />;
   }
 
   if (spec.kind === "date") {
-    return (
-      <DateField
-        hideHeader
-        label={spec.label}
-        value={typeof value === "string" ? value : ""}
-        onChange={onChange}
-      />
-    );
+    return <DateField hideHeader label={spec.label} value={text} onChange={onChange} />;
   }
 
   if (spec.kind === "segmented") {
-    return (
-      <RadioGroup
-        hideHeader
-        label={spec.label}
-        options={spec.options ?? []}
-        value={typeof value === "string" ? value : ""}
-        onChange={onChange}
-      />
-    );
+    return <Segmented hideHeader label={spec.label} options={spec.options ?? []} value={text} onChange={onChange} />;
   }
 
-  if (spec.kind === "chips") {
+  if (spec.kind === "radio") {
+    return <RadioGroup hideHeader label={spec.label} options={spec.options ?? []} value={text} onChange={onChange} />;
+  }
+
+  if (spec.kind === "cards") {
     return (
-      <ChipMultiSelect
+      <CardMultiSelect
         hideHeader
         label={spec.label}
         options={spec.options ?? []}
@@ -670,27 +689,10 @@ function StageField({
   }
 
   if (spec.kind === "long") {
-    return (
-      <SmartTextarea
-        hideHeader
-        label={spec.label}
-        maxLength={600}
-        value={typeof value === "string" ? value : ""}
-        onChange={onChange}
-        onSuggest={onSuggest}
-      />
-    );
+    return <SmartTextarea hideHeader label={spec.label} maxLength={600} value={text} onChange={onChange} onSuggest={onSuggest} />;
   }
 
-  return (
-    <SmartText
-      hideHeader
-      label={spec.label}
-      value={typeof value === "string" ? value : ""}
-      onChange={onChange}
-      onSuggest={onSuggest}
-    />
-  );
+  return <SmartText hideHeader label={spec.label} value={text} onChange={onChange} onSuggest={onSuggest} />;
 }
 
 // ── Bespoke Plan stage (ported from reference: mandate, squad, milestones, metrics) ──
