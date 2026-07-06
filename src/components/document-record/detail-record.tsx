@@ -463,7 +463,7 @@ function StageReadOnlyRows({ rows }: { rows: StageItem["rows"] }) {
       <dl className="divide-y divide-[#f0efed] border-b border-[#f0efed]">
         {rows.map(([label, value]) => (
           <div key={label} className="grid grid-cols-[190px_minmax(0,1fr)] gap-7 px-7 py-4">
-            <dt className="pt-1 text-[13px] font-medium leading-5 text-[var(--text-label)]">{label}</dt>
+            <dt className="pt-1 text-[14px] font-medium leading-5 text-[var(--text-label)]">{label}</dt>
             <dd className="min-w-0">
               <ReadValue label={label} value={value} />
             </dd>
@@ -519,10 +519,6 @@ function buildFieldSpec(label: string, value: string): FieldSpec {
   return { label, kind: "text", suggestion: value };
 }
 
-function isFilled(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value.length > 0 : Boolean(value && value.trim());
-}
-
 // Live governance tier, recomputed from the Assess answers as the user fills them.
 function computeRiskTier(values: Record<string, string | string[]>) {
   const risk = String(values["Hallucination risk"] ?? "");
@@ -532,102 +528,6 @@ function computeRiskTier(values: Record<string, string | string[]>) {
   if (risk === "Medium") return { tier: "Standard", fg: "#a15c11", bg: "#f6f0e6", border: "#e6d4b8" };
   if (risk === "Low") return { tier: "Light", fg: "#15803d", bg: "#eef4ee", border: "#bfdcc7" };
   return null;
-}
-
-// Per-stage "read this first" guidance, ported from the reference prototype.
-const STAGE_GUIDANCE: Record<string, string> = {
-  Intake:
-    "A strong idea names one painful problem and one measurable outcome. Don't solve it yet — pitch it. We'll draft the rest from your one-liner.",
-  Screening:
-    "These answers set your governance tier. We drafted the factual ones from your intake — confirm or correct them. The judgment calls are yours; the AI won't make them for you.",
-  Prioritize:
-    "Read the pack, score it against your function's portfolio, and make one call. Your rationale travels with the record to Triage.",
-  Triage:
-    "You're setting the governance depth for this use case. The suggested tier is computed from the R1 profile — accept it or override with a reason. Your call here shapes every stage that follows.",
-  Assess:
-    "Your workspace shows only the modules Triage scoped. Findings are pre-drafted from the record — your job is professional confirmation, correction, and conditions.",
-  "Business case":
-    "The case is assembled from the record. Confirm the numbers, lock the benefit — it will be reported against for the life of this use case — and make your recommendation.",
-  GTAC:
-    "Everything the board needs is on this page. Record the outcome, the funding, and acknowledge each condition explicitly — conditions become binding on delivery.",
-  Plan: "You're converting an approval into commitments. Metrics you lock here are what Monitoring will hold this use case to.",
-  Design:
-    "Your constraints are already on the page — the R2 conditions and grounding controls are non-negotiable. Compose the blueprint around them.",
-  Build:
-    "The eval board reports against the metrics locked at Planning. Anything amber must be explicitly accepted or blocked — silence is not an option.",
-  Deploy: "Nothing ships until every guardrail from Design is verified in the build. Then — one call.",
-  Adopt: "Live adoption against the target locked at Planning. Your job: waves, interventions, and an honest risk read.",
-  Monitor: "Every locked target you've seen since Intake lands here. Report honestly — variance with a narrative beats green theater.",
-  Improve: "This is the idea you pitched. Here's what it delivered. Decide what it becomes next.",
-};
-
-function StageGuidance({
-  keyFields,
-  guidance,
-  riskTier,
-  onSuggestAll,
-}: {
-  keyFields: Array<{ label: string; done: boolean }>;
-  guidance?: string;
-  riskTier?: { tier: string; fg: string; bg: string; border: string } | null;
-  onSuggestAll?: () => void;
-}) {
-  return (
-    <div className="mb-6 grid gap-x-8 gap-y-4 rounded-[10px] border border-[var(--border-default)] bg-[#fcfbfa] px-5 py-4 md:grid-cols-[minmax(0,180px)_minmax(0,1fr)_auto]">
-      <div>
-        <div className="mb-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-label)]">Key fields</div>
-        <ul className="space-y-2">
-          {keyFields.map((field) => (
-            <li key={field.label} className="flex items-center gap-2.5 text-[12.5px]">
-              <span
-                className={cn(
-                  "grid h-[15px] w-[15px] shrink-0 place-items-center rounded-full text-white",
-                  field.done ? "bg-[#15803d]" : "border-[1.5px] border-[#bdb8b1]",
-                )}
-              >
-                {field.done ? <Check size={9} strokeWidth={4} /> : null}
-              </span>
-              <span className={field.done ? "font-medium text-[var(--text-primary)]" : "text-[var(--text-body)]"}>{field.label}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      {guidance ? (
-        <div className="max-w-[560px]">
-          <div className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-label)]">
-            <Sparkles size={11} className="text-[var(--accent)]" />
-            Guidance for success
-          </div>
-          <p className="font-serif-body text-[14px] leading-[1.55] text-[var(--text-primary)]">{guidance}</p>
-        </div>
-      ) : (
-        <div />
-      )}
-
-      <div className="flex flex-col items-start gap-2 md:items-end">
-        {onSuggestAll ? (
-          <button
-            type="button"
-            onClick={onSuggestAll}
-            className="inline-flex h-8 items-center gap-1.5 rounded-full border border-[var(--accent-border)] bg-white px-3 text-[12px] font-medium text-[var(--accent-strong)] transition hover:bg-[var(--accent-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
-          >
-            <Sparkles size={12} />
-            Suggest all
-          </button>
-        ) : null}
-        {riskTier ? (
-          <span
-            className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold"
-            style={{ color: riskTier.fg, background: riskTier.bg, borderColor: riskTier.border }}
-          >
-            <ShieldCheck size={11} />
-            {riskTier.tier} tier
-          </span>
-        ) : null}
-      </div>
-    </div>
-  );
 }
 
 // Editable generic stage: identity header, then a guidance strip (with the
@@ -652,18 +552,29 @@ function EditableStage({ stage, currentUser }: { stage: StageItem; currentUser: 
       <StageColumnHeader stage={stage} currentUser={currentUser} />
 
       <section className="no-scrollbar min-h-0 flex-1 overflow-y-auto pb-6 pt-4" aria-label={`${stage.name} stage form`}>
-        <div className="px-7">
-          <StageGuidance
-            keyFields={fields.slice(0, 4).map((field) => ({ label: field.label, done: isFilled(values[field.label]) }))}
-            guidance={STAGE_GUIDANCE[stage.name]}
-            riskTier={riskTier}
-            onSuggestAll={suggestAll}
-          />
+        <div className="mb-3 flex items-center justify-end gap-2.5 px-7">
+          {riskTier ? (
+            <span
+              className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold"
+              style={{ color: riskTier.fg, background: riskTier.bg, borderColor: riskTier.border }}
+            >
+              <ShieldCheck size={11} />
+              {riskTier.tier} tier
+            </span>
+          ) : null}
+          <button
+            type="button"
+            onClick={suggestAll}
+            className="inline-flex h-8 items-center gap-1.5 rounded-full border border-[var(--accent-border)] bg-[var(--accent-soft)] px-3 text-[12px] font-medium text-[var(--accent-strong)] transition hover:bg-[#daedf3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
+          >
+            <Sparkles size={12} />
+            Suggest all
+          </button>
         </div>
         <div className="pt-1">
           {fields.map((field) => (
-            <div key={field.label} className="grid grid-cols-[176px_minmax(0,1fr)] gap-6 px-7 py-3">
-              <label className="pt-2 text-[12px] font-medium leading-5 text-[var(--text-label)]">{field.label}</label>
+            <div key={field.label} className="grid grid-cols-[184px_minmax(0,1fr)] gap-6 px-7 py-3">
+              <label className="pt-2 text-[13.5px] font-medium leading-5 text-[var(--text-label)]">{field.label}</label>
               <div className="min-w-0">
                 <StageField
                   spec={field}
@@ -800,16 +711,7 @@ const PLAN_METRICS = [
 function PlanStageForm() {
   return (
     <div>
-      <div className="px-7">
-        <StageGuidance
-          keyFields={[
-            { label: "Squad", done: true },
-            { label: "Milestones", done: true },
-            { label: "Success metrics", done: false },
-            { label: "Delivery notes", done: false },
-          ]}
-          guidance={STAGE_GUIDANCE.Plan}
-        />
+      <div className="px-7 pt-1">
         <MandateBanner />
       </div>
       <div className="mt-5 divide-y divide-[#f0efed] border-t border-[#f0efed]">
@@ -837,9 +739,9 @@ function PlanStageForm() {
 
 function PlanRow({ label, hint, children }: { label: string; hint?: string; children: ReactElement }) {
   return (
-    <div className="grid grid-cols-[180px_minmax(0,1fr)] gap-6 px-7 py-4">
+    <div className="grid grid-cols-[184px_minmax(0,1fr)] gap-6 px-7 py-4">
       <div className="pt-1">
-        <div className="text-[13px] font-medium leading-5 text-[var(--text-label)]">{label}</div>
+        <div className="text-[13.5px] font-medium leading-5 text-[var(--text-label)]">{label}</div>
         {hint ? <div className="mt-0.5 text-[11px] leading-4 text-[var(--text-muted)]">{hint}</div> : null}
       </div>
       <div className="min-w-0">{children}</div>
