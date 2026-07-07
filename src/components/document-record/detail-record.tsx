@@ -430,6 +430,9 @@ function StageWorkspace({
 }
 
 function LockedStage({ stage, currentUser }: { stage: StageItem; currentUser: string }) {
+  const fields = stage.rows.map(([label, value]) => buildFieldSpec(label, value));
+  const noop = () => {};
+
   return (
     <>
       <StageColumnHeader
@@ -443,7 +446,29 @@ function LockedStage({ stage, currentUser }: { stage: StageItem; currentUser: st
         }
       />
       <section className="no-scrollbar min-h-0 flex-1 overflow-y-auto pb-8 pt-4" aria-label={`${stage.name} stage (locked)`}>
-        <StageReadOnlyRows rows={stage.rows} />
+        <div className="pt-1">
+          {fields.map((field) => {
+            const singleLine = !["cards", "chips", "long"].includes(field.kind);
+            const empty: string | string[] = field.kind === "cards" || field.kind === "chips" ? [] : "";
+            return (
+              <div key={field.label} className="grid grid-cols-[184px_minmax(0,1fr)] gap-8 px-7 py-[18px]">
+                <label
+                  className={cn(
+                    "text-[13.5px] font-medium leading-5 text-[var(--text-label)]",
+                    singleLine ? "flex min-h-9 items-center" : "pt-1.5",
+                  )}
+                >
+                  {field.label}
+                </label>
+                <div className={cn("min-w-0", singleLine && "flex min-h-9 items-center")} aria-disabled>
+                  <div className="pointer-events-none w-full min-w-0 opacity-55">
+                    <StageField spec={field} value={empty} onChange={noop} onSuggest={noop} />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </section>
     </>
   );
