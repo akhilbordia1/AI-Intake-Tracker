@@ -278,14 +278,17 @@ export function DetailRecordPage() {
   const [currentUser, setCurrentUser] = useState("Lena Osei");
   const currentStage = STAGES[stageIndex] ?? STAGES[0];
   const isCurrentComplete = completedStageIndexes.includes(stageIndex);
+  // Role-based: you can only edit / complete a stage your profile owns.
+  const canComplete = currentStage.owner === currentUser;
 
   function selectStage(index: number) {
     setStageIndex(index);
   }
 
   // Toggle: completes the stage (and advances), or marks it incomplete again
-  // when you go back to a done stage.
+  // when you go back to a done stage. Only the stage owner may do this.
   function toggleCurrentStageComplete() {
+    if (currentStage.owner !== currentUser) return;
     const wasComplete = completedStageIndexes.includes(stageIndex);
     setCompletedStageIndexes((indexes) =>
       wasComplete ? indexes.filter((index) => index !== stageIndex) : [...indexes, stageIndex],
@@ -300,6 +303,8 @@ export function DetailRecordPage() {
         activeIndex={stageIndex}
         completedIndexes={completedStageIndexes}
         isCurrentComplete={isCurrentComplete}
+        canComplete={canComplete}
+        activeOwner={currentStage.owner}
         onMarkComplete={toggleCurrentStageComplete}
         onStageChange={selectStage}
       />
@@ -405,6 +410,11 @@ function StageWorkspace({
   currentUser: string;
   isComplete: boolean;
 }) {
+  // Role gate: an open stage you don't own is locked (read-only) for you.
+  if (!isComplete && stage.owner !== currentUser) {
+    return <LockedStage stage={stage} currentUser={currentUser} />;
+  }
+
   const useEditable = !isComplete && !BESPOKE_STAGE_FORMS[stage.name];
 
   if (useEditable) {
@@ -415,6 +425,26 @@ function StageWorkspace({
     <>
       <StageColumnHeader stage={stage} currentUser={currentUser} />
       <StageContent isComplete={isComplete} stage={stage} />
+    </>
+  );
+}
+
+function LockedStage({ stage, currentUser }: { stage: StageItem; currentUser: string }) {
+  return (
+    <>
+      <StageColumnHeader
+        stage={stage}
+        currentUser={currentUser}
+        action={
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-[#e6d4b8] bg-[#f6f0e6] px-2.5 py-1 text-[11px] font-semibold text-[#a15c11]">
+            <Lock size={11} />
+            Locked
+          </span>
+        }
+      />
+      <section className="no-scrollbar min-h-0 flex-1 overflow-y-auto pb-8 pt-4" aria-label={`${stage.name} stage (locked)`}>
+        <StageReadOnlyRows rows={stage.rows} />
+      </section>
     </>
   );
 }
@@ -1136,12 +1166,16 @@ function StagePath({
   activeIndex = defaultStageIndex,
   completedIndexes = [],
   isCurrentComplete = false,
+  canComplete = true,
+  activeOwner = "",
   onMarkComplete,
   onStageChange,
 }: {
   activeIndex?: number;
   completedIndexes?: number[];
   isCurrentComplete?: boolean;
+  canComplete?: boolean;
+  activeOwner?: string;
   onMarkComplete?: () => void;
   onStageChange?: (index: number) => void;
 }) {
@@ -1248,19 +1282,29 @@ function StagePath({
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5 pl-3">
-          <button
-            type="button"
-            onClick={onMarkComplete}
-            className={cn(
-              "inline-flex h-10 items-center gap-1.5 rounded-[8px] px-3.5 text-[13px] font-semibold transition",
-              isCurrentComplete
-                ? "border border-[var(--border-input)] bg-white text-[var(--text-body)] hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)] hover:text-[var(--text-primary)]"
-                : "bg-[var(--stage-action)] text-white shadow-[var(--shadow-sm)] hover:bg-[var(--stage-action-hover)]",
-            )}
-          >
-            {isCurrentComplete ? <RotateCcw size={15} /> : <Check size={15} strokeWidth={3} />}
-            {isCurrentComplete ? "Mark Incomplete" : "Mark Complete"}
-          </button>
+          {canComplete ? (
+            <button
+              type="button"
+              onClick={onMarkComplete}
+              className={cn(
+                "inline-flex h-10 items-center gap-1.5 rounded-[8px] px-3.5 text-[13px] font-semibold transition",
+                isCurrentComplete
+                  ? "border border-[var(--border-input)] bg-white text-[var(--text-body)] hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)] hover:text-[var(--text-primary)]"
+                  : "bg-[var(--stage-action)] text-white shadow-[var(--shadow-sm)] hover:bg-[var(--stage-action-hover)]",
+              )}
+            >
+              {isCurrentComplete ? <RotateCcw size={15} /> : <Check size={15} strokeWidth={3} />}
+              {isCurrentComplete ? "Mark Incomplete" : "Mark Complete"}
+            </button>
+          ) : (
+            <span
+              title={activeOwner ? `Only ${activeOwner} can complete this stage` : undefined}
+              className="inline-flex h-10 cursor-not-allowed items-center gap-1.5 rounded-[8px] border border-[var(--border-input)] bg-[var(--surface-muted)] px-3.5 text-[13px] font-semibold text-[var(--text-muted)]"
+            >
+              <Lock size={14} />
+              Locked
+            </span>
+          )}
           <div className="relative">
             <button
               type="button"
