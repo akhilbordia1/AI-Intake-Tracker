@@ -2,7 +2,7 @@
 
 import { INITIAL_WORKFLOW_VALUES, USE_CASE, type FieldValue } from "@/data/document-workflow-form-schema";
 import { cn } from "@/lib/cn";
-import { Activity, ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronLeft, ChevronRight, FileCheck2, FileText, Lock, MessageSquare, MoreHorizontal, RefreshCcw, RotateCcw, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronLeft, ChevronRight, FileCheck2, Lock, MoreHorizontal, RefreshCcw, RotateCcw, ShieldCheck, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement, type ReactNode } from "react";
 
@@ -216,6 +216,43 @@ const BESPOKE_STAGE_FORMS: Record<string, () => ReactElement> = {
   Plan: () => <PlanStageForm />,
 };
 
+type Gate = {
+  id: string;
+  name: string;
+  afterStage: string; // the gate sits at the end of this stage
+  status: "Not started" | "In review" | "Passed" | "Blocked" | "Rejected";
+  approver: string; // distinct from the stage owner (the preparer)
+  decided: string | null;
+  artifacts: string[];
+  conditions: string[];
+};
+
+// Assessment gates are first-class checkpoints, tracked separately from stage
+// progress — each carries its own status, approver, decision, and evidence.
+const GATES: Gate[] = [
+  { id: "R1", name: "Screening gate", afterStage: "Triage", status: "Passed", approver: "Priya N.", decided: "Jun 22, 2026", artifacts: ["Screening record", "Prohibited-use scan"], conditions: [] },
+  { id: "R2", name: "Governance & investment", afterStage: "GTAC", status: "Passed", approver: "Victor H.", decided: "Jun 28, 2026", artifacts: ["Business case", "GTAC minutes", "Risk register"], conditions: ["PII redaction verified before deploy", "Multi-currency re-tested at R4"] },
+  { id: "R3", name: "Build review", afterStage: "Build", status: "In review", approver: "Noah R.", decided: null, artifacts: ["Eval report v3", "Red-team log"], conditions: [] },
+  { id: "R4", name: "Pre-deploy review", afterStage: "Deploy", status: "Not started", approver: "Lena Osei", decided: null, artifacts: [], conditions: [] },
+  { id: "R5", name: "Post-deploy review", afterStage: "Monitor", status: "Not started", approver: "Marco B.", decided: null, artifacts: [], conditions: [] },
+];
+
+function gateForStage(stageName: string) {
+  return GATES.find((gate) => gate.afterStage === stageName);
+}
+
+const GATE_TONE: Record<Gate["status"], { fg: string; bg: string; border: string }> = {
+  "Not started": { fg: "var(--text-muted)", bg: "var(--surface-muted)", border: "var(--border-default)" },
+  "In review": { fg: "#a15c11", bg: "#f6f0e6", border: "#e6d4b8" },
+  Passed: { fg: "#15803d", bg: "#eef4ee", border: "#bfdcc7" },
+  Blocked: { fg: "#b32020", bg: "#f7eaea", border: "#e6c3c3" },
+  Rejected: { fg: "#b32020", bg: "#f7eaea", border: "#e6c3c3" },
+};
+
+// Stages completed by the requester in the self-service portal — read-only here.
+// ponytail: single list; confirm the exact set against the governance flow doc.
+const PORTAL_STAGES = new Set(["Intake"]);
+
 const DETAIL_ITEMS = [
   ["Use case ID", USE_CASE.id],
   ["Created by", "Mira Kapoor"],
@@ -320,14 +357,45 @@ export function DetailRecordPage() {
   );
 }
 
+function GateBadge({ gate }: { gate: Gate }) {
+  const tone = GATE_TONE[gate.status];
+  return (
+    <span className="flex items-center gap-2 text-[13px] leading-5">
+      <span
+        title={`${gate.id} · ${gate.name}`}
+        className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold"
+        style={{ color: tone.fg, background: tone.bg, borderColor: tone.border }}
+      >
+        <ShieldCheck size={11} />
+        {gate.id} · {gate.status}
+      </span>
+      <span className="hidden items-center gap-1.5 text-[var(--text-label)] lg:flex">
+        Approver
+        <PersonAvatar name={gate.approver} size={20} />
+        <span className="font-medium text-[var(--text-primary)]">{gate.approver}</span>
+      </span>
+    </span>
+  );
+}
+
 function StageColumnHeader({ stage, currentUser, action }: { stage: StageItem; currentUser: string; action?: ReactNode }) {
   const ownedByMe = stage.owner === currentUser;
+  const gate = gateForStage(stage.name);
   const owner = (
     <div className="flex items-center gap-2 text-[13px] leading-5">
-      <span className="text-[var(--text-label)]">Stage Owner</span>
+      <span className="text-[var(--text-label)]">{gate ? "Prepared by" : "Stage Owner"}</span>
       <PersonAvatar name={stage.owner} size={22} highlight={ownedByMe} />
       <span className={cn("text-[var(--text-primary)]", ownedByMe && "font-semibold")}>{stage.owner}</span>
     </div>
+  );
+  const ownership = gate ? (
+    <div className="flex flex-wrap items-center gap-3">
+      {owner}
+      <span className="h-4 w-px bg-[#e7e5e4]" aria-hidden />
+      <GateBadge gate={gate} />
+    </div>
+  ) : (
+    owner
   );
 
   return (
@@ -337,19 +405,20 @@ function StageColumnHeader({ stage, currentUser, action }: { stage: StageItem; c
         {action ? (
           <>
             <span className="h-4 w-px bg-[#e7e5e4]" aria-hidden />
-            {owner}
+            {ownership}
           </>
         ) : null}
       </div>
-      <div className="flex shrink-0 items-center gap-3">{action ?? owner}</div>
+      <div className="flex shrink-0 items-center gap-3">{action ?? ownership}</div>
     </div>
   );
 }
 
 const SUPPORTING_TABS = [
-  { key: "Details", icon: FileText, meta: undefined, render: () => <DetailPanel /> },
-  { key: "Comments", icon: MessageSquare, meta: String(COMMENT_ITEMS.length), render: () => <CommentsPanel /> },
-  { key: "Activity", icon: Activity, meta: String(ACTIVITY_ITEMS.length), render: () => <ActivityPanel /> },
+  { key: "Details", meta: undefined, render: () => <DetailPanel /> },
+  { key: "Gates", meta: String(GATES.length), render: () => <GatesPanel /> },
+  { key: "Comments", meta: String(COMMENT_ITEMS.length), render: () => <CommentsPanel /> },
+  { key: "Activity", meta: String(ACTIVITY_ITEMS.length), render: () => <ActivityPanel /> },
 ] as const;
 
 function SupportingTabs() {
@@ -359,29 +428,25 @@ function SupportingTabs() {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="shrink-0 border-b border-[#ecebea] px-5">
-        <div className="flex items-center gap-5" role="tablist" aria-label="Supporting details">
-          {SUPPORTING_TABS.map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.key}
-                type="button"
-                role="tab"
-                aria-selected={tab.key === active}
-                onClick={() => setActive(tab.key)}
-                className={cn(
-                  "flex h-12 items-center gap-1.5 border-b-2 px-0.5 text-[14px] font-medium transition focus-visible:outline-none",
-                  tab.key === active
-                    ? "border-[var(--accent)] text-[var(--accent-strong)]"
-                    : "border-transparent text-[var(--text-label)] hover:text-[var(--text-primary)]",
-                )}
-              >
-                <Icon size={13} className={cn(tab.key === active ? "text-[var(--accent)]" : "text-[var(--text-muted)]")} />
-                {tab.key}
-                {tab.meta ? <span className="text-[12px] font-normal text-[var(--text-muted)]">{tab.meta}</span> : null}
-              </button>
-            );
-          })}
+        <div className="no-scrollbar flex items-center gap-4 overflow-x-auto" role="tablist" aria-label="Supporting details">
+          {SUPPORTING_TABS.map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              role="tab"
+              aria-selected={tab.key === active}
+              onClick={() => setActive(tab.key)}
+              className={cn(
+                "flex h-12 shrink-0 items-center gap-1.5 border-b-2 px-0.5 text-[14px] font-medium transition focus-visible:outline-none",
+                tab.key === active
+                  ? "border-[var(--accent)] text-[var(--accent-strong)]"
+                  : "border-transparent text-[var(--text-label)] hover:text-[var(--text-primary)]",
+              )}
+            >
+              {tab.key}
+              {tab.meta ? <span className="text-[12px] font-normal text-[var(--text-muted)]">{tab.meta}</span> : null}
+            </button>
+          ))}
         </div>
       </div>
       <div className="flex min-h-0 flex-1 flex-col">{current.render()}</div>
@@ -410,6 +475,12 @@ function StageWorkspace({
   currentUser: string;
   isComplete: boolean;
 }) {
+  // Self-service portal stages are completed by the requester elsewhere, so
+  // they're read-only reference here regardless of role or completion.
+  if (PORTAL_STAGES.has(stage.name)) {
+    return <PortalStage stage={stage} currentUser={currentUser} />;
+  }
+
   // Role gate: an open stage you don't own is locked (read-only) for you.
   if (!isComplete && stage.owner !== currentUser) {
     return <LockedStage stage={stage} currentUser={currentUser} />;
@@ -474,6 +545,26 @@ function LockedStage({ stage, currentUser }: { stage: StageItem; currentUser: st
   );
 }
 
+// Portal-owned stage: filled by the requester in the self-service portal, so
+// this tool shows the submitted values read-only with a clear source note.
+function PortalStage({ stage, currentUser }: { stage: StageItem; currentUser: string }) {
+  return (
+    <>
+      <StageColumnHeader
+        stage={stage}
+        currentUser={currentUser}
+        action={
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border-default)] bg-[var(--surface-muted)] px-2.5 py-1 text-[11px] font-semibold text-[var(--text-label)]">
+            <Lock size={11} />
+            Self-service portal · read-only
+          </span>
+        }
+      />
+      <StageContent isComplete stage={stage} />
+    </>
+  );
+}
+
 const PERSON_LABEL_RE = /(assessor|sponsor|owner|lead|created by)/i;
 const STATUS_LABEL_RE = /(decision|outcome|verdict|recommendation|tier|ready|sign-off|resolution|board|drift|risk$|impact$)/i;
 
@@ -486,6 +577,23 @@ function statusTone(value: string) {
 }
 
 const TAG_LABEL_RE = /(archetype|function|delivery|sensitivity|exposure|reversibility|basis|users|complexity|path|department|team|country|window|cohort)/i;
+
+function ScaleReadValue({ value }: { value: string }) {
+  const [score, total] = value.split("/").map(Number);
+  return (
+    <span className="inline-flex items-center gap-2.5">
+      <span className="flex items-center gap-1">
+        {Array.from({ length: total }).map((_, index) => (
+          <span
+            key={index}
+            className={cn("h-1.5 w-1.5 rounded-full", index < score ? "bg-[var(--accent)]" : "bg-[var(--border-default)]")}
+          />
+        ))}
+      </span>
+      <span className="text-[14px] font-semibold tabular-nums text-[var(--text-primary)]">{value}</span>
+    </span>
+  );
+}
 
 function ReadValue({ label, value }: { label: string; value: string }) {
   const items = listItems(value);
@@ -506,6 +614,11 @@ function ReadValue({ label, value }: { label: string; value: string }) {
         ))}
       </div>
     );
+  }
+
+  // Rating scales (n/m) → one consistent meter, ignoring label wording
+  if (single && /^\d+\/\d+$/.test(value)) {
+    return <ScaleReadValue value={value} />;
   }
 
   // People → avatar + name
@@ -1085,6 +1198,70 @@ function DetailPanel() {
   );
 }
 
+function GatesPanel() {
+  return (
+    <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto p-4">
+      <div className="space-y-2.5">
+        {GATES.map((gate) => {
+          const tone = GATE_TONE[gate.status];
+          return (
+            <article key={gate.id} className="rounded-[10px] border border-[#ecebea] bg-white p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h3 className="truncate text-[14px] leading-5 text-[var(--text-primary)]">
+                    <span className="mr-1.5 font-semibold text-[var(--accent-strong)]">{gate.id}</span>
+                    <span className="font-medium">{gate.name}</span>
+                  </h3>
+                  <div className="mt-0.5 text-[12px] leading-4 text-[var(--text-muted)]">After {gate.afterStage}</div>
+                </div>
+                <span
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                  style={{ color: tone.fg, background: tone.bg }}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: tone.fg }} />
+                  {gate.status}
+                </span>
+              </div>
+
+              <div className="mt-3 flex items-center justify-between gap-3 text-[12.5px] leading-5">
+                <span className="flex min-w-0 items-center gap-1.5 font-medium text-[var(--text-primary)]">
+                  <PersonAvatar name={gate.approver} size={18} />
+                  <span className="truncate">{gate.approver}</span>
+                </span>
+                <span className="shrink-0 text-[var(--text-muted)]">{gate.decided ?? "Decision pending"}</span>
+              </div>
+
+              {gate.artifacts.length ? (
+                <div className="mt-2.5 flex flex-wrap gap-1.5">
+                  {gate.artifacts.map((artifact) => (
+                    <span
+                      key={artifact}
+                      className="rounded-md border border-[#ecebea] bg-[var(--surface-muted)] px-2 py-0.5 text-[11.5px] font-medium text-[var(--text-body)]"
+                    >
+                      {artifact}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+
+              {gate.conditions.length ? (
+                <ul className="mt-2.5 space-y-1 border-t border-[#f0efed] pt-2.5">
+                  {gate.conditions.map((condition) => (
+                    <li key={condition} className="flex gap-2 text-[12.5px] leading-5 text-[var(--text-body)]">
+                      <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-[var(--text-muted)]" />
+                      <span>{condition}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </article>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function CommentsPanel() {
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -1208,6 +1385,8 @@ function StagePath({
   const trailRef = useRef<HTMLOListElement>(null);
   const [hasMore, setHasMore] = useState(false);
   const [hasLess, setHasLess] = useState(false);
+  const [tip, setTip] = useState<{ x: number; y: number; text: string } | null>(null);
+  const tipRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const trail = trailRef.current;
@@ -1230,6 +1409,24 @@ function StagePath({
     trailRef.current?.scrollBy({ left: direction * 240, behavior: "smooth" });
   }
 
+  // Fixed-position tooltip so it isn't clipped by the scrolling trail and shows
+  // instantly on hover (no native title delay).
+  function showTip(el: HTMLElement, text: string) {
+    const rect = el.getBoundingClientRect();
+    setTip({ x: rect.left + rect.width / 2, y: rect.top - 8, text });
+  }
+
+  // Keep the (center-anchored) tooltip inside the viewport — edge chevrons would
+  // otherwise push half of it off-screen.
+  useEffect(() => {
+    const el = tipRef.current;
+    if (!el || !tip) return;
+    const margin = 8;
+    const half = el.offsetWidth / 2;
+    const clamped = Math.max(margin + half, Math.min(tip.x, window.innerWidth - margin - half));
+    el.style.left = `${clamped}px`;
+  }, [tip]);
+
   return (
     <section className="shrink-0 bg-[var(--surface-muted)] px-7 py-3">
       <div className="flex items-center gap-2">
@@ -1245,15 +1442,20 @@ function StagePath({
             const clipPath = "polygon(0 0, calc(100% - 13px) 0, 100% 50%, calc(100% - 13px) 100%, 0 100%, 13px 50%)";
             const firstClipPath = "polygon(0 0, calc(100% - 13px) 0, 100% 50%, calc(100% - 13px) 100%, 0 100%)";
             const lastClipPath = "polygon(0 0, 100% 0, 100% 100%, 0 100%, 13px 50%)";
+            const statusLabel = isCompleted ? "Completed" : isActive ? "In progress" : "Not started";
+            const tipText = `${stage.name} · ${statusLabel} · ${stage.owner}`;
 
             return (
               <li key={stage.name} className={cn("relative flex shrink-0", index > 0 && "-ml-3")}>
                 <button
                   type="button"
                   onClick={() => onStageChange?.(index)}
-                  aria-label={isCollapsed ? `${stage.name} · ${stage.owner}` : undefined}
+                  onMouseEnter={(event) => showTip(event.currentTarget, tipText)}
+                  onMouseLeave={() => setTip(null)}
+                  onFocus={(event) => showTip(event.currentTarget, tipText)}
+                  onBlur={() => setTip(null)}
+                  aria-label={isCollapsed ? tipText : undefined}
                   aria-current={isActive ? "step" : undefined}
-                  title={`${stage.name} · ${stage.owner}`}
                   style={{ clipPath: isFirst ? firstClipPath : isLast ? lastClipPath : clipPath }}
                   className={cn(
                     "group relative flex h-10 items-center justify-center gap-1.5 whitespace-nowrap text-[12px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:ring-offset-2",
@@ -1345,6 +1547,17 @@ function StagePath({
           </div>
         </div>
       </div>
+
+      {tip ? (
+        <div
+          ref={tipRef}
+          role="tooltip"
+          style={{ position: "fixed", left: tip.x, top: tip.y, transform: "translate(-50%, -100%)" }}
+          className="pointer-events-none z-[60] whitespace-nowrap rounded-[6px] bg-[var(--stage-active)] px-2.5 py-1 text-[11px] font-medium text-white shadow-[var(--shadow-lg)]"
+        >
+          {tip.text}
+        </div>
+      ) : null}
     </section>
   );
 }

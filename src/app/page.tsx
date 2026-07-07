@@ -7,29 +7,51 @@ import { useMemo, useRef, useState, type ReactNode } from "react";
 import { PersonAvatar, ProfileSwitcher } from "@/components/profile";
 import { useClickOutside } from "@/lib/use-click-outside";
 
-type ViewKey = "stage" | "people" | "priority" | "due";
+type ViewKey = "stage" | "people" | "priority" | "due" | "status";
 type DisplayMode = "board" | "table";
 type ScopeFilter = "my" | "team" | "all";
+type Priority = "High" | "Medium" | "Low";
+type GateStatus = "Pending" | "In review" | "Passed" | "Blocked" | "Rejected";
+type Lifecycle = "Active" | "On hold" | "Rejected" | "Live";
 
 type UseCaseCard = {
   id: string;
   title: string;
   description: string;
   owner: string;
+  // Shared-responsibility stages (e.g. adoption) carry a second owner.
+  coOwner?: string;
   due: string;
   stage: string;
-  priority: "High" | "Medium" | "Low";
-  dueGroup: "Submitted" | "This week" | "Next week" | "Funded";
+  // The specific detail-view stage inside the condensed board column.
+  substage: string;
+  // Functional priority (set by the functional lead). null until prioritized.
+  priority: Priority | null;
+  // Portfolio priority (set by the core team). Overrides functional once set.
+  orgPriority?: Priority;
+  dueGroup: "Submitted" | "This week" | "Next week" | "Funded" | "Rejected";
   actionOwner: string;
   needsAttention: boolean;
   attentionTask?: string;
   pendingFor?: string;
+  // Assessment gate the use case currently sits at, with its own status.
+  gate?: { id: string; status: GateStatus };
+  lifecycle: Lifecycle;
   href: string;
 };
 
 type BoardColumn = {
   title: string;
   cards: UseCaseCard[];
+};
+
+// Each condensed board column maps to the detail-view stages inside it.
+const STAGE_GROUPS: Record<string, string[]> = {
+  Intake: ["Intake"],
+  Screening: ["Screening", "Prioritize", "Triage"],
+  "Governance review": ["Assess", "Business case", "GTAC"],
+  Planning: ["Plan", "Design", "Build"],
+  Approved: ["Deploy", "Adopt", "Monitor", "Improve"],
 };
 
 const useCases: UseCaseCard[] = [
@@ -40,12 +62,14 @@ const useCases: UseCaseCard[] = [
     owner: "Aarav Mehta",
     due: "Submitted",
     stage: "Intake",
-    priority: "Low",
+    substage: "Intake",
+    priority: null,
     dueGroup: "Submitted",
     actionOwner: "Nisha Patel",
     needsAttention: true,
     attentionTask: "Review intake submission",
     pendingFor: "3 days",
+    lifecycle: "Active",
     href: "/detail",
   },
   {
@@ -55,10 +79,12 @@ const useCases: UseCaseCard[] = [
     owner: "Mira Kapoor",
     due: "Submitted",
     stage: "Intake",
-    priority: "Medium",
+    substage: "Intake",
+    priority: null,
     dueGroup: "Submitted",
     actionOwner: "Mira Kapoor",
     needsAttention: false,
+    lifecycle: "Active",
     href: "/detail",
   },
   {
@@ -68,12 +94,15 @@ const useCases: UseCaseCard[] = [
     owner: "Nisha Patel",
     due: "6 Jul 2026",
     stage: "Screening",
+    substage: "Triage",
     priority: "High",
     dueGroup: "This week",
     actionOwner: "Nisha Patel",
     needsAttention: true,
     attentionTask: "Complete screening decision",
     pendingFor: "2 days",
+    gate: { id: "R1", status: "In review" },
+    lifecycle: "Active",
     href: "/detail",
   },
   {
@@ -83,10 +112,13 @@ const useCases: UseCaseCard[] = [
     owner: "Nisha Patel",
     due: "7 Jul 2026",
     stage: "Screening",
+    substage: "Screening",
     priority: "Medium",
     dueGroup: "This week",
     actionOwner: "Nisha Patel",
     needsAttention: false,
+    gate: { id: "R1", status: "Pending" },
+    lifecycle: "Active",
     href: "/detail",
   },
   {
@@ -96,10 +128,12 @@ const useCases: UseCaseCard[] = [
     owner: "Nisha Patel",
     due: "8 Jul 2026",
     stage: "Screening",
+    substage: "Prioritize",
     priority: "Medium",
     dueGroup: "This week",
     actionOwner: "Nisha Patel",
     needsAttention: false,
+    lifecycle: "Active",
     href: "/detail",
   },
   {
@@ -109,10 +143,14 @@ const useCases: UseCaseCard[] = [
     owner: "Rohan Desai",
     due: "10 Jul 2026",
     stage: "Governance review",
+    substage: "Assess",
     priority: "High",
+    orgPriority: "High",
     dueGroup: "This week",
     actionOwner: "Rohan Desai",
     needsAttention: false,
+    gate: { id: "R2", status: "In review" },
+    lifecycle: "Active",
     href: "/detail",
   },
   {
@@ -122,10 +160,14 @@ const useCases: UseCaseCard[] = [
     owner: "Elena Weber",
     due: "12 Jul 2026",
     stage: "Governance review",
+    substage: "Business case",
     priority: "Medium",
+    orgPriority: "Medium",
     dueGroup: "Next week",
     actionOwner: "Elena Weber",
     needsAttention: false,
+    gate: { id: "R2", status: "Blocked" },
+    lifecycle: "On hold",
     href: "/detail",
   },
   {
@@ -135,10 +177,14 @@ const useCases: UseCaseCard[] = [
     owner: "Priya Rao",
     due: "16 Jul 2026",
     stage: "Planning",
-    priority: "Low",
+    substage: "Design",
+    priority: "Medium",
+    orgPriority: "Low",
     dueGroup: "Next week",
     actionOwner: "Priya Rao",
     needsAttention: false,
+    gate: { id: "R2", status: "Passed" },
+    lifecycle: "Active",
     href: "/detail",
   },
   {
@@ -148,10 +194,14 @@ const useCases: UseCaseCard[] = [
     owner: "Priya Rao",
     due: "18 Jul 2026",
     stage: "Planning",
+    substage: "Plan",
     priority: "Medium",
+    orgPriority: "Medium",
     dueGroup: "Next week",
     actionOwner: "Priya Rao",
     needsAttention: false,
+    gate: { id: "R2", status: "Passed" },
+    lifecycle: "Active",
     href: "/detail",
   },
   {
@@ -159,12 +209,34 @@ const useCases: UseCaseCard[] = [
     title: "Marketing Asset Tagger",
     description: "Suggests campaign metadata for approved marketing assets.",
     owner: "Daniel Cho",
+    coOwner: "Priya Rao",
     due: "Funded",
     stage: "Approved",
+    substage: "Monitor",
     priority: "Low",
+    orgPriority: "Low",
     dueGroup: "Funded",
     actionOwner: "Daniel Cho",
     needsAttention: false,
+    gate: { id: "R4", status: "Passed" },
+    lifecycle: "Live",
+    href: "/detail",
+  },
+  {
+    id: "UC-097",
+    title: "Refund Auto-Approval Agent",
+    description: "Auto-approves low-value refund requests without human review.",
+    owner: "Rohan Desai",
+    due: "Rejected 12 Jun 2026",
+    stage: "Governance review",
+    substage: "GTAC",
+    priority: "High",
+    orgPriority: "High",
+    dueGroup: "Rejected",
+    actionOwner: "Rohan Desai",
+    needsAttention: false,
+    gate: { id: "R2", status: "Rejected" },
+    lifecycle: "Rejected",
     href: "/detail",
   },
 ];
@@ -174,6 +246,7 @@ const viewOptions: Array<{ key: ViewKey; label: string }> = [
   { key: "people", label: "By Owner" },
   { key: "priority", label: "By Priority" },
   { key: "due", label: "By Due Date" },
+  { key: "status", label: "By Status" },
 ];
 
 const scopeOptions: Array<{ key: ScopeFilter; label: string }> = [
@@ -192,14 +265,17 @@ function formatStageOwner(card: UseCaseCard) {
 const viewColumnOrder: Record<ViewKey, string[]> = {
   stage: ["Intake", "Screening", "Governance review", "Planning", "Approved"],
   people: ["Nisha Patel", "Priya Rao", "Elena Weber", "Rohan Desai", "Mira Kapoor", "Aarav Mehta", "Daniel Cho"],
-  priority: ["High", "Medium", "Low"],
+  priority: ["High", "Medium", "Low", "Not prioritized"],
   due: ["Submitted", "This week", "Next week", "Funded"],
+  status: ["Active", "On hold", "Rejected", "Live"],
 };
 
 function getGroupValue(card: UseCaseCard, view: ViewKey) {
   if (view === "people") return card.owner;
-  if (view === "priority") return card.priority;
+  // Portfolio priority wins once set; else functional; else not yet prioritized.
+  if (view === "priority") return card.orgPriority ?? card.priority ?? "Not prioritized";
   if (view === "due") return card.dueGroup;
+  if (view === "status") return card.lifecycle;
   return card.stage;
 }
 
@@ -245,9 +321,15 @@ export default function HomePage() {
         card.title,
         card.description,
         card.owner,
+        card.coOwner,
         card.due,
         card.stage,
+        card.substage,
         card.priority,
+        card.orgPriority,
+        card.lifecycle,
+        card.gate?.id,
+        card.gate?.status,
         card.dueGroup,
         card.actionOwner,
         card.pendingFor,
@@ -554,7 +636,7 @@ function UseCaseTableView({ columns, totalRows }: { columns: BoardColumn[]; tota
   const visibleColumns = columns.filter((column) => column.cards.length > 0);
 
   return (
-    <section className="min-h-0 flex-1 overflow-y-auto py-5">
+    <section className="min-h-0 flex-1 overflow-y-auto py-5 pr-2 [scrollbar-gutter:stable]">
       {totalRows === 0 ? (
         <div className="grid h-[260px] place-items-center rounded-[8px] border border-[#e7e5e4] bg-white text-[13px] text-[var(--text-label)] shadow-[0_1px_3px_rgba(15,23,42,0.05)]">
           No use cases match the current search.
@@ -571,15 +653,28 @@ function UseCaseTableView({ columns, totalRows }: { columns: BoardColumn[]; tota
 }
 
 function TableGroupCard({ column }: { column: BoardColumn }) {
+  const members = STAGE_GROUPS[column.title];
+  const groupHint = members && members.length > 1 ? `Includes ${members.join(" → ")}` : undefined;
+
   return (
     <section>
       <div className="flex items-baseline gap-2 px-[18px] pb-3 pt-1">
-        <h2 className="text-[15px] font-medium text-[var(--text-primary)]">{column.title}</h2>
+        <h2
+          title={groupHint}
+          className={["text-[15px] font-medium text-[var(--text-primary)]", groupHint ? "cursor-help" : ""].join(" ")}
+        >
+          {column.title}
+        </h2>
+        {members && members.length > 1 ? (
+          <span title={groupHint} className="cursor-help text-[11px] font-medium text-[var(--text-muted)]">
+            {members.join(" · ")}
+          </span>
+        ) : null}
         <span className="text-[12px] font-medium text-[var(--text-muted)]">
           {column.cards.length}
         </span>
       </div>
-      <div className="overflow-hidden rounded-[8px] border border-[#e7e5e4] bg-white shadow-[0_1px_3px_rgba(15,23,42,0.05)]">
+      <div className="overflow-hidden rounded-[10px] border border-[#e7e5e4] bg-white shadow-[0_1px_3px_rgba(15,23,42,0.05)]">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1080px] table-fixed border-collapse">
             <colgroup>
@@ -628,6 +723,7 @@ function UseCaseTableRow({ row }: { row: UseCaseCard }) {
             {row.title}
           </span>
           <span className="mt-1 flex max-w-[430px] min-w-0 items-center gap-2">
+            {row.gate ? <GateChip gate={row.gate} /> : null}
             {row.needsAttention ? (
               <span className="inline-flex w-fit shrink-0 items-center rounded-[6px] bg-[#e8f4f8] px-2 py-1 text-[11px] font-semibold leading-none text-[#0c5f7a]">
                 {getAttentionMessage(row)}
@@ -639,11 +735,34 @@ function UseCaseTableRow({ row }: { row: UseCaseCard }) {
           </span>
         </TableLink>
       </td>
-      <TableCell href={row.href}>{row.stage}</TableCell>
-      <TableCell href={row.href}>{formatStageOwner(row)}</TableCell>
       <td className="align-middle">
         <TableLink href={row.href} className="px-3">
-          <PriorityCell priority={row.priority} />
+          <span className="truncate text-[14px] font-normal leading-5 text-[var(--text-body)]">{row.stage}</span>
+          {row.substage !== row.stage ? (
+            <span className="mt-0.5 truncate text-[12px] leading-4 text-[var(--text-muted)]">{row.substage}</span>
+          ) : null}
+        </TableLink>
+      </td>
+      <td className="align-middle">
+        <TableLink href={row.href} className="px-3">
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className="flex shrink-0 items-center">
+              <PersonAvatar name={row.owner} size={18} />
+              {row.coOwner ? (
+                <span className="-ml-1.5 rounded-full ring-2 ring-white">
+                  <PersonAvatar name={row.coOwner} size={18} />
+                </span>
+              ) : null}
+            </span>
+            <span className="truncate text-[14px] font-normal leading-5 text-[var(--text-body)]">
+              {row.coOwner ? `${formatStageOwner(row)} +1` : formatStageOwner(row)}
+            </span>
+          </span>
+        </TableLink>
+      </td>
+      <td className="align-middle">
+        <TableLink href={row.href} className="px-3">
+          <PriorityCell card={row} />
         </TableLink>
       </td>
       <TableCell href={row.href} className="pr-5">
@@ -698,23 +817,32 @@ function TableCell({
   );
 }
 
-function PriorityCell({ priority }: { priority: UseCaseCard["priority"] }) {
-  const dotClass = {
-    High: "bg-[#dc2626]",
-    Medium: "bg-[#d97706]",
-    Low: "bg-[#16a34a]",
-  }[priority];
+const PRIORITY_DOT: Record<Priority, string> = {
+  High: "bg-[#dc2626]",
+  Medium: "bg-[#d97706]",
+  Low: "bg-[#16a34a]",
+};
+
+function PriorityCell({ card }: { card: UseCaseCard }) {
+  const effective = card.orgPriority ?? card.priority;
+  if (!effective) {
+    return <span className="text-[13px] font-normal leading-5 text-[var(--text-muted)]">Not prioritized</span>;
+  }
+  const showFunctional = card.orgPriority && card.priority && card.orgPriority !== card.priority;
 
   return (
     <span className="inline-flex items-center gap-2 text-[14px] font-normal leading-5 text-[var(--text-body)]">
-      <span className={["h-1.5 w-1.5 rounded-full", dotClass].join(" ")} />
-      {priority}
+      <span className={["h-1.5 w-1.5 rounded-full", PRIORITY_DOT[effective]].join(" ")} />
+      {effective}
+      {showFunctional ? <span className="text-[12px] text-[var(--text-muted)]">(fn {card.priority})</span> : null}
     </span>
   );
 }
 
 function KanbanColumn({ column }: { column: BoardColumn }) {
   const [hasScrolled, setHasScrolled] = useState(false);
+  const members = STAGE_GROUPS[column.title];
+  const groupHint = members && members.length > 1 ? `Includes ${members.join(" → ")}` : undefined;
 
   return (
     <section className="flex h-full min-h-0 flex-col border-l border-[#f0efed] pl-3 pr-3 first:border-l-0 first:pl-0">
@@ -725,7 +853,19 @@ function KanbanColumn({ column }: { column: BoardColumn }) {
         ].join(" ")}
       >
         <div className="flex items-baseline justify-between pb-3 pl-[18px] pr-[18px] pt-6">
-          <h2 className="text-[15px] font-medium text-[var(--text-primary)]">{column.title}</h2>
+          <div className="flex items-baseline gap-1.5">
+            <h2
+              title={groupHint}
+              className={["text-[15px] font-medium text-[var(--text-primary)]", groupHint ? "cursor-help" : ""].join(" ")}
+            >
+              {column.title}
+            </h2>
+            {members && members.length > 1 ? (
+              <span title={groupHint} className="cursor-help text-[11px] font-medium text-[var(--text-muted)]">
+                · {members.length} stages
+              </span>
+            ) : null}
+          </div>
           <span className="text-[12px] font-medium text-[var(--text-muted)]">
             {column.cards.length}
           </span>
@@ -744,59 +884,110 @@ function KanbanColumn({ column }: { column: BoardColumn }) {
   );
 }
 
-const PRIORITY_BADGE: Record<UseCaseCard["priority"], string> = {
-  High: "bg-[#f7eaea] text-[#b32020]",
-  Medium: "bg-[#f6f0e6] text-[#a15c11]",
-  Low: "bg-[#eef4ee] text-[#15803d]",
+// Passed = green, in-review = amber, blocked/rejected = red, pending = neutral.
+const GATE_BADGE: Record<GateStatus, string> = {
+  Pending: "bg-[#f0efed] text-[var(--text-muted)]",
+  "In review": "bg-[#f6f0e6] text-[#a15c11]",
+  Passed: "bg-[#eef4ee] text-[#15803d]",
+  Blocked: "bg-[#f7eaea] text-[#b32020]",
+  Rejected: "bg-[#f7eaea] text-[#b32020]",
 };
 
-function UseCaseBoardCard({ card }: { card: UseCaseCard }) {
-  const isFunded = card.dueGroup === "Funded";
+// Only surface a lifecycle tag for states a gate chip doesn't already convey.
+const LIFECYCLE_TAG: Record<Lifecycle, string | null> = {
+  Active: null,
+  "On hold": "bg-[#f6f0e6] text-[#a15c11]",
+  Rejected: null,
+  Live: "bg-[#eef4ee] text-[#15803d]",
+};
+
+function GateChip({ gate }: { gate: { id: string; status: GateStatus } }) {
+  return (
+    <span className={["inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold", GATE_BADGE[gate.status]].join(" ")}>
+      {gate.id} · {gate.status}
+    </span>
+  );
+}
+
+function MetaCell({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.07em] text-[var(--text-muted)]">{label}</div>
+      <div className="mt-1">{children}</div>
+    </div>
+  );
+}
+
+function PriorityInline({ card }: { card: UseCaseCard }) {
+  const effective = card.orgPriority ?? card.priority;
+  if (!effective) return <span className="text-[12px] font-medium text-[var(--text-muted)]">Not prioritized</span>;
+  const showFunctional = card.orgPriority && card.priority && card.orgPriority !== card.priority;
 
   return (
-    <Link
-      href={card.href}
-      className="group block"
-    >
-      <div className="relative z-10 rounded-[8px] border border-[#e7e5e4] bg-white shadow-[0_1px_3px_rgba(15,23,42,0.05)] transition group-hover:border-[#8fc0cf] group-hover:bg-[#f4fafb]">
-        <div className="px-3.5 py-3">
-          <div className="flex items-center justify-between gap-2">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#0e7090]">
-              {card.id}
-            </div>
-            <div className="flex shrink-0 items-center gap-1.5">
-              {isFunded ? (
-                <span className="rounded-full bg-[#eef4ee] px-2 py-0.5 text-[10px] font-semibold text-[#15803d]">Funded</span>
-              ) : null}
-              <span className={["rounded-full px-2 py-0.5 text-[10px] font-semibold", PRIORITY_BADGE[card.priority]].join(" ")}>
-                {card.priority}
-              </span>
-            </div>
-          </div>
-          <h3 className="mt-1.5 text-[15px] font-semibold leading-5 text-[var(--text-primary)]">{card.title}</h3>
+    <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-[var(--text-primary)]">
+      <span className={["h-1.5 w-1.5 rounded-full", PRIORITY_DOT[effective]].join(" ")} />
+      {effective}
+      {showFunctional ? <span className="text-[11px] font-normal text-[var(--text-muted)]">· fn {card.priority}</span> : null}
+    </span>
+  );
+}
 
-          <p className="mt-2 line-clamp-2 text-[12px] leading-5 text-[var(--text-body)]">{card.description}</p>
+function OwnerInline({ card }: { card: UseCaseCard }) {
+  return (
+    <div className="flex min-w-0 items-center gap-1.5">
+      <div className="flex shrink-0 items-center">
+        <PersonAvatar name={card.owner} size={18} />
+        {card.coOwner ? (
+          <span className="-ml-1.5 rounded-full ring-2 ring-white">
+            <PersonAvatar name={card.coOwner} size={18} />
+          </span>
+        ) : null}
+      </div>
+      <span className="truncate text-[12px] font-medium text-[var(--text-primary)]">
+        {card.coOwner ? `${formatStageOwner(card)} +1` : formatStageOwner(card)}
+      </span>
+    </div>
+  );
+}
+
+function UseCaseBoardCard({ card }: { card: UseCaseCard }) {
+  const lifecycleTag = LIFECYCLE_TAG[card.lifecycle];
+
+  return (
+    <Link href={card.href} className="group block">
+      <div className="relative z-10 rounded-[10px] border border-[#e7e5e4] bg-white shadow-[0_1px_3px_rgba(15,23,42,0.05)] transition group-hover:border-[#8fc0cf] group-hover:bg-[#f4fafb]">
+        <div className="px-4 pb-3.5 pt-3.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#0e7090]">{card.id}</span>
+            <div className="flex shrink-0 items-center gap-1.5">
+              {lifecycleTag ? (
+                <span className={["rounded-full px-2 py-0.5 text-[10px] font-semibold", lifecycleTag].join(" ")}>
+                  {card.lifecycle}
+                </span>
+              ) : null}
+              {card.gate ? <GateChip gate={card.gate} /> : null}
+            </div>
+          </div>
+          <h3 className="mt-2 text-[15px] font-semibold leading-5 text-[var(--text-primary)]">{card.title}</h3>
+          <p className="mt-1.5 line-clamp-2 text-[12px] leading-5 text-[var(--text-body)]">{card.description}</p>
         </div>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-3 border-t border-[#f0efed] px-3.5 py-3">
-          <div className="min-w-0">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
-              Stage owner
-            </div>
-            <div className="mt-1.5 flex items-center gap-1.5">
-              <PersonAvatar name={card.owner} size={18} />
-              <span className="truncate text-[12px] font-medium text-[var(--text-primary)]">{formatStageOwner(card)}</span>
-            </div>
-          </div>
-          <div className="min-w-0">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
-              Due
-            </div>
-            <div className="mt-1.5 truncate text-[12px] font-medium text-[var(--text-primary)]">{card.due}</div>
-          </div>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-3.5 border-t border-[#f0efed] px-4 py-3.5">
+          <MetaCell label="Stage">
+            <span className="block truncate text-[12px] font-medium text-[var(--text-primary)]">{card.substage}</span>
+          </MetaCell>
+          <MetaCell label="Priority">
+            <PriorityInline card={card} />
+          </MetaCell>
+          <MetaCell label={card.coOwner ? "Owners" : "Owner"}>
+            <OwnerInline card={card} />
+          </MetaCell>
+          <MetaCell label="Due">
+            <span className="block truncate text-[12px] font-medium text-[var(--text-primary)]">{card.due}</span>
+          </MetaCell>
         </div>
       </div>
       {card.needsAttention ? (
-        <div className="-mt-2 rounded-b-[8px] bg-[#e8f4f8] px-3.5 pb-2.5 pt-4 text-[12px] font-semibold leading-5 text-[#0c5f7a] shadow-[0_1px_3px_rgba(15,23,42,0.05)] transition group-hover:bg-[#d3e9f0]">
+        <div className="-mt-2 rounded-b-[10px] bg-[#e8f4f8] px-4 pb-2.5 pt-4 text-[12px] font-semibold leading-5 text-[#0c5f7a] shadow-[0_1px_3px_rgba(15,23,42,0.05)] transition group-hover:bg-[#d3e9f0]">
           {getAttentionMessage(card)}
         </div>
       ) : null}
