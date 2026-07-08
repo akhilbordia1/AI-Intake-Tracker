@@ -884,3 +884,18 @@ input[type="date"] {
 .ui-toolbar-search::placeholder {
   color: var(--text-muted);
 }
+
+/* AI-suggest loading: shimmering gradient stroke on the field's own border, so
+   the box keeps the exact geometry of the real control (no resize / shift). */
+@keyframes ai-shimmer {
+  0% { background-position: 0 0, 0% 0; }
+  100% { background-position: 0 0, -200% 0; }
+}
+.ai-field-loading {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(#fff, #fff) padding-box,
+    linear-gradient(90deg, var(--accent-border), var(--accent), var(--accent-border), var(--accent), var(--accent-border)) border-box;
+  background-size: 100% 100%, 200% 100%;
+  animation: ai-shimmer 3s linear infinite;
+}

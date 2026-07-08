@@ -906,12 +906,39 @@ function EditableStage({ stage, currentUser }: { stage: StageItem; currentUser: 
   );
   const riskTier = stage.name === "Assess" ? computeRiskTier(values) : null;
 
+  // AI-suggest is mocked, so we fake generation latency: fields shimmer, then
+  // fill. "Suggest all" fills them one after another for a drafting feel.
+  const [suggestingAll, setSuggestingAll] = useState(false);
+  const [loadingFields, setLoadingFields] = useState<string[]>([]);
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+
   function setField(label: string, value: string | string[]) {
     setValues((current) => ({ ...current, [label]: value }));
   }
 
+  function fillAfter(label: string, value: string | string[], delay: number) {
+    const timer = setTimeout(() => {
+      setValues((current) => ({ ...current, [label]: value }));
+      setLoadingFields((current) => current.filter((entry) => entry !== label));
+    }, delay);
+    timers.current.push(timer);
+  }
+
   function suggestAll() {
-    setValues(Object.fromEntries(fields.map((field) => [field.label, field.suggestion])));
+    if (suggestingAll) return;
+    setSuggestingAll(true);
+    setLoadingFields(fields.map((field) => field.label));
+    fields.forEach((field, index) => fillAfter(field.label, field.suggestion, 500 + index * 230));
+    const done = setTimeout(() => setSuggestingAll(false), 500 + fields.length * 230 + 150);
+    timers.current.push(done);
+  }
+
+  function suggestField(field: FieldSpec) {
+    if (loadingFields.includes(field.label)) return;
+    setLoadingFields((current) => [...current, field.label]);
+    fillAfter(field.label, field.suggestion, 950);
   }
 
   return (
@@ -933,11 +960,17 @@ function EditableStage({ stage, currentUser }: { stage: StageItem; currentUser: 
             <button
               type="button"
               onClick={suggestAll}
+              disabled={suggestingAll}
               title="Draft all fields"
-              className="inline-flex h-7 items-center gap-1 rounded-full border border-[var(--accent-border)] bg-[var(--accent-soft)] pl-2 pr-2.5 text-[11.5px] font-medium text-[var(--accent-strong)] transition hover:bg-[#daedf3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
+              className={cn(
+                "inline-flex h-7 items-center gap-1 rounded-full border pl-2 pr-2.5 text-[11.5px] font-medium text-[var(--accent-strong)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]",
+                suggestingAll
+                  ? "border-[var(--accent)] bg-[var(--accent-soft)]"
+                  : "border-[var(--accent-border)] bg-[var(--accent-soft)] hover:bg-[#daedf3]",
+              )}
             >
-              <Sparkles size={11} />
-              Suggest
+              <Sparkles size={11} className={cn(suggestingAll && "animate-pulse")} />
+              {suggestingAll ? "Suggesting…" : "Suggest"}
             </button>
           </>
         }
@@ -947,6 +980,7 @@ function EditableStage({ stage, currentUser }: { stage: StageItem; currentUser: 
         <div className="pt-1">
           {fields.map((field) => {
             const singleLine = !["cards", "chips", "long"].includes(field.kind);
+            const loading = loadingFields.includes(field.label);
             return (
               <div key={field.label} className="grid grid-cols-[184px_minmax(0,1fr)] gap-8 px-7 py-[18px]">
                 <label
@@ -959,12 +993,16 @@ function EditableStage({ stage, currentUser }: { stage: StageItem; currentUser: 
                 </label>
                 <div className={cn("min-w-0", singleLine && "flex min-h-9 items-center")}>
                   <div className="w-full min-w-0">
-                    <StageField
-                      spec={field}
-                      value={values[field.label]}
-                      onChange={(value) => setField(field.label, value)}
-                      onSuggest={() => setField(field.label, field.suggestion)}
-                    />
+                    {loading ? (
+                      <FieldGenerating kind={field.kind} />
+                    ) : (
+                      <StageField
+                        spec={field}
+                        value={values[field.label]}
+                        onChange={(value) => setField(field.label, value)}
+                        onSuggest={() => suggestField(field)}
+                      />
+                    )}
                   </div>
                 </div>
               </div>
@@ -973,6 +1011,32 @@ function EditableStage({ stage, currentUser }: { stage: StageItem; currentUser: 
         </div>
       </section>
     </>
+  );
+}
+
+// Field placeholder shown while an AI suggestion "generates" — the container
+// keeps its shape and its stroke shimmers with the brand accent.
+// Mirrors the exact geometry of SmartText / SmartTextarea (border, padding,
+// and the right-pinned suggest icon) so nothing shifts when a field swaps in.
+function FieldGenerating({ kind }: { kind: FieldKind }) {
+  const tall = kind === "long";
+  return (
+    <div
+      className={cn(
+        "ai-field-loading relative w-full rounded-[8px] text-[13px] text-[var(--text-muted)]",
+        tall ? "h-[76px] px-3 pr-10 pt-2.5" : "flex h-9 items-center px-3 pr-9",
+      )}
+    >
+      <span>Generating…</span>
+      <span
+        className={cn(
+          "absolute grid h-6 w-6 place-items-center text-[var(--accent)]",
+          tall ? "right-2 top-2" : "right-1.5 top-1/2 -translate-y-1/2",
+        )}
+      >
+        <Sparkles size={13} className="animate-pulse" />
+      </span>
+    </div>
   );
 }
 
