@@ -2,7 +2,8 @@
 
 import { INITIAL_WORKFLOW_VALUES, USE_CASE, type FieldValue } from "@/data/document-workflow-form-schema";
 import { cn } from "@/lib/cn";
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronLeft, ChevronRight, FileCheck2, Lock, MoreHorizontal, RefreshCcw, RotateCcw, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Ban, Bell, Check, CheckCircle2, ChevronLeft, ChevronRight, CornerUpLeft, FileCheck2, Lock, MoreHorizontal, RefreshCcw, RotateCcw, ShieldCheck, Sparkles, X } from "lucide-react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement, type ReactNode } from "react";
 
@@ -39,6 +40,10 @@ const RECORD_THEME = {
   "--stage-future-text": "#3f3f46",
   "--stage-action": "#249a57",
   "--stage-action-hover": "#1f7a46",
+  "--stage-rejected": "#c0392b",
+  "--stage-rejected-hover": "#a5311f",
+  "--stage-returned": "#b8791f",
+  "--stage-returned-hover": "#9c6519",
 } as CSSProperties;
 
 const values = INITIAL_WORKFLOW_VALUES;
@@ -309,28 +314,77 @@ const ACTIVITY_ITEMS = [
 
 const defaultStageIndex = STAGES.findIndex((stage) => stage.name === "Assess");
 
+type Kickback = { to: number; from: number; reason: string; by: string };
+type Rejection = { index: number; reason: string; by: string };
+type StatusNote =
+  | { kind: "returned"; reason: string; fromName: string; by: string }
+  | { kind: "rejected"; reason: string; by: string };
+
 export function DetailRecordPage() {
   const [stageIndex, setStageIndex] = useState(defaultStageIndex);
   const [completedStageIndexes, setCompletedStageIndexes] = useState<number[]>([0, 1, 2, 3]);
   const [currentUser, setCurrentUser] = useState("Lena Osei");
+  const [rejections, setRejections] = useState<Rejection[]>([]);
+  const [kickbacks, setKickbacks] = useState<Kickback[]>([]);
+  const [dialogMode, setDialogMode] = useState<null | "reject" | "sendback">(null);
+
   const currentStage = STAGES[stageIndex] ?? STAGES[0];
   const isCurrentComplete = completedStageIndexes.includes(stageIndex);
-  // Role-based: you can only edit / complete a stage your profile owns.
+  // Role-based: you can only edit / complete / decide on a stage your profile owns.
   const canComplete = currentStage.owner === currentUser;
+
+  const rejectedIndexes = rejections.map((rejection) => rejection.index);
+  const returnedIndexes = kickbacks.map((kickback) => kickback.to);
+  const currentKickback = kickbacks.find((kickback) => kickback.to === stageIndex);
+  const currentRejection = rejections.find((rejection) => rejection.index === stageIndex);
+
+  const statusNote: StatusNote | null = currentRejection
+    ? { kind: "rejected", reason: currentRejection.reason, by: currentRejection.by }
+    : currentKickback
+      ? {
+          kind: "returned",
+          reason: currentKickback.reason,
+          fromName: STAGES[currentKickback.from]?.name ?? "a later stage",
+          by: currentKickback.by,
+        }
+      : null;
 
   function selectStage(index: number) {
     setStageIndex(index);
   }
 
   // Toggle: completes the stage (and advances), or marks it incomplete again
-  // when you go back to a done stage. Only the stage owner may do this.
+  // when you go back to a done stage. Completing also clears any return/rejection.
   function toggleCurrentStageComplete() {
-    if (currentStage.owner !== currentUser) return;
+    if (!canComplete) return;
     const wasComplete = completedStageIndexes.includes(stageIndex);
     setCompletedStageIndexes((indexes) =>
       wasComplete ? indexes.filter((index) => index !== stageIndex) : [...indexes, stageIndex],
     );
+    setKickbacks((current) => current.filter((kickback) => kickback.to !== stageIndex));
+    setRejections((current) => current.filter((rejection) => rejection.index !== stageIndex));
     if (!wasComplete && stageIndex < STAGES.length - 1) selectStage(stageIndex + 1);
+  }
+
+  function confirmReject(reason: string) {
+    setRejections((current) => [...current.filter((r) => r.index !== stageIndex), { index: stageIndex, reason, by: currentUser }]);
+    setCompletedStageIndexes((current) => current.filter((index) => index !== stageIndex));
+    setDialogMode(null);
+  }
+
+  // Send the record back to an earlier stage with a note. That stage reopens
+  // (needs revision), the note rides along, and we jump the user there.
+  function confirmSendBack(to: number, reason: string) {
+    setKickbacks((current) => [...current.filter((k) => k.to !== to), { to, from: stageIndex, reason, by: currentUser }]);
+    setCompletedStageIndexes((current) => current.filter((index) => index !== to));
+    setRejections((current) => current.filter((rejection) => rejection.index !== to));
+    setDialogMode(null);
+    selectStage(to);
+  }
+
+  function clearCurrentStatus() {
+    setKickbacks((current) => current.filter((kickback) => kickback.to !== stageIndex));
+    setRejections((current) => current.filter((rejection) => rejection.index !== stageIndex));
   }
 
   return (
@@ -339,20 +393,43 @@ export function DetailRecordPage() {
       <StagePath
         activeIndex={stageIndex}
         completedIndexes={completedStageIndexes}
+        rejectedIndexes={rejectedIndexes}
+        returnedIndexes={returnedIndexes}
         isCurrentComplete={isCurrentComplete}
         canComplete={canComplete}
+        canDecide={canComplete}
         activeOwner={currentStage.owner}
         onMarkComplete={toggleCurrentStageComplete}
         onStageChange={selectStage}
+        onReject={() => setDialogMode("reject")}
+        onSendBack={() => setDialogMode("sendback")}
       />
       <section className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(320px,384px)] gap-4 bg-[var(--surface-muted)] px-5 pb-5 pt-4" aria-label="Use case content">
         <div className="flex min-h-0 flex-col overflow-hidden rounded-[12px] border border-[#ecebea] bg-white shadow-[0_1px_3px_rgba(12,10,9,0.04)]">
-          <StageWorkspace stage={currentStage} currentUser={currentUser} isComplete={isCurrentComplete} />
+          <StageWorkspace
+            stage={currentStage}
+            currentUser={currentUser}
+            isComplete={isCurrentComplete}
+            statusNote={statusNote}
+            canClear={canComplete}
+            onClearStatus={clearCurrentStatus}
+          />
         </div>
         <aside className="flex min-h-0 flex-col overflow-hidden rounded-[12px] border border-[#ecebea] bg-white shadow-[0_1px_3px_rgba(12,10,9,0.04)]" aria-label="Supporting details">
           <SupportingTabs />
         </aside>
       </section>
+
+      {dialogMode ? (
+        <StageActionDialog
+          mode={dialogMode}
+          stageName={currentStage.name}
+          priorStages={STAGES.slice(0, stageIndex).map((stage, index) => ({ index, name: stage.name }))}
+          onCancel={() => setDialogMode(null)}
+          onReject={confirmReject}
+          onSendBack={confirmSendBack}
+        />
+      ) : null}
     </main>
   );
 }
@@ -470,33 +547,84 @@ function StageWorkspace({
   stage,
   currentUser,
   isComplete,
+  statusNote,
+  canClear,
+  onClearStatus,
 }: {
   stage: StageItem;
   currentUser: string;
   isComplete: boolean;
+  statusNote: StatusNote | null;
+  canClear: boolean;
+  onClearStatus: () => void;
 }) {
-  // Self-service portal stages are completed by the requester elsewhere, so
-  // they're read-only reference here regardless of role or completion.
+  let body: ReactNode;
   if (PORTAL_STAGES.has(stage.name)) {
-    return <PortalStage stage={stage} currentUser={currentUser} />;
-  }
-
-  // Role gate: an open stage you don't own is locked (read-only) for you.
-  if (!isComplete && stage.owner !== currentUser) {
-    return <LockedStage stage={stage} currentUser={currentUser} />;
-  }
-
-  const useEditable = !isComplete && !BESPOKE_STAGE_FORMS[stage.name];
-
-  if (useEditable) {
-    return <EditableStage key={stage.name} stage={stage} currentUser={currentUser} />;
+    // Self-service portal stages are completed by the requester elsewhere.
+    body = <PortalStage stage={stage} currentUser={currentUser} />;
+  } else if (!isComplete && stage.owner !== currentUser) {
+    // Role gate: an open stage you don't own is locked (read-only) for you.
+    body = <LockedStage stage={stage} currentUser={currentUser} />;
+  } else if (!isComplete && !BESPOKE_STAGE_FORMS[stage.name]) {
+    body = <EditableStage key={stage.name} stage={stage} currentUser={currentUser} />;
+  } else {
+    body = (
+      <>
+        <StageColumnHeader stage={stage} currentUser={currentUser} />
+        <StageContent isComplete={isComplete} stage={stage} />
+      </>
+    );
   }
 
   return (
     <>
-      <StageColumnHeader stage={stage} currentUser={currentUser} />
-      <StageContent isComplete={isComplete} stage={stage} />
+      {statusNote ? <StageStatusBanner note={statusNote} canClear={canClear} onClear={onClearStatus} /> : null}
+      {body}
     </>
+  );
+}
+
+function StageStatusBanner({ note, canClear, onClear }: { note: StatusNote; canClear: boolean; onClear: () => void }) {
+  const rejected = note.kind === "rejected";
+  const palette = rejected
+    ? { fg: "#a5311f", bg: "#fbeeec", border: "#eecbc4", icon: <Ban size={18} /> }
+    : { fg: "#9c6519", bg: "#f8f1e6", border: "#ecd8b6", icon: <CornerUpLeft size={18} /> };
+
+  return (
+    <div
+      className="flex shrink-0 items-center gap-3 border-b px-7 py-3"
+      style={{ background: palette.bg, borderColor: palette.border }}
+    >
+      <span
+        className="grid h-9 w-9 shrink-0 place-items-center rounded-full border bg-white"
+        style={{ borderColor: palette.border, color: palette.fg }}
+      >
+        {palette.icon}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+          <span className="text-[13px] font-semibold" style={{ color: palette.fg }}>
+            {rejected ? "Stage rejected" : `Sent back from ${note.fromName}`}
+          </span>
+          <span className="inline-flex items-center gap-1.5 text-[12px] text-[var(--text-muted)]">
+            by
+            <PersonAvatar name={note.by} size={16} />
+            <span className="font-medium text-[var(--text-body)]">{note.by}</span>
+          </span>
+        </div>
+        <p className="mt-1 text-[13px] leading-5 text-[var(--text-body)]">{note.reason}</p>
+      </div>
+      {canClear ? (
+        <button
+          type="button"
+          onClick={onClear}
+          className="shrink-0 rounded-[7px] border bg-white/70 px-2.5 py-1 text-[12px] font-medium transition hover:bg-white"
+          style={{ color: palette.fg, borderColor: palette.border }}
+        >
+          {rejected ? "Reopen" : "Dismiss"}
+        </button>
+      ) : null}
+    </div>
   );
 }
 
@@ -1367,19 +1495,29 @@ function RecordHeader({ currentUser, onUserChange }: { currentUser: string; onUs
 function StagePath({
   activeIndex = defaultStageIndex,
   completedIndexes = [],
+  rejectedIndexes = [],
+  returnedIndexes = [],
   isCurrentComplete = false,
   canComplete = true,
+  canDecide = false,
   activeOwner = "",
   onMarkComplete,
   onStageChange,
+  onReject,
+  onSendBack,
 }: {
   activeIndex?: number;
   completedIndexes?: number[];
+  rejectedIndexes?: number[];
+  returnedIndexes?: number[];
   isCurrentComplete?: boolean;
   canComplete?: boolean;
+  canDecide?: boolean;
   activeOwner?: string;
   onMarkComplete?: () => void;
   onStageChange?: (index: number) => void;
+  onReject?: () => void;
+  onSendBack?: () => void;
 }) {
   const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
   const trailRef = useRef<HTMLOListElement>(null);
@@ -1435,15 +1573,36 @@ function StagePath({
           {STAGES.map((stage, index) => {
             const isCompleted = completedIndexes.includes(index);
             const isActive = index === activeIndex;
-            const isPending = !isActive && !isCompleted;
-            const isCollapsed = isCompleted && !isActive;
+            const isRejected = rejectedIndexes.includes(index);
+            const isReturned = !isRejected && returnedIndexes.includes(index);
+            const isCollapsed = isCompleted && !isActive && !isRejected && !isReturned;
             const isFirst = index === 0;
             const isLast = index === STAGES.length - 1;
             const clipPath = "polygon(0 0, calc(100% - 13px) 0, 100% 50%, calc(100% - 13px) 100%, 0 100%, 13px 50%)";
             const firstClipPath = "polygon(0 0, calc(100% - 13px) 0, 100% 50%, calc(100% - 13px) 100%, 0 100%)";
             const lastClipPath = "polygon(0 0, 100% 0, 100% 100%, 0 100%, 13px 50%)";
-            const statusLabel = isCompleted ? "Completed" : isActive ? "In progress" : "Not started";
+            const statusLabel = isRejected
+              ? "Rejected"
+              : isReturned
+                ? "Needs revision"
+                : isCompleted
+                  ? "Completed"
+                  : isActive
+                    ? "In progress"
+                    : "Not started";
             const tipText = `${stage.name} · ${statusLabel} · ${stage.owner}`;
+            // Precedence: rejected > active > returned > completed > pending.
+            const toneClass = isRejected
+              ? "bg-[var(--stage-rejected)] text-white hover:bg-[var(--stage-rejected-hover)]"
+              : isActive
+                ? isCompleted
+                  ? "bg-[var(--stage-past-active)] text-white hover:bg-[var(--stage-past-active-hover)]"
+                  : "bg-[var(--stage-active)] text-white hover:bg-[var(--stage-active-hover)]"
+                : isReturned
+                  ? "bg-[var(--stage-returned)] text-white hover:bg-[var(--stage-returned-hover)]"
+                  : isCompleted
+                    ? "bg-[var(--stage-past)] text-white hover:bg-[var(--stage-past-hover)]"
+                    : "bg-[var(--stage-future)] text-[var(--stage-future-text)] hover:bg-[var(--stage-future-hover)]";
 
             return (
               <li key={stage.name} className={cn("relative flex shrink-0", index > 0 && "-ml-3")}>
@@ -1467,13 +1626,16 @@ function StagePath({
                         ? "rounded-l-[20px] pl-6 pr-8"
                         : "px-8",
                     isLast && "rounded-r-[20px]",
-                    isCompleted && !isActive && "bg-[var(--stage-past)] text-white hover:bg-[var(--stage-past-hover)]",
-                    isCompleted && isActive && "bg-[var(--stage-past-active)] text-white hover:bg-[var(--stage-past-active-hover)]",
-                    isActive && !isCompleted && "bg-[var(--stage-active)] text-white hover:bg-[var(--stage-active-hover)]",
-                    isPending && "bg-[var(--stage-future)] text-[var(--stage-future-text)] hover:bg-[var(--stage-future-hover)]",
+                    toneClass,
                   )}
                 >
-                  {isCompleted && <Check size={13} strokeWidth={3} className="shrink-0" />}
+                  {isRejected ? (
+                    <Ban size={13} className="shrink-0" />
+                  ) : isReturned ? (
+                    <CornerUpLeft size={13} strokeWidth={2.5} className="shrink-0" />
+                  ) : isCompleted ? (
+                    <Check size={13} strokeWidth={3} className="shrink-0" />
+                  ) : null}
                   <span className={cn("max-w-[130px] truncate", isCollapsed && "sr-only")}>{stage.name}</span>
                 </button>
               </li>
@@ -1543,7 +1705,14 @@ function StagePath({
             >
               <MoreHorizontal size={16} />
             </button>
-            {isActionMenuOpen && <StageActionMenu onSelect={() => setIsActionMenuOpen(false)} />}
+            {isActionMenuOpen ? (
+              <StageActionMenu
+                canDecide={canDecide}
+                onSendBack={onSendBack}
+                onReject={onReject}
+                onSelect={() => setIsActionMenuOpen(false)}
+              />
+            ) : null}
           </div>
         </div>
       </div>
@@ -1562,23 +1731,203 @@ function StagePath({
   );
 }
 
-function StageActionMenu({ onSelect }: { onSelect: () => void }) {
-  const actions = ["Follow", "New assessment", "Change owner"];
-
+function StageActionMenu({
+  canDecide,
+  onSendBack,
+  onReject,
+  onSelect,
+}: {
+  canDecide: boolean;
+  onSendBack?: () => void;
+  onReject?: () => void;
+  onSelect: () => void;
+}) {
   return (
-    <div className="absolute right-0 top-10 z-50 w-44 space-y-1 rounded-[8px] border border-[#e7e5e4] bg-white p-1.5 shadow-[var(--shadow-lg)]" role="menu" aria-label="Stage actions">
-      {actions.map((label) => (
-        <button
-          key={label}
-          type="button"
-          onClick={onSelect}
-          className="flex h-8 w-full items-center justify-start rounded-[6px] border border-transparent bg-white px-2.5 text-left text-[12px] font-medium text-[var(--text-body)] transition hover:border-[var(--accent-border)] hover:bg-[var(--accent-hover-bg)] hover:text-[var(--accent-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
-          role="menuitem"
-        >
-          {label}
-        </button>
-      ))}
+    <div className="absolute right-0 top-11 z-50 w-56 rounded-[8px] border border-[#e7e5e4] bg-white p-1.5 shadow-[var(--shadow-lg)]" role="menu" aria-label="Stage actions">
+      <button
+        type="button"
+        onClick={onSelect}
+        className="flex h-8 w-full items-center gap-2 rounded-[6px] px-2.5 text-left text-[12px] font-medium text-[var(--text-body)] transition hover:bg-[var(--surface-hover)]"
+        role="menuitem"
+      >
+        <Bell size={14} className="text-[var(--text-muted)]" />
+        Follow this record
+      </button>
+
+      {canDecide ? (
+        <>
+          <div className="my-1 border-t border-[var(--border-hairline)]" />
+          <button
+            type="button"
+            onClick={() => {
+              onSelect();
+              onSendBack?.();
+            }}
+            className="flex h-8 w-full items-center gap-2 rounded-[6px] px-2.5 text-left text-[12px] font-medium text-[var(--text-body)] transition hover:bg-[var(--surface-hover)]"
+            role="menuitem"
+          >
+            <CornerUpLeft size={14} className="text-[var(--text-muted)]" />
+            Send back to a stage…
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              onSelect();
+              onReject?.();
+            }}
+            className="flex h-8 w-full items-center gap-2 rounded-[6px] px-2.5 text-left text-[12px] font-medium text-[#a5311f] transition hover:bg-[#fbeeec]"
+            role="menuitem"
+          >
+            <Ban size={14} />
+            Reject this stage…
+          </button>
+        </>
+      ) : null}
     </div>
+  );
+}
+
+// Modal for rejecting a stage or sending the record back to an earlier one,
+// each with a required reason. Rendered in a portal to escape overflow clipping.
+function StageActionDialog({
+  mode,
+  stageName,
+  priorStages,
+  onCancel,
+  onReject,
+  onSendBack,
+}: {
+  mode: "reject" | "sendback";
+  stageName: string;
+  priorStages: Array<{ index: number; name: string }>;
+  onCancel: () => void;
+  onReject: (reason: string) => void;
+  onSendBack: (to: number, reason: string) => void;
+}) {
+  const [reason, setReason] = useState("");
+  const [target, setTarget] = useState<number | null>(priorStages.length ? priorStages[priorStages.length - 1].index : null);
+  const isReject = mode === "reject";
+  const canSubmit = reason.trim().length > 0 && (isReject || target !== null);
+
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") onCancel();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onCancel]);
+
+  function submit() {
+    if (!canSubmit) return;
+    if (isReject) onReject(reason.trim());
+    else if (target !== null) onSendBack(target, reason.trim());
+  }
+
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label={isReject ? "Reject stage" : "Send back to a stage"}>
+      <div className="absolute inset-0 bg-[rgba(28,25,23,0.35)]" onClick={onCancel} />
+      <div className="relative w-full max-w-[460px] rounded-[14px] border border-[var(--border-default)] bg-white shadow-[var(--shadow-dialog,0_16px_48px_rgba(12,10,9,0.22))]">
+        <div className="flex items-start justify-between gap-3 px-5 pt-5">
+          <div className="flex items-center gap-2.5">
+            <span
+              className="grid h-9 w-9 place-items-center rounded-full"
+              style={isReject ? { background: "#fbeeec", color: "#a5311f" } : { background: "#f8f1e6", color: "#9c6519" }}
+            >
+              {isReject ? <Ban size={18} /> : <CornerUpLeft size={18} />}
+            </span>
+            <div>
+              <h2 className="font-display text-[18px] leading-6 text-[var(--text-primary)]">
+                {isReject ? "Reject this stage" : "Send back to a stage"}
+              </h2>
+              <p className="text-[12px] text-[var(--text-muted)]">
+                {isReject ? `Blocks ${stageName} and records why.` : `Return the record to an earlier stage from ${stageName}.`}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onCancel}
+            aria-label="Close"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-[7px] text-[var(--text-muted)] transition hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="space-y-4 px-5 py-5">
+          {!isReject ? (
+            <div>
+              <label className="mb-1.5 block text-[12px] font-medium text-[var(--text-primary)]">Send back to</label>
+              {priorStages.length ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {priorStages.map((stage) => (
+                    <button
+                      key={stage.index}
+                      type="button"
+                      onClick={() => setTarget(stage.index)}
+                      className={cn(
+                        "rounded-full border px-3 py-1.5 text-[12.5px] font-medium transition",
+                        target === stage.index
+                          ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent-strong)]"
+                          : "border-[var(--border-input)] bg-white text-[var(--text-body)] hover:border-[var(--accent-border)]",
+                      )}
+                    >
+                      {stage.name}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[13px] text-[var(--text-muted)]">No earlier stages to send back to.</p>
+              )}
+            </div>
+          ) : null}
+
+          <div>
+            <label htmlFor="stage-action-reason" className="mb-1.5 block text-[12px] font-medium text-[var(--text-primary)]">
+              {isReject ? "Reason for rejection" : "Note for the owner"}
+            </label>
+            <textarea
+              id="stage-action-reason"
+              autoFocus
+              rows={3}
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              placeholder={isReject ? "What must change before this can proceed?" : "What needs revisiting, and why?"}
+              className="w-full resize-none rounded-[8px] border border-[var(--border-input)] bg-white px-3 py-2.5 text-[13px] leading-5 text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[#8fc0cf] focus:ring-2 focus:ring-[var(--accent-soft)]"
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-2 border-t border-[var(--border-hairline)] px-5 py-3.5">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="inline-flex h-9 items-center rounded-[8px] border border-[var(--border-input)] bg-white px-3.5 text-[13px] font-medium text-[var(--text-body)] transition hover:bg-[var(--surface-hover)]"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={!canSubmit}
+            onClick={submit}
+            className={cn(
+              "inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[8px] px-4 text-[13px] font-semibold transition",
+              !canSubmit
+                ? "cursor-not-allowed bg-[#ece9e7] text-[var(--text-muted)]"
+                : isReject
+                  ? "bg-[#c0392b] text-white hover:bg-[#a5311f]"
+                  : "bg-[var(--accent)] text-white hover:bg-[var(--accent-strong)]",
+            )}
+          >
+            {isReject ? <Ban size={15} /> : <CornerUpLeft size={15} />}
+            {isReject ? "Reject stage" : "Send back"}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
 
