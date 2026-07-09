@@ -323,6 +323,9 @@ type StatusNote =
 export function DetailRecordPage() {
   const [stageIndex, setStageIndex] = useState(defaultStageIndex);
   const [completedStageIndexes, setCompletedStageIndexes] = useState<number[]>([0, 1, 2, 3]);
+  // Stages that have ever been completed hold recorded data — so reopening one
+  // shows its data (editable) rather than a blank form.
+  const [dataStageIndexes, setDataStageIndexes] = useState<number[]>([0, 1, 2, 3]);
   const [currentUser, setCurrentUser] = useState("Lena Osei");
   const [rejections, setRejections] = useState<Rejection[]>([]);
   const [kickbacks, setKickbacks] = useState<Kickback[]>([]);
@@ -361,6 +364,8 @@ export function DetailRecordPage() {
     setCompletedStageIndexes((indexes) =>
       wasComplete ? indexes.filter((index) => index !== stageIndex) : [...indexes, stageIndex],
     );
+    // Completing records data for this stage (kept even after reopening).
+    if (!wasComplete) setDataStageIndexes((indexes) => (indexes.includes(stageIndex) ? indexes : [...indexes, stageIndex]));
     setKickbacks((current) => current.filter((kickback) => kickback.to !== stageIndex));
     setRejections((current) => current.filter((rejection) => rejection.index !== stageIndex));
     if (!wasComplete && stageIndex < STAGES.length - 1) selectStage(stageIndex + 1);
@@ -410,6 +415,7 @@ export function DetailRecordPage() {
             stage={currentStage}
             currentUser={currentUser}
             isComplete={isCurrentComplete}
+            prefill={dataStageIndexes.includes(stageIndex)}
             statusNote={statusNote}
             canClear={canComplete}
             onClearStatus={clearCurrentStatus}
@@ -547,6 +553,7 @@ function StageWorkspace({
   stage,
   currentUser,
   isComplete,
+  prefill,
   statusNote,
   canClear,
   onClearStatus,
@@ -554,19 +561,24 @@ function StageWorkspace({
   stage: StageItem;
   currentUser: string;
   isComplete: boolean;
+  prefill: boolean;
   statusNote: StatusNote | null;
   canClear: boolean;
   onClearStatus: () => void;
 }) {
+  // Owner reopened this stage (marked it incomplete) → editable again, even for
+  // portal stages. Bespoke stages fall through to their own editable form.
+  const editable = !isComplete && stage.owner === currentUser && !BESPOKE_STAGE_FORMS[stage.name];
+
   let body: ReactNode;
-  if (PORTAL_STAGES.has(stage.name)) {
+  if (editable) {
+    body = <EditableStage key={stage.name} stage={stage} currentUser={currentUser} prefill={prefill} />;
+  } else if (PORTAL_STAGES.has(stage.name)) {
     // Self-service portal stages are completed by the requester elsewhere.
     body = <PortalStage stage={stage} currentUser={currentUser} />;
   } else if (!isComplete && stage.owner !== currentUser) {
     // Role gate: an open stage you don't own is locked (read-only) for you.
     body = <LockedStage stage={stage} currentUser={currentUser} />;
-  } else if (!isComplete && !BESPOKE_STAGE_FORMS[stage.name]) {
-    body = <EditableStage key={stage.name} stage={stage} currentUser={currentUser} />;
   } else {
     body = (
       <>
@@ -892,11 +904,13 @@ function computeRiskTier(values: Record<string, string | string[]>) {
 
 // Editable generic stage: identity header, then a guidance strip (with the
 // suggest-all action + live risk tier) above the label-left field rows.
-function EditableStage({ stage, currentUser }: { stage: StageItem; currentUser: string }) {
+function EditableStage({ stage, currentUser, prefill = false }: { stage: StageItem; currentUser: string; prefill?: boolean }) {
   const fields = useMemo(() => stage.rows.map(([label, value]) => buildFieldSpec(label, value)), [stage]);
   const [values, setValues] = useState<Record<string, string | string[]>>(() =>
     Object.fromEntries(
       fields.map((field) => {
+        // Reopened stage: show its recorded data, editable. Fresh stage: empty.
+        if (prefill) return [field.label, field.suggestion];
         if (field.kind === "cards" || field.kind === "chips") return [field.label, []];
         // Toggles always show a selection — default to the first option.
         if ((field.kind === "segmented" || field.kind === "radio") && field.options?.length) return [field.label, field.options[0]];

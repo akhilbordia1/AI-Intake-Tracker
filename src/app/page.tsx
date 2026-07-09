@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ChevronDown, Columns3, Plus, Search, Table2 } from "lucide-react";
 import { useMemo, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 import { PersonAvatar, ProfileSwitcher } from "@/components/profile";
 import { useClickOutside } from "@/lib/use-click-outside";
@@ -45,14 +46,18 @@ type BoardColumn = {
   cards: UseCaseCard[];
 };
 
-// Each condensed board column maps to the detail-view stages inside it.
+// The four high-level phases of the AI enablement process; each board column
+// is one phase, condensing the detail-view stages inside it.
 const STAGE_GROUPS: Record<string, string[]> = {
-  Intake: ["Intake"],
-  Screening: ["Screening", "Prioritize", "Triage"],
-  "Governance review": ["Assess", "Business case", "GTAC"],
-  Planning: ["Plan", "Design", "Build"],
-  Approved: ["Deploy", "Adopt", "Monitor", "Improve"],
+  "Intake & Prioritization": ["Intake", "Screening", "Prioritize", "Triage"],
+  "Gov, Risk & Tech Assessments": ["Assess", "Business case", "GTAC"],
+  "Agile Solution Delivery": ["Plan", "Design", "Build", "Deploy"],
+  "Value Realization": ["Adopt", "Monitor", "Improve"],
 };
+
+const SUBSTAGE_TO_GROUP: Record<string, string> = Object.fromEntries(
+  Object.entries(STAGE_GROUPS).flatMap(([group, subs]) => subs.map((sub) => [sub, group])),
+);
 
 const useCases: UseCaseCard[] = [
   {
@@ -263,7 +268,7 @@ function formatStageOwner(card: UseCaseCard) {
 }
 
 const viewColumnOrder: Record<ViewKey, string[]> = {
-  stage: ["Intake", "Screening", "Governance review", "Planning", "Approved"],
+  stage: Object.keys(STAGE_GROUPS),
   people: ["Nisha Patel", "Priya Rao", "Elena Weber", "Rohan Desai", "Mira Kapoor", "Aarav Mehta", "Daniel Cho"],
   priority: ["High", "Medium", "Low", "Not prioritized"],
   due: ["Submitted", "This week", "Next week", "Funded"],
@@ -276,7 +281,7 @@ function getGroupValue(card: UseCaseCard, view: ViewKey) {
   if (view === "priority") return card.orgPriority ?? card.priority ?? "Not prioritized";
   if (view === "due") return card.dueGroup;
   if (view === "status") return card.lifecycle;
-  return card.stage;
+  return SUBSTAGE_TO_GROUP[card.substage] ?? card.stage;
 }
 
 function buildColumns(view: ViewKey, cards: UseCaseCard[]): BoardColumn[] {
@@ -386,8 +391,7 @@ export default function HomePage() {
               <div
                 className="grid h-full min-h-[540px] gap-0"
                 style={{
-                  gridTemplateColumns: `repeat(${columns.length}, 360px)`,
-                  minWidth: 1800,
+                  gridTemplateColumns: `repeat(${columns.length}, minmax(300px, 1fr))`,
                 }}
               >
                 {columns.map((column) => (
@@ -670,7 +674,7 @@ function TableGroupCard({ column }: { column: BoardColumn }) {
             {members.join(" · ")}
           </span>
         ) : null}
-        <span className="text-[12px] font-medium text-[var(--text-muted)]">
+        <span className="grid h-[20px] min-w-[20px] place-items-center rounded-full bg-[var(--surface-strong)] px-1.5 text-[11px] font-semibold tabular-nums text-[var(--text-label)]">
           {column.cards.length}
         </span>
       </div>
@@ -839,10 +843,65 @@ function PriorityCell({ card }: { card: UseCaseCard }) {
   );
 }
 
+// Instant, styled hover tooltip listing the detail stages inside a phase.
+// Rendered in a portal with fixed position so it never sits behind other
+// columns / cards (which each create their own stacking context).
+function PhaseStagesHint({ members }: { members: string[] }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [coords, setCoords] = useState<{ x: number; y: number } | null>(null);
+
+  function show() {
+    const rect = ref.current?.getBoundingClientRect();
+    if (!rect) return;
+    const width = 180;
+    const x = Math.min(rect.left, window.innerWidth - width - 12);
+    setCoords({ x: Math.max(12, x), y: rect.bottom + 8 });
+  }
+
+  return (
+    <span
+      ref={ref}
+      onMouseEnter={show}
+      onMouseLeave={() => setCoords(null)}
+      className="inline-flex cursor-help items-baseline text-[11px] font-medium text-[var(--text-muted)]"
+    >
+      · {members.length} stages
+      {coords && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              style={{ position: "fixed", left: coords.x, top: coords.y, width: 190 }}
+              className="pointer-events-none z-[80] rounded-[10px] border border-[var(--border-default)] bg-white px-3 py-2.5 shadow-[0_10px_30px_rgba(12,10,9,0.16)]"
+            >
+              <div className="flex flex-col">
+                {members.map((member, index) => {
+                  const last = index === members.length - 1;
+                  return (
+                    <div key={member} className="flex gap-2.5">
+                      <div className="flex flex-col items-center pt-[6px]">
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent)]" />
+                        {last ? null : <span className="mt-1 w-px flex-1 bg-[var(--border-default)]" />}
+                      </div>
+                      <div
+                        className="text-[12.5px] font-medium leading-5 text-[var(--text-primary)]"
+                        style={{ paddingBottom: last ? 0 : 10 }}
+                      >
+                        {member}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
+    </span>
+  );
+}
+
 function KanbanColumn({ column }: { column: BoardColumn }) {
   const [hasScrolled, setHasScrolled] = useState(false);
   const members = STAGE_GROUPS[column.title];
-  const groupHint = members && members.length > 1 ? `Includes ${members.join(" → ")}` : undefined;
 
   return (
     <section className="flex h-full min-h-0 flex-col border-l border-[#f0efed] pl-3 pr-3 first:border-l-0 first:pl-0">
@@ -854,19 +913,10 @@ function KanbanColumn({ column }: { column: BoardColumn }) {
       >
         <div className="flex items-baseline justify-between pb-3 pl-[18px] pr-[18px] pt-6">
           <div className="flex items-baseline gap-1.5">
-            <h2
-              title={groupHint}
-              className={["text-[15px] font-medium text-[var(--text-primary)]", groupHint ? "cursor-help" : ""].join(" ")}
-            >
-              {column.title}
-            </h2>
-            {members && members.length > 1 ? (
-              <span title={groupHint} className="cursor-help text-[11px] font-medium text-[var(--text-muted)]">
-                · {members.length} stages
-              </span>
-            ) : null}
+            <h2 className="text-[15px] font-medium text-[var(--text-primary)]">{column.title}</h2>
+            {members && members.length > 1 ? <PhaseStagesHint members={members} /> : null}
           </div>
-          <span className="text-[12px] font-medium text-[var(--text-muted)]">
+          <span className="grid h-[20px] min-w-[20px] place-items-center rounded-full bg-[var(--surface-strong)] px-1.5 text-[11px] font-semibold tabular-nums text-[var(--text-label)]">
             {column.cards.length}
           </span>
         </div>
