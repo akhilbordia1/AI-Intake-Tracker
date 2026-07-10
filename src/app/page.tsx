@@ -59,6 +59,24 @@ const SUBSTAGE_TO_GROUP: Record<string, string> = Object.fromEntries(
   Object.entries(STAGE_GROUPS).flatMap(([group, subs]) => subs.map((sub) => [sub, group])),
 );
 
+// One-liner + assigned person per stage (owners mirror the detail record).
+const STAGE_META: Record<string, { owner: string; desc: string }> = {
+  Intake: { owner: "Priya N.", desc: "Submit the intake form; the AI registry is updated." },
+  Screening: { owner: "Priya N.", desc: "Basic validation to filter non-viable ideas by risk & readiness." },
+  Prioritize: { owner: "Marco B.", desc: "Score value & readiness; prioritize within the function." },
+  Triage: { owner: "Dana K.", desc: "Determine the scope of the detailed assessments." },
+  Assess: { owner: "Lena Osei", desc: "Complete the required assessments; finalize the business case." },
+  "Business case": { owner: "Amara J.", desc: "Review the business case; prioritize it for GTAC." },
+  GTAC: { owner: "Victor H.", desc: "Approve or reject the business case; allocate investment." },
+  Plan: { owner: "Dana K.", desc: "Confirm delivery model, resourcing, roadmap & timeline." },
+  Design: { owner: "Noah R.", desc: "Translate business needs into a solution blueprint." },
+  Build: { owner: "Noah R.", desc: "Iteratively build and test the AI solution." },
+  Deploy: { owner: "Lena Osei", desc: "Release the solution into production." },
+  Adopt: { owner: "Marco B.", desc: "Drive adoption through training & change management." },
+  Monitor: { owner: "Marco B.", desc: "Track business KPIs and risks in production." },
+  Improve: { owner: "Priya N.", desc: "Optimize and scale by expansion." },
+};
+
 const useCases: UseCaseCard[] = [
   {
     id: "UC-138",
@@ -848,14 +866,18 @@ function PriorityCell({ card }: { card: UseCaseCard }) {
 // columns / cards (which each create their own stacking context).
 function PhaseStagesHint({ members }: { members: string[] }) {
   const ref = useRef<HTMLSpanElement>(null);
-  const [coords, setCoords] = useState<{ x: number; y: number } | null>(null);
+  const [coords, setCoords] = useState<{ x: number; y: number; w: number } | null>(null);
 
   function show() {
-    const rect = ref.current?.getBoundingClientRect();
-    if (!rect) return;
-    const width = 180;
-    const x = Math.min(rect.left, window.innerWidth - width - 12);
-    setCoords({ x: Math.max(12, x), y: rect.bottom + 8 });
+    const el = ref.current;
+    if (!el) return;
+    // Match the cards exactly: same left edge and width as a card in the column.
+    const column = el.closest("section");
+    const card = column?.querySelector("a");
+    const rect = (card ?? column ?? el).getBoundingClientRect();
+    const w = Math.max(240, Math.round(rect.width));
+    const x = Math.max(12, Math.min(rect.left, window.innerWidth - w - 12));
+    setCoords({ x, y: el.getBoundingClientRect().bottom + 8, w });
   }
 
   return (
@@ -863,34 +885,39 @@ function PhaseStagesHint({ members }: { members: string[] }) {
       ref={ref}
       onMouseEnter={show}
       onMouseLeave={() => setCoords(null)}
-      className="inline-flex cursor-help items-baseline text-[11px] font-medium text-[var(--text-muted)]"
+      className="inline-flex cursor-default items-baseline text-[11px] font-medium text-[var(--text-muted)]"
     >
       · {members.length} stages
       {coords && typeof document !== "undefined"
         ? createPortal(
             <div
-              style={{ position: "fixed", left: coords.x, top: coords.y, width: 190 }}
-              className="pointer-events-none z-[80] rounded-[10px] border border-[var(--border-default)] bg-white px-3 py-2.5 shadow-[0_10px_30px_rgba(12,10,9,0.16)]"
+              style={{ position: "fixed", left: coords.x, top: coords.y, width: coords.w }}
+              className="pointer-events-none z-[80] rounded-[14px] border border-[#d6d3d1] bg-[#eceae7] p-3 shadow-[0_10px_28px_rgba(12,10,9,0.14)]"
             >
-              <div className="flex flex-col">
-                {members.map((member, index) => {
-                  const last = index === members.length - 1;
-                  return (
-                    <div key={member} className="flex gap-2.5">
-                      <div className="flex flex-col items-center pt-[6px]">
-                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent)]" />
-                        {last ? null : <span className="mt-1 w-px flex-1 bg-[var(--border-default)]" />}
-                      </div>
-                      <div
-                        className="text-[12.5px] font-medium leading-5 text-[var(--text-primary)]"
-                        style={{ paddingBottom: last ? 0 : 10 }}
-                      >
-                        {member}
-                      </div>
+              {members.map((member, index) => {
+                const meta = STAGE_META[member];
+                const last = index === members.length - 1;
+                return (
+                  <div key={member} className="flex gap-3">
+                    <div className="flex flex-col items-center pt-[7px]">
+                      <span className="h-2 w-2 shrink-0 rounded-full bg-[var(--accent)] ring-4 ring-[#eceae7]" />
+                      {last ? null : <span className="mt-1 w-px flex-1 bg-[#cbc7c0]" />}
                     </div>
-                  );
-                })}
-              </div>
+                    <div className="min-w-0 flex-1" style={{ paddingBottom: last ? 0 : 14 }}>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-[13px] font-semibold leading-4 text-[var(--text-primary)]">{member}</span>
+                        {meta ? (
+                          <span className="flex shrink-0 items-center gap-1.5">
+                            <PersonAvatar name={meta.owner} size={18} />
+                            <span className="text-[11.5px] font-medium text-[var(--text-body)]">{meta.owner}</span>
+                          </span>
+                        ) : null}
+                      </div>
+                      {meta ? <p className="mt-1 text-[11.5px] leading-[1.35] text-[var(--text-label)]">{meta.desc}</p> : null}
+                    </div>
+                  </div>
+                );
+              })}
             </div>,
             document.body,
           )
