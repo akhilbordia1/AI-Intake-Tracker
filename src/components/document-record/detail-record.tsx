@@ -1281,12 +1281,22 @@ function ChatPanel({ stage, s, onMarkComplete }: { stage: StageItem; s: StageFie
   const initialHandled = s.fields.filter((field) => !isFieldEmpty(s.values[field.label])).map((field) => field.label);
   const initialRemaining = s.fields.filter((field) => !initialHandled.includes(field.label));
 
+  // A ready-to-send example prefilled into the input. Choice fields get a real
+  // "label option" value; if a stage has none, fall back to naming a few fields
+  // (mentions keyword-match → their suggestions draft in). Every stage gets one.
+  const choiceParts = initialRemaining
+    .filter((field) => field.options?.length)
+    .map((field) => `${humanizeLabel(field.label)} ${field.options![0].toLowerCase()}`);
+  const describeExample = choiceParts.length
+    ? choiceParts.join(", ")
+    : initialRemaining.slice(0, 3).map((field) => humanizeLabel(field.label)).join(", ");
+
   const [handled, setHandled] = useState<string[]>(initialHandled);
   // Describe-first: no field is asked up front — the user describes the stage and
   // we batch-fill, then ask only about the gaps.
   const [asked, setAsked] = useState<string | null>(null);
   const [done, setDone] = useState(initialRemaining.length === 0);
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(describeExample);
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     const intro: ChatMessage = {
       id: bump(),
@@ -1294,14 +1304,10 @@ function ChatPanel({ stage, s, onMarkComplete }: { stage: StageItem; s: StageFie
       text: STAGE_INTROS[stage.name] ?? `Let's fill in the ${stage.name} stage.`,
     };
     if (initialRemaining.length) {
-      return [
-        intro,
-        {
-          id: bump(),
-          role: "assistant",
-          text: "Describe it in a sentence or two and I'll fill what I can — or tap Draft everything to autofill.",
-        },
-      ];
+      const text = describeExample
+        ? "Describe it in a sentence — I've dropped an example below to send or edit. Or tap Draft everything to autofill."
+        : "Describe it in a sentence or two and I'll fill what I can — or tap Draft everything to autofill.";
+      return [intro, { id: bump(), role: "assistant", text }];
     }
     return [intro, { id: bump(), role: "assistant", text: "Everything's already filled — edit any field on the right." }];
   });
@@ -1370,19 +1376,6 @@ function ChatPanel({ stage, s, onMarkComplete }: { stage: StageItem; s: StageFie
     const current = Array.isArray(s.values[field.label]) ? (s.values[field.label] as string[]) : [];
     pushUser(current.length ? current.join(", ") : "None");
     resolve([field.label]);
-  }
-
-  // Fill every field still unanswered with its suggestion, then finish.
-  function acceptRemaining() {
-    const remaining = s.fields.filter((field) => !handled.includes(field.label));
-    remaining.forEach((field, index) => s.fillNow(field.label, field.suggestion, 300 + index * 130));
-    pushUser("Accept all remaining");
-    setHandled(s.fields.map((field) => field.label));
-    setAsked(null);
-    setTimeout(() => {
-      setDone(true);
-      pushAssistant("Done — review on the right and tweak anything.");
-    }, 300 + remaining.length * 130 + 300);
   }
 
   function onSend() {
@@ -1490,16 +1483,6 @@ function ChatPanel({ stage, s, onMarkComplete }: { stage: StageItem; s: StageFie
             ) : null}
           </div>
         ) : null}
-        {asked && !done ? (
-          <button
-            type="button"
-            onClick={acceptRemaining}
-            className="mb-2 inline-flex items-center gap-1.5 text-[11px] font-medium text-[var(--accent-strong)] underline-offset-2 transition hover:underline"
-          >
-            <Sparkles size={11} className="shrink-0" />
-            Accept all remaining suggestions
-          </button>
-        ) : null}
         <div className="flex items-end gap-2 rounded-[10px] border border-[#e7e5e4] bg-white px-2.5 py-2 focus-within:border-[var(--accent-ring)]">
           <textarea
             value={input}
@@ -1510,9 +1493,9 @@ function ChatPanel({ stage, s, onMarkComplete }: { stage: StageItem; s: StageFie
                 onSend();
               }
             }}
-            rows={2}
+            rows={3}
             placeholder={asked ? "Type your answer…" : "Describe this stage…"}
-            className="no-scrollbar max-h-40 min-h-[48px] flex-1 resize-none bg-transparent text-[13px] leading-6 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
+            className="no-scrollbar max-h-40 min-h-[72px] flex-1 resize-none bg-transparent text-[13px] leading-6 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
           />
           <button
             type="button"
