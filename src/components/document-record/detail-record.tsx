@@ -1,13 +1,14 @@
 "use client";
 
-import { INITIAL_WORKFLOW_VALUES, USE_CASE, type FieldValue } from "@/data/document-workflow-form-schema";
+import { USE_CASE } from "@/data/document-workflow-form-schema";
 import { cn } from "@/lib/cn";
-import { ArrowLeft, ArrowRight, Ban, Bell, Check, CheckCircle2, ChevronLeft, ChevronRight, CornerUpLeft, FileCheck2, Lock, MoreHorizontal, RefreshCcw, RotateCcw, ShieldCheck, Sparkles, X } from "lucide-react";
+import { ArrowLeft, Ban, Bell, Check, ChevronLeft, ChevronRight, CornerUpLeft, Lock, MoreHorizontal, RotateCcw, Send, ShieldCheck, Sparkles, X } from "lucide-react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement, type ReactNode } from "react";
 
 import { PersonAvatar, ProfileSwitcher, initials } from "@/components/profile";
+import { extractStageFields, isFieldEmpty } from "@/lib/stage-chat";
 
 import {
   CardMultiSelect,
@@ -45,8 +46,6 @@ const RECORD_THEME = {
   "--stage-returned": "#b8791f",
   "--stage-returned-hover": "#9c6519",
 } as CSSProperties;
-
-const values = INITIAL_WORKFLOW_VALUES;
 
 type StageItem = {
   name: string;
@@ -258,60 +257,6 @@ const GATE_TONE: Record<Gate["status"], { fg: string; bg: string; border: string
 // ponytail: single list; confirm the exact set against the governance flow doc.
 const PORTAL_STAGES = new Set(["Intake"]);
 
-const DETAIL_ITEMS = [
-  ["Use case ID", USE_CASE.id],
-  ["Created by", "Mira Kapoor"],
-  ["Created on", "Jun 18, 2026"],
-  ["Department", text(values.department)],
-  ["Function", text(values.functionArea)],
-  ["Team", text(values.team)],
-  ["Country", text(values.country)],
-  ["Business sponsor", text(values.businessSponsor)],
-  ["Target go-live", text(values.goLiveDate)],
-  ["Model archetype", text(values.modelArchetype)],
-];
-
-const COMMENT_ITEMS = [
-  {
-    author: "Rohan Desai",
-    date: "Today, 10:42",
-    body: "Keep the pilot cohort limited to EU support until the monitoring export is reviewed.",
-  },
-  {
-    author: "Nora Singh",
-    date: "Yesterday",
-    body: "GTAC conditions are satisfied once the rollback evidence is attached.",
-  },
-  {
-    author: "Dr. Anja Bauer",
-    date: "Jul 3",
-    body: "No new risk flags from the latest validation sample.",
-  },
-];
-
-const ACTIVITY_ITEMS = [
-  {
-    icon: CheckCircle2,
-    title: "Tomas Ortiz moved stage to Delivery",
-    time: "Jul 6, 2026, 09:18",
-  },
-  {
-    icon: ShieldCheck,
-    title: "Security Review approved sign-off",
-    time: "Jul 5, 2026, 16:24",
-  },
-  {
-    icon: RefreshCcw,
-    title: "Rohan Desai updated rollback plan",
-    time: "Jul 3, 2026, 11:05",
-  },
-  {
-    icon: FileCheck2,
-    title: "Nora Singh recorded GTAC approval",
-    time: "Jun 28, 2026, 14:30",
-  },
-];
-
 const defaultStageIndex = STAGES.findIndex((stage) => stage.name === "Assess");
 
 type Kickback = { to: number; from: number; reason: string; by: string };
@@ -335,6 +280,12 @@ export function DetailRecordPage() {
   const isCurrentComplete = completedStageIndexes.includes(stageIndex);
   // Role-based: you can only edit / complete / decide on a stage your profile owns.
   const canComplete = currentStage.owner === currentUser;
+  // The chat + form split renders for every open (non-complete) stage — owned or
+  // not. Bespoke stages (e.g. Plan) keep their own form + the side panel.
+  // When you don't own the stage, the form is read-only and the chat points you
+  // to the owner (with a one-click profile switch).
+  const isOpenStage = !isCurrentComplete && !BESPOKE_STAGE_FORMS[currentStage.name];
+  const stageOwned = currentStage.owner === currentUser;
 
   const rejectedIndexes = rejections.map((rejection) => rejection.index);
   const returnedIndexes = kickbacks.map((kickback) => kickback.to);
@@ -392,26 +343,65 @@ export function DetailRecordPage() {
     setRejections((current) => current.filter((rejection) => rejection.index !== stageIndex));
   }
 
+  const stagePath = (
+    <StagePath
+      activeIndex={stageIndex}
+      completedIndexes={completedStageIndexes}
+      rejectedIndexes={rejectedIndexes}
+      returnedIndexes={returnedIndexes}
+      isCurrentComplete={isCurrentComplete}
+      canComplete={canComplete}
+      canDecide={canComplete}
+      activeOwner={currentStage.owner}
+      onMarkComplete={toggleCurrentStageComplete}
+      onStageChange={selectStage}
+      onReject={() => setDialogMode("reject")}
+      onSendBack={() => setDialogMode("sendback")}
+    />
+  );
+
+  const rightHeader = (
+    <div className="flex items-center justify-between gap-4 px-4 py-3">
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">Use Case ID</span>
+        <span className="inline-block rounded-[6px] bg-[var(--accent-soft)] px-2 py-0.5 text-[13px] font-semibold tracking-[0.02em] text-[var(--accent-strong)]">
+          {USE_CASE.id}
+        </span>
+      </div>
+      <ProfileSwitcher currentUser={currentUser} onUserChange={setCurrentUser} />
+    </div>
+  );
+
+  // Guided fill applies only to an open stage you own; every other stage still
+  // renders the split (chat persists) but read-only / bespoke on the right.
+  const guided = isOpenStage && stageOwned;
+
   return (
     <main className="flex h-screen flex-col overflow-hidden bg-[var(--surface-muted)] text-[var(--text-primary)]" style={RECORD_THEME}>
-      <RecordHeader currentUser={currentUser} onUserChange={setCurrentUser} />
-      <StagePath
-        activeIndex={stageIndex}
-        completedIndexes={completedStageIndexes}
-        rejectedIndexes={rejectedIndexes}
-        returnedIndexes={returnedIndexes}
-        isCurrentComplete={isCurrentComplete}
-        canComplete={canComplete}
-        canDecide={canComplete}
-        activeOwner={currentStage.owner}
-        onMarkComplete={toggleCurrentStageComplete}
-        onStageChange={selectStage}
-        onReject={() => setDialogMode("reject")}
-        onSendBack={() => setDialogMode("sendback")}
-      />
-      <section className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(320px,384px)] gap-4 bg-[var(--surface-muted)] px-5 pb-5 pt-4" aria-label="Use case content">
-        <div className="flex min-h-0 flex-col overflow-hidden rounded-[12px] border border-[#ecebea] bg-white shadow-[0_1px_3px_rgba(12,10,9,0.04)]">
-          <StageWorkspace
+      {/* Chat (left, with doc title); the right column stacks the use-case bar,
+          stage-path, stage header, and form. Present on every stage. */}
+      <section
+        className="grid min-h-0 flex-1 grid-cols-[minmax(0,400px)_minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)] bg-white"
+        aria-label="Use case content"
+      >
+        {guided ? (
+          <ChatStageLayout
+            key={currentStage.name}
+            stage={currentStage}
+            currentUser={currentUser}
+            prefill={dataStageIndexes.includes(stageIndex)}
+            statusNote={statusNote}
+            canClear={canComplete}
+            onClearStatus={clearCurrentStatus}
+            stagePath={stagePath}
+            rightHeader={rightHeader}
+            canEdit={stageOwned}
+            onSwitchToOwner={() => setCurrentUser(currentStage.owner)}
+            onMarkComplete={toggleCurrentStageComplete}
+          />
+        ) : (
+          <ReadOnlyStageSplit
+            key={currentStage.name}
             stage={currentStage}
             currentUser={currentUser}
             isComplete={isCurrentComplete}
@@ -419,11 +409,12 @@ export function DetailRecordPage() {
             statusNote={statusNote}
             canClear={canComplete}
             onClearStatus={clearCurrentStatus}
+            stagePath={stagePath}
+            rightHeader={rightHeader}
+            onSwitchToOwner={() => setCurrentUser(currentStage.owner)}
+            onMarkComplete={toggleCurrentStageComplete}
           />
-        </div>
-        <aside className="flex min-h-0 flex-col overflow-hidden rounded-[12px] border border-[#ecebea] bg-white shadow-[0_1px_3px_rgba(12,10,9,0.04)]" aria-label="Supporting details">
-          <SupportingTabs />
-        </aside>
+        )}
       </section>
 
       {dialogMode ? (
@@ -493,46 +484,6 @@ function StageColumnHeader({ stage, currentUser, action }: { stage: StageItem; c
         ) : null}
       </div>
       <div className="flex shrink-0 items-center gap-3">{action ?? ownership}</div>
-    </div>
-  );
-}
-
-const SUPPORTING_TABS = [
-  { key: "Details", meta: undefined, render: () => <DetailPanel /> },
-  { key: "Gates", meta: String(GATES.length), render: () => <GatesPanel /> },
-  { key: "Comments", meta: String(COMMENT_ITEMS.length), render: () => <CommentsPanel /> },
-  { key: "Activity", meta: String(ACTIVITY_ITEMS.length), render: () => <ActivityPanel /> },
-] as const;
-
-function SupportingTabs() {
-  const [active, setActive] = useState<(typeof SUPPORTING_TABS)[number]["key"]>("Details");
-  const current = SUPPORTING_TABS.find((tab) => tab.key === active) ?? SUPPORTING_TABS[0];
-
-  return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="shrink-0 border-b border-[#ecebea] px-5">
-        <div className="no-scrollbar flex items-center gap-4 overflow-x-auto" role="tablist" aria-label="Supporting details">
-          {SUPPORTING_TABS.map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              role="tab"
-              aria-selected={tab.key === active}
-              onClick={() => setActive(tab.key)}
-              className={cn(
-                "flex h-12 shrink-0 items-center gap-1.5 border-b-2 px-0.5 text-[14px] font-medium transition focus-visible:outline-none",
-                tab.key === active
-                  ? "border-[var(--accent)] text-[var(--accent-strong)]"
-                  : "border-transparent text-[var(--text-label)] hover:text-[var(--text-primary)]",
-              )}
-            >
-              {tab.key}
-              {tab.meta ? <span className="text-[12px] font-normal text-[var(--text-muted)]">{tab.meta}</span> : null}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="flex min-h-0 flex-1 flex-col">{current.render()}</div>
     </div>
   );
 }
@@ -902,9 +853,21 @@ function computeRiskTier(values: Record<string, string | string[]>) {
   return null;
 }
 
-// Editable generic stage: identity header, then a guidance strip (with the
-// suggest-all action + live risk tier) above the label-left field rows.
-function EditableStage({ stage, currentUser, prefill = false }: { stage: StageItem; currentUser: string; prefill?: boolean }) {
+type StageFieldsState = {
+  fields: FieldSpec[];
+  values: Record<string, string | string[]>;
+  loadingFields: string[];
+  setField: (label: string, value: string | string[]) => void;
+  suggestField: (field: FieldSpec) => void;
+  suggestAll: () => void;
+  suggestingAll: boolean;
+  draftDurationMs: number;
+  fillNow: (label: string, value: string | string[], delay: number) => void;
+};
+
+// Shared field state for an editable stage. Both the form grid and the chat
+// panel drive the same instance, so they stay in sync.
+function useStageFields(stage: StageItem, prefill: boolean): StageFieldsState {
   const fields = useMemo(() => stage.rows.map(([label, value]) => buildFieldSpec(label, value)), [stage]);
   const [values, setValues] = useState<Record<string, string | string[]>>(() =>
     Object.fromEntries(
@@ -918,7 +881,6 @@ function EditableStage({ stage, currentUser, prefill = false }: { stage: StageIt
       }),
     ),
   );
-  const riskTier = stage.name === "Assess" ? computeRiskTier(values) : null;
 
   // AI-suggest is mocked, so we fake generation latency: fields shimmer, then
   // fill. "Suggest all" fills them one after another for a drafting feel.
@@ -933,6 +895,7 @@ function EditableStage({ stage, currentUser, prefill = false }: { stage: StageIt
   }
 
   function fillAfter(label: string, value: string | string[], delay: number) {
+    setLoadingFields((current) => (current.includes(label) ? current : [...current, label]));
     const timer = setTimeout(() => {
       setValues((current) => ({ ...current, [label]: value }));
       setLoadingFields((current) => current.filter((entry) => entry !== label));
@@ -940,112 +903,647 @@ function EditableStage({ stage, currentUser, prefill = false }: { stage: StageIt
     timers.current.push(timer);
   }
 
+  // Every field shows its loader for ~2s, then fills in a quick cascade.
+  const draftDurationMs = 2000 + fields.length * 90 + 300;
   function suggestAll() {
     if (suggestingAll) return;
     setSuggestingAll(true);
-    setLoadingFields(fields.map((field) => field.label));
-    fields.forEach((field, index) => fillAfter(field.label, field.suggestion, 500 + index * 230));
-    const done = setTimeout(() => setSuggestingAll(false), 500 + fields.length * 230 + 150);
+    fields.forEach((field, index) => fillAfter(field.label, field.suggestion, 2000 + index * 90));
+    const done = setTimeout(() => setSuggestingAll(false), draftDurationMs);
     timers.current.push(done);
   }
 
   function suggestField(field: FieldSpec) {
     if (loadingFields.includes(field.label)) return;
-    setLoadingFields((current) => [...current, field.label]);
     fillAfter(field.label, field.suggestion, 950);
   }
 
-  return (
-    <>
-      <StageColumnHeader
-        stage={stage}
-        currentUser={currentUser}
-        action={
-          <>
-            {riskTier ? (
-              <span
-                className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold"
-                style={{ color: riskTier.fg, background: riskTier.bg, borderColor: riskTier.border }}
-              >
-                <ShieldCheck size={11} />
-                {riskTier.tier} tier
-              </span>
-            ) : null}
-            <button
-              type="button"
-              onClick={suggestAll}
-              disabled={suggestingAll}
-              title="Draft all fields"
-              className={cn(
-                "inline-flex h-7 items-center gap-1 rounded-full border pl-2 pr-2.5 text-[11.5px] font-medium text-[var(--accent-strong)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]",
-                suggestingAll
-                  ? "border-[var(--accent)] bg-[var(--accent-soft)]"
-                  : "border-[var(--accent-border)] bg-[var(--accent-soft)] hover:bg-[#daedf3]",
-              )}
-            >
-              <Sparkles size={11} className={cn(suggestingAll && "animate-pulse")} />
-              {suggestingAll ? "Suggesting…" : "Suggest"}
-            </button>
-          </>
-        }
-      />
+  // Fill an arbitrary value with the shimmer (used by the "describe" batch fill).
+  function fillNow(label: string, value: string | string[], delay: number) {
+    fillAfter(label, value, delay);
+  }
 
-      <section className="no-scrollbar min-h-0 flex-1 overflow-y-auto pb-8 pt-4" aria-label={`${stage.name} stage form`}>
-        <div className="pt-1">
-          {fields.map((field) => {
-            const singleLine = !["cards", "chips", "long"].includes(field.kind);
-            const loading = loadingFields.includes(field.label);
-            return (
-              <div key={field.label} className="grid grid-cols-[184px_minmax(0,1fr)] gap-8 px-7 py-[18px]">
-                <label
-                  className={cn(
-                    "text-[13.5px] font-medium leading-5 text-[var(--text-label)]",
-                    singleLine ? "flex min-h-9 items-center" : "pt-1.5",
-                  )}
-                >
-                  {field.label}
-                </label>
-                <div className={cn("min-w-0", singleLine && "flex min-h-9 items-center")}>
-                  <div className="w-full min-w-0">
-                    {loading ? (
-                      <FieldGenerating kind={field.kind} />
-                    ) : (
-                      <StageField
-                        spec={field}
-                        value={values[field.label]}
-                        onChange={(value) => setField(field.label, value)}
-                        onSuggest={() => suggestField(field)}
-                      />
-                    )}
-                  </div>
+  return { fields, values, loadingFields, setField, suggestField, suggestAll, suggestingAll, draftDurationMs, fillNow };
+}
+
+// Editable stage header: Stage Owner + name (left); risk tier when it's yours,
+// a Locked badge when it isn't (right).
+function EditableStageHeader({ stage, currentUser, s, canEdit }: { stage: StageItem; currentUser: string; s: StageFieldsState; canEdit: boolean }) {
+  const ownedByMe = stage.owner === currentUser;
+  const riskTier = canEdit && stage.name === "Assess" ? computeRiskTier(s.values) : null;
+  return (
+    <div className="flex min-h-[52px] shrink-0 items-center justify-between border-b border-[#ecebea] px-7 py-2">
+      <div className="flex items-center gap-2 text-[13px] leading-5">
+        <span className="text-[var(--text-label)]">Stage Owner</span>
+        <PersonAvatar name={stage.owner} size={22} highlight={ownedByMe} />
+        <span className={cn("text-[var(--text-primary)]", ownedByMe && "font-semibold")}>{stage.owner}</span>
+      </div>
+      {!canEdit ? (
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-[#e6d4b8] bg-[#f6f0e6] px-2.5 py-1 text-[11px] font-semibold text-[#a15c11]">
+          <Lock size={11} />
+          Locked
+        </span>
+      ) : riskTier ? (
+        <span
+          className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold"
+          style={{ color: riskTier.fg, background: riskTier.bg, borderColor: riskTier.border }}
+        >
+          <ShieldCheck size={11} />
+          {riskTier.tier} tier
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+// Only free-text inputs show the "Generating…" loader; choice + currency fields just fill.
+const LOADER_KINDS = new Set(["text", "long"]);
+
+function StageFieldsGrid({ stage, s, readOnly = false }: { stage: StageItem; s: StageFieldsState; readOnly?: boolean }) {
+  return (
+    <section className="no-scrollbar min-h-0 flex-1 overflow-y-auto pb-8 pt-4" aria-label={`${stage.name} stage form`}>
+      <div className="pt-1">
+        {s.fields.map((field) => {
+          const singleLine = !["cards", "chips", "long"].includes(field.kind);
+          const loading = s.loadingFields.includes(field.label) && LOADER_KINDS.has(field.kind);
+          return (
+            <div key={field.label} className="grid grid-cols-[184px_minmax(0,1fr)] gap-8 px-7 py-[18px]">
+              <label
+                className={cn(
+                  "text-[13.5px] font-medium leading-5 text-[var(--text-label)]",
+                  singleLine ? "flex min-h-9 items-center" : "pt-1.5",
+                )}
+              >
+                {field.label}
+              </label>
+              <div className={cn("min-w-0", singleLine && "flex min-h-9 items-center")} aria-disabled={readOnly || undefined}>
+                <div className={cn("relative w-full min-w-0", readOnly && "pointer-events-none opacity-55")}>
+                  <StageField
+                    spec={field}
+                    value={s.values[field.label]}
+                    onChange={(value) => s.setField(field.label, value)}
+                    onSuggest={() => s.suggestField(field)}
+                  />
+                  {/* Overlay keeps the field's exact height, so it never resizes. */}
+                  {loading ? <FieldGenerating tall={field.kind === "long"} /> : null}
                 </div>
               </div>
-            );
-          })}
-        </div>
-      </section>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+// Identity header + field grid — the form half of an editable stage. Read-only
+// when the current user doesn't own the stage.
+function StageFormBody({ stage, currentUser, s, canEdit = true }: { stage: StageItem; currentUser: string; s: StageFieldsState; canEdit?: boolean }) {
+  return (
+    <>
+      <EditableStageHeader stage={stage} currentUser={currentUser} s={s} canEdit={canEdit} />
+      <StageFieldsGrid stage={stage} s={s} readOnly={!canEdit} />
     </>
   );
 }
 
-// Field placeholder shown while an AI suggestion "generates" — the container
-// keeps its shape and its stroke shimmers with the brand accent.
-// Mirrors the exact geometry of SmartText / SmartTextarea (border, padding,
-// and the right-pinned suggest icon) so nothing shifts when a field swaps in.
-function FieldGenerating({ kind }: { kind: FieldKind }) {
-  const tall = kind === "long";
+// Plain editable stage (no chat) — fallback path in StageWorkspace.
+function EditableStage({ stage, currentUser, prefill = false }: { stage: StageItem; currentUser: string; prefill?: boolean }) {
+  const s = useStageFields(stage, prefill);
+  return <StageFormBody stage={stage} currentUser={currentUser} s={s} />;
+}
+
+// Left panel header: back link + doc title, then the stage + fill count.
+// `s` is omitted for read-only stages, where the fill count doesn't apply.
+function ChatHeader({ stage, s }: { stage: StageItem; s?: StageFieldsState }) {
+  const filled = s ? s.fields.filter((field) => !isFieldEmpty(s.values[field.label])).length : 0;
+  return (
+    <>
+      <div className="shrink-0 border-b border-[#ecebea] px-4 py-3">
+        <Link
+          href="/"
+          className="inline-flex h-8 items-center gap-2 rounded-[8px] pr-3 text-[13px] font-medium text-[var(--text-label)] transition hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
+        >
+          <ArrowLeft size={15} />
+          Back to home
+        </Link>
+        <p className="mt-1 font-display text-[24px] leading-tight text-[var(--text-primary)]">{USE_CASE.name}</p>
+      </div>
+      <div className="flex flex-1 items-center justify-between px-4 py-3">
+        <div className="flex items-center gap-2 text-[13px] font-medium text-[var(--text-primary)]">
+          <Sparkles size={14} className="text-[var(--accent)]" />
+          {stage.name}
+        </div>
+        {s ? (
+          <span className="text-[11.5px] text-[var(--text-muted)]">
+            {filled} / {s.fields.length} filled
+          </span>
+        ) : null}
+      </div>
+    </>
+  );
+}
+
+// Shown in place of the guided chat when the stage isn't owned by the current
+// user — points them to the owner, with a one-click switch.
+function LockedChatPanel({ stage, onSwitchToOwner }: { stage: StageItem; onSwitchToOwner: () => void }) {
+  return (
+    <div className="flex h-full min-h-0 flex-col bg-transparent">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
+        <div className="max-w-[85%] rounded-[12px] border border-[#ecebea] bg-white px-3 py-2 text-[13px] leading-5 text-[var(--text-body)]">
+          This stage is owned by <span className="font-semibold text-[var(--text-primary)]">{stage.owner}</span>. Switch to their profile to fill it in.
+        </div>
+        <button
+          type="button"
+          onClick={onSwitchToOwner}
+          className="inline-flex items-center gap-1.5 rounded-[10px] border border-[var(--accent-border)] bg-[var(--accent-soft)] px-2.5 py-1.5 text-[12px] font-medium text-[var(--accent-strong)] transition hover:bg-[#daedf3]"
+        >
+          <PersonAvatar name={stage.owner} size={16} />
+          Switch to {stage.owner}
+        </button>
+      </div>
+      <div className="shrink-0 border-t border-[#ecebea] p-3">
+        <div className="flex items-center gap-2 rounded-[10px] border border-[#e7e5e4] bg-[#f5f5f4] px-2.5 py-2 text-[13px] text-[var(--text-muted)]">
+          Switch to {stage.owner} to chat
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Read-only info chat, shown for completed / bespoke stages where the guided
+// fill flow doesn't apply — keeps the chat panel present across every stage.
+// When the stage is active and yours, offers a Mark Complete action to proceed.
+function InfoChatAside({ message, onMarkComplete }: { message: string; onMarkComplete?: () => void }) {
+  return (
+    <div className="flex h-full min-h-0 flex-col bg-transparent">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
+        <div className="max-w-[85%] rounded-[12px] border border-[#ecebea] bg-white px-3 py-2 text-[13px] leading-5 text-[var(--text-body)]">
+          {message}
+        </div>
+        {onMarkComplete ? (
+          <button
+            type="button"
+            onClick={onMarkComplete}
+            className="inline-flex items-center gap-2 rounded-[10px] bg-[#249a57] px-3 py-2 text-[13px] font-medium text-white transition hover:bg-[#1f7a46]"
+          >
+            <Check size={14} />
+            Mark complete &amp; go to next stage
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+// Picks the right left-panel chat for a non-guided stage.
+function StageChatAside({ stage, isComplete, owned, onSwitchToOwner, onMarkComplete }: { stage: StageItem; isComplete: boolean; owned: boolean; onSwitchToOwner: () => void; onMarkComplete: () => void }) {
+  if (!isComplete && !owned) return <LockedChatPanel stage={stage} onSwitchToOwner={onSwitchToOwner} />;
+  const canComplete = owned && !isComplete;
+  return (
+    <InfoChatAside
+      message={
+        isComplete
+          ? `The ${stage.name} stage is complete. Its recorded answers are shown on the right.`
+          : `Review and edit the ${stage.name} details on the right, then mark it complete to move on.`
+      }
+      onMarkComplete={canComplete ? onMarkComplete : undefined}
+    />
+  );
+}
+
+// Non-guided stage in the same 2-col × 2-row split — chat aside (left), the
+// stage's own read-only / bespoke content (right). Keeps the chat persistent.
+function ReadOnlyStageSplit({
+  stage,
+  currentUser,
+  isComplete,
+  prefill,
+  statusNote,
+  canClear,
+  onClearStatus,
+  stagePath,
+  rightHeader,
+  onSwitchToOwner,
+  onMarkComplete,
+}: {
+  stage: StageItem;
+  currentUser: string;
+  isComplete: boolean;
+  prefill: boolean;
+  statusNote: StatusNote | null;
+  canClear: boolean;
+  onClearStatus: () => void;
+  stagePath: ReactNode;
+  rightHeader: ReactNode;
+  onSwitchToOwner: () => void;
+  onMarkComplete: () => void;
+}) {
+  const owned = stage.owner === currentUser;
+  return (
+    <>
+      <div className="flex min-w-0 flex-col border-b border-r border-[#ecebea] bg-[var(--surface-muted)]">
+        <ChatHeader stage={stage} />
+      </div>
+      <div className="flex min-w-0 flex-col justify-center border-b border-[#ecebea] bg-white">
+        {rightHeader}
+        {stagePath}
+      </div>
+      <div className="flex min-h-0 min-w-0 flex-col overflow-hidden border-r border-[#ecebea] bg-[var(--surface-muted)]">
+        <StageChatAside stage={stage} isComplete={isComplete} owned={owned} onSwitchToOwner={onSwitchToOwner} onMarkComplete={onMarkComplete} />
+      </div>
+      <div className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-white">
+        <StageWorkspace
+          stage={stage}
+          currentUser={currentUser}
+          isComplete={isComplete}
+          prefill={prefill}
+          statusNote={statusNote}
+          canClear={canClear}
+          onClearStatus={onClearStatus}
+        />
+      </div>
+    </>
+  );
+}
+
+// Editable stage split: full-bleed chat (left) fills the form (right). Rendered
+// into a 2-col × 2-row grid so the header row's height is shared — the left and
+// right header dividers land on the same line and connect at the vertical
+// divider (matches the design). Both halves share one field-state instance.
+// When the stage isn't owned, the form is read-only and the chat points to the owner.
+function ChatStageLayout({
+  stage,
+  currentUser,
+  prefill,
+  statusNote,
+  canClear,
+  onClearStatus,
+  stagePath,
+  rightHeader,
+  canEdit,
+  onSwitchToOwner,
+  onMarkComplete,
+}: {
+  stage: StageItem;
+  currentUser: string;
+  prefill: boolean;
+  statusNote: StatusNote | null;
+  canClear: boolean;
+  onClearStatus: () => void;
+  stagePath: ReactNode;
+  rightHeader: ReactNode;
+  canEdit: boolean;
+  onSwitchToOwner: () => void;
+  onMarkComplete: () => void;
+}) {
+  const s = useStageFields(stage, prefill);
+  return (
+    <>
+      {/* row 1: headers (equal height) */}
+      <div className="flex min-w-0 flex-col border-b border-r border-[#ecebea] bg-[var(--surface-muted)]">
+        <ChatHeader stage={stage} s={s} />
+      </div>
+      <div className="flex min-w-0 flex-col justify-center border-b border-[#ecebea] bg-white">
+        {rightHeader}
+        {stagePath}
+      </div>
+      {/* row 2: bodies */}
+      <div className="flex min-h-0 min-w-0 flex-col overflow-hidden border-r border-[#ecebea] bg-[var(--surface-muted)]">
+        {canEdit ? <ChatPanel stage={stage} s={s} onMarkComplete={onMarkComplete} /> : <LockedChatPanel stage={stage} onSwitchToOwner={onSwitchToOwner} />}
+      </div>
+      <div className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-white">
+        {statusNote ? <StageStatusBanner note={statusNote} canClear={canClear} onClear={onClearStatus} /> : null}
+        <StageFormBody stage={stage} currentUser={currentUser} s={s} canEdit={canEdit} />
+      </div>
+    </>
+  );
+}
+
+function suggestionText(suggestion: string | string[]): string {
+  return Array.isArray(suggestion) ? suggestion.join(", ") : suggestion;
+}
+
+const MULTI_KINDS = ["chips", "cards"];
+
+// One-line explainer per stage, shown as the chat's opening message.
+const STAGE_INTROS: Record<string, string> = {
+  Intake: "Intake captures the core idea — the problem, the outcome you want, and who it's for.",
+  Screening: "Screening does a quick scan for prohibited uses and sets a provisional risk tier.",
+  Prioritize: "Prioritize weighs value against readiness to decide whether this moves forward now.",
+  Triage: "Triage resolves any flags and routes the use case onto the right assessment path.",
+  Assess: "Assess reviews data, privacy, and model risks, and sets the conditions to proceed.",
+  "Business case": "The business case lays out cost, benefit, and the recommendation for the GTAC board.",
+  GTAC: "GTAC records the board's funding decision and any binding conditions.",
+  Plan: "Plan lines up the delivery squad, milestones, and the success metrics to lock.",
+  Design: "Design defines the architecture, guardrails, and integrations.",
+  Build: "Build captures the evidence and readiness needed for the pre-deploy review.",
+  Deploy: "Deploy confirms guardrails, the rollout plan, and rollback before go-live.",
+  Adopt: "Adopt drives the rollout waves and tracks how uptake is going.",
+  Monitor: "Monitor tracks drift, value variance, and the post-deploy review.",
+  Improve: "Improve records the outcome and the next round of improvements.",
+};
+
+// Lowercase a label for mid-sentence use, but keep acronyms (PII, DPIA) as-is.
+function humanizeLabel(label: string): string {
+  return label
+    .split(" ")
+    .map((word) => (word.length > 1 && word === word.toUpperCase() ? word : word.toLowerCase()))
+    .join(" ");
+}
+
+// Short, conversational prompt for a field in chat.
+function fieldPrompt(field: FieldSpec): string {
+  const l = humanizeLabel(field.label);
+  return field.options?.length ? `Which ${l}?` : `What's the ${l}?`;
+}
+
+// Option pills a field offers in chat: its own options for choice fields, else
+// the single AI-suggested answer for free-text fields.
+function fieldPills(field: FieldSpec): string[] {
+  if (field.options?.length) return field.options;
+  return [suggestionText(field.suggestion)];
+}
+
+type ChatMessage = { id: number; role: "assistant" | "user"; text: string; field?: FieldSpec };
+
+// Monotonic ids for chat message keys — uniqueness is all that's needed.
+let chatMsgId = 0;
+const bump = () => (chatMsgId += 1);
+
+// Scripted assistant that walks the stage's fields in order, offering each mock
+// value as a click-to-fill chip. Free text is keyword-matched to fields (mocked
+// extraction) and otherwise treated as the answer to the current field. Drives
+// the same field-state instance as the form grid, so both stay in sync.
+function ChatPanel({ stage, s, onMarkComplete }: { stage: StageItem; s: StageFieldsState; onMarkComplete: () => void }) {
+  // Seed greeting + first question in the initializer (stage.name keys this
+  // component, so it re-runs on every stage change). Avoids a setState effect.
+  const initialHandled = s.fields.filter((field) => !isFieldEmpty(s.values[field.label])).map((field) => field.label);
+  const initialRemaining = s.fields.filter((field) => !initialHandled.includes(field.label));
+
+  const [handled, setHandled] = useState<string[]>(initialHandled);
+  // Describe-first: no field is asked up front — the user describes the stage and
+  // we batch-fill, then ask only about the gaps.
+  const [asked, setAsked] = useState<string | null>(null);
+  const [done, setDone] = useState(initialRemaining.length === 0);
+  const [input, setInput] = useState("");
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    const intro: ChatMessage = {
+      id: bump(),
+      role: "assistant",
+      text: STAGE_INTROS[stage.name] ?? `Let's fill in the ${stage.name} stage.`,
+    };
+    if (initialRemaining.length) {
+      return [
+        intro,
+        {
+          id: bump(),
+          role: "assistant",
+          text: "Describe it in a sentence or two and I'll fill what I can — or tap Draft everything to autofill.",
+        },
+      ];
+    }
+    return [intro, { id: bump(), role: "assistant", text: "Everything's already filled — edit any field on the right." }];
+  });
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const pushAssistant = (text: string, field?: FieldSpec) =>
+    setMessages((current) => [...current, { id: bump(), role: "assistant", text, field }]);
+  const pushUser = (text: string) => setMessages((current) => [...current, { id: bump(), role: "user", text }]);
+
+  function ask(field: FieldSpec) {
+    setAsked(field.label);
+    pushAssistant(fieldPrompt(field), field);
+  }
+
+  function advance(handledNow: string[]) {
+    const next = s.fields.find((field) => !handledNow.includes(field.label));
+    if (next) ask(next);
+    else {
+      setAsked(null);
+      setDone(true);
+      pushAssistant("All fields filled.");
+    }
+  }
+
+  function resolve(labels: string[]) {
+    const next = [...handled, ...labels];
+    setHandled(next);
+    advance(next);
+  }
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+  }, [messages]);
+
+  // One click: fields show their loader, then fill after ~2–3s; chat wraps up
+  // once the fill finishes.
+  function draftAll() {
+    s.suggestAll();
+    pushUser("Draft everything for me");
+    pushAssistant("Drafting every field…");
+    setHandled(s.fields.map((field) => field.label));
+    setAsked(null);
+    // ponytail: bare setTimeout — stage change remounts this panel (keyed by
+    // stage name), so a late fire targets a dead instance and no-ops.
+    setTimeout(() => {
+      setDone(true);
+      pushAssistant("Done — review on the right and tweak anything.");
+    }, s.draftDurationMs);
+  }
+
+  // Single-select option (or the suggested answer) → fill and advance.
+  function pickOption(field: FieldSpec, option: string) {
+    s.setField(field.label, option);
+    pushUser(option);
+    resolve([field.label]);
+  }
+
+  // Multi-select option → toggle it in the field's array; don't advance yet.
+  function toggleOption(field: FieldSpec, option: string) {
+    const current = Array.isArray(s.values[field.label]) ? (s.values[field.label] as string[]) : [];
+    const next = current.includes(option) ? current.filter((o) => o !== option) : [...current, option];
+    s.setField(field.label, next);
+  }
+
+  function confirmMulti(field: FieldSpec) {
+    const current = Array.isArray(s.values[field.label]) ? (s.values[field.label] as string[]) : [];
+    pushUser(current.length ? current.join(", ") : "None");
+    resolve([field.label]);
+  }
+
+  // Fill every field still unanswered with its suggestion, then finish.
+  function acceptRemaining() {
+    const remaining = s.fields.filter((field) => !handled.includes(field.label));
+    remaining.forEach((field, index) => s.fillNow(field.label, field.suggestion, 300 + index * 130));
+    pushUser("Accept all remaining");
+    setHandled(s.fields.map((field) => field.label));
+    setAsked(null);
+    setTimeout(() => {
+      setDone(true);
+      pushAssistant("Done — review on the right and tweak anything.");
+    }, 300 + remaining.length * 130 + 300);
+  }
+
+  function onSend() {
+    const text = input.trim();
+    if (!text) return;
+    setInput("");
+    pushUser(text);
+
+    // Gap mode: a typed answer fills the field currently being asked.
+    if (asked) {
+      const field = s.fields.find((f) => f.label === asked);
+      s.setField(asked, field && MULTI_KINDS.includes(field.kind) ? text.split(/\s*[;,]\s*/).filter(Boolean) : text);
+      resolve([asked]);
+      return;
+    }
+
+    // Describe mode: batch-fill everything the description covers, then ask gaps.
+    const fills = extractStageFields(text, s.fields, handled);
+    if (fills.length) {
+      fills.forEach((fill, index) => s.fillNow(fill.label, fill.value, 400 + index * 150));
+      pushAssistant(`Filled ${fills.length} field${fills.length === 1 ? "" : "s"} — ${fills.map((f) => f.label).join(", ")}.`);
+      resolve(fills.map((f) => f.label));
+      return;
+    }
+    pushAssistant("Couldn't match that to a field — tap Draft everything, or answer the questions below.");
+    advance(handled);
+  }
+
+  const activeField = !done && asked ? s.fields.find((f) => f.label === asked && !handled.includes(f.label)) : undefined;
+  const activeMulti = activeField ? MULTI_KINDS.includes(activeField.kind) : false;
+  const activeSelected = activeField && Array.isArray(s.values[activeField.label]) ? (s.values[activeField.label] as string[]) : [];
+
+  return (
+    <div className="flex h-full min-h-0 flex-col bg-transparent">
+      {!done ? (
+        <div className="shrink-0 px-4 pt-3">
+          <button
+            type="button"
+            onClick={draftAll}
+            className="flex w-full items-center justify-center gap-1.5 rounded-[8px] border border-dashed border-[var(--accent-border)] bg-transparent px-2 py-2 text-[12px] font-medium text-[var(--accent-strong)] transition hover:bg-[var(--accent-soft)]"
+          >
+            <Sparkles size={12} className="shrink-0" />
+            Draft everything for me
+          </button>
+        </div>
+      ) : null}
+      <div ref={scrollRef} className="no-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
+        {messages.map((message) => (
+          <div key={message.id} className={cn("flex", message.role === "user" ? "justify-end" : "justify-start")}>
+            <div
+              className={cn(
+                "max-w-[85%] rounded-[12px] px-3 py-2 text-[13px] leading-5",
+                message.role === "user"
+                  ? "bg-[var(--accent)] text-white"
+                  : "border border-[#ecebea] bg-white text-[var(--text-body)]",
+              )}
+            >
+              {message.text}
+            </div>
+          </div>
+        ))}
+        {done ? (
+          <button
+            type="button"
+            onClick={onMarkComplete}
+            className="inline-flex items-center gap-2 rounded-[10px] bg-[#249a57] px-3 py-2 text-[13px] font-medium text-white transition hover:bg-[#1f7a46]"
+          >
+            <Check size={14} />
+            Mark complete &amp; go to next stage
+          </button>
+        ) : null}
+      </div>
+
+      <div className="shrink-0 border-t border-[#ecebea] p-3">
+        {activeField ? (
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {fieldPills(activeField).map((option) => {
+              const isOn = activeMulti && activeSelected.includes(option);
+              return (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => (activeMulti ? toggleOption(activeField, option) : pickOption(activeField, option))}
+                  className={cn(
+                    "inline-flex max-w-full items-center gap-1 rounded-[8px] border px-2 py-1 text-left text-[11px] font-medium transition",
+                    isOn
+                      ? "border-[var(--accent)] bg-[var(--accent)] text-white"
+                      : "border-[var(--accent-border)] bg-[var(--accent-soft)] text-[var(--accent-strong)] hover:bg-[#daedf3]",
+                  )}
+                >
+                  {isOn ? <Check size={10} className="shrink-0" /> : null}
+                  <span className="truncate">{option}</span>
+                </button>
+              );
+            })}
+            {activeMulti ? (
+              <button
+                type="button"
+                onClick={() => confirmMulti(activeField)}
+                className="inline-flex items-center gap-1 rounded-[8px] border border-[#249a57] bg-[#249a57] px-2 py-1 text-[11px] font-medium text-white transition hover:bg-[#1f7a46]"
+              >
+                <Check size={10} className="shrink-0" />
+                Done
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+        {asked && !done ? (
+          <button
+            type="button"
+            onClick={acceptRemaining}
+            className="mb-2 inline-flex items-center gap-1.5 text-[11px] font-medium text-[var(--accent-strong)] underline-offset-2 transition hover:underline"
+          >
+            <Sparkles size={11} className="shrink-0" />
+            Accept all remaining suggestions
+          </button>
+        ) : null}
+        <div className="flex items-end gap-2 rounded-[10px] border border-[#e7e5e4] bg-white px-2.5 py-2 focus-within:border-[var(--accent-ring)]">
+          <textarea
+            value={input}
+            onChange={(event) => setInput(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                onSend();
+              }
+            }}
+            rows={2}
+            placeholder={asked ? "Type your answer…" : "Describe this stage…"}
+            className="no-scrollbar max-h-40 min-h-[48px] flex-1 resize-none bg-transparent text-[13px] leading-6 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
+          />
+          <button
+            type="button"
+            onClick={onSend}
+            disabled={!input.trim()}
+            aria-label="Send"
+            className="grid h-7 w-7 shrink-0 place-items-center rounded-[8px] bg-[var(--accent)] text-white transition hover:bg-[var(--accent-strong)] disabled:opacity-40"
+          >
+            <Send size={13} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Generating shimmer, overlaid on the real field (absolute inset-0) so the
+// field keeps its exact height — no resize while the value fills in.
+function FieldGenerating({ tall = false }: { tall?: boolean }) {
   return (
     <div
       className={cn(
-        "ai-field-loading relative w-full rounded-[8px] text-[13px] text-[var(--text-muted)]",
-        tall ? "h-[76px] px-3 pr-10 pt-2.5" : "flex h-9 items-center px-3 pr-9",
+        "ai-field-loading absolute inset-0 z-10 flex gap-2 rounded-[8px] bg-white px-3 pr-10 text-[13px] text-[var(--text-muted)]",
+        tall ? "items-start py-2.5" : "items-center",
       )}
     >
       <span>Generating…</span>
       <span
         className={cn(
-          "absolute grid h-6 w-6 place-items-center text-[var(--accent)]",
-          tall ? "right-2 top-2" : "right-1.5 top-1/2 -translate-y-1/2",
+          "absolute right-2 grid h-6 w-6 place-items-center text-[var(--accent)]",
+          tall ? "top-2" : "top-1/2 -translate-y-1/2",
         )}
       >
         <Sparkles size={13} className="animate-pulse" />
@@ -1205,7 +1703,7 @@ function MandateBanner() {
   return (
     <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-[10px] border border-[#cfe6d8] bg-gradient-to-r from-[#eef6f0] to-[#f6faf7] px-4 py-3">
       <div className="flex items-center gap-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#15803d] text-white shadow-[0_1px_2px_rgba(21,128,61,0.3)]">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#15803d] text-white">
           <Check size={19} strokeWidth={2.5} />
         </span>
         <div>
@@ -1249,7 +1747,7 @@ function SquadPicker() {
               className={cn(
                 "relative flex flex-col items-start gap-2.5 rounded-[10px] border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]",
                 on
-                  ? "border-[var(--accent-border)] bg-[var(--accent-soft)] shadow-[0_1px_2px_rgba(12,10,9,0.04)]"
+                  ? "border-[var(--accent-border)] bg-[var(--accent-soft)]"
                   : "border-[#e7e5e4] bg-white hover:border-[var(--accent-border)] hover:bg-[var(--accent-hover-bg)]",
               )}
             >
@@ -1364,7 +1862,9 @@ function LockableMetrics() {
 function choiceOptions(label: string, value: string) {
   const lowerLabel = label.toLowerCase();
 
-  if (lowerLabel.includes("decision") || lowerLabel === "outcome" || lowerLabel.includes("verdict")) return [value, "Revise", "Block"];
+  // A long value is descriptive prose, not a decision — let it fall through to a text field.
+  if (lowerLabel.includes("decision") || lowerLabel === "outcome" || lowerLabel.includes("verdict"))
+    return value.length > 40 ? null : [value, "Revise", "Block"];
   if (lowerLabel.includes("risk")) return ["Low", "Medium", "High"];
   if (lowerLabel.includes("tier")) return ["Light", "Standard", "Full"];
   if (lowerLabel.includes("required")) return ["Yes", "No", "Not sure"];
@@ -1387,187 +1887,6 @@ function listItems(value: string) {
     .split(/\s*(?:;|,|->)\s*/)
     .map((item) => item.trim())
     .filter(Boolean);
-}
-
-function DetailPanel() {
-  return (
-    <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pb-2">
-      <dl className="divide-y divide-[#ecebea]">
-        {DETAIL_ITEMS.map(([label, value]) => (
-          <div key={label} className="grid grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] gap-3 px-5 py-3.5">
-            <dt className="text-[13px] font-normal leading-5 text-[var(--text-label)]">{label}</dt>
-            <dd className="min-w-0 text-right text-[14px] font-medium leading-5 text-[var(--text-primary)]">{value}</dd>
-          </div>
-        ))}
-      </dl>
-    </div>
-  );
-}
-
-function GatesPanel() {
-  return (
-    <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto p-4">
-      <div className="space-y-2.5">
-        {GATES.map((gate) => {
-          const tone = GATE_TONE[gate.status];
-          return (
-            <article key={gate.id} className="rounded-[10px] border border-[#ecebea] bg-white p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <h3 className="truncate text-[14px] leading-5 text-[var(--text-primary)]">
-                    <span className="mr-1.5 font-semibold text-[var(--accent-strong)]">{gate.id}</span>
-                    <span className="font-medium">{gate.name}</span>
-                  </h3>
-                  <div className="mt-0.5 text-[12px] leading-4 text-[var(--text-muted)]">After {gate.afterStage}</div>
-                </div>
-                <span
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold"
-                  style={{ color: tone.fg, background: tone.bg }}
-                >
-                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: tone.fg }} />
-                  {gate.status}
-                </span>
-              </div>
-
-              <div className="mt-3 flex items-center justify-between gap-3 text-[12.5px] leading-5">
-                <span className="flex min-w-0 items-center gap-1.5 font-medium text-[var(--text-primary)]">
-                  <PersonAvatar name={gate.approver} size={18} />
-                  <span className="truncate">{gate.approver}</span>
-                </span>
-                <span className="shrink-0 text-[var(--text-muted)]">{gate.decided ?? "Decision pending"}</span>
-              </div>
-
-              {gate.artifacts.length ? (
-                <div className="mt-2.5 flex flex-wrap gap-1.5">
-                  {gate.artifacts.map((artifact) => (
-                    <span
-                      key={artifact}
-                      className="rounded-md border border-[#ecebea] bg-[var(--surface-muted)] px-2 py-0.5 text-[11.5px] font-medium text-[var(--text-body)]"
-                    >
-                      {artifact}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-
-              {gate.conditions.length ? (
-                <ul className="mt-2.5 space-y-1 border-t border-[#f0efed] pt-2.5">
-                  {gate.conditions.map((condition) => (
-                    <li key={condition} className="flex gap-2 text-[12.5px] leading-5 text-[var(--text-body)]">
-                      <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-[var(--text-muted)]" />
-                      <span>{condition}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-            </article>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function CommentsPanel() {
-  return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto">
-        <div className="divide-y divide-[#ecebea]">
-          {COMMENT_ITEMS.map((comment) => (
-            <article key={`${comment.author}-${comment.date}`} className="px-5 py-4">
-              <div className="flex min-w-0 items-start justify-between gap-3">
-                <h3 className="min-w-0 text-[14px] font-medium leading-5 text-[var(--text-primary)]">{comment.author}</h3>
-                <time className="shrink-0 text-[13px] font-normal leading-5 text-[var(--text-label)]">{comment.date}</time>
-              </div>
-              <p className="mt-1.5 text-[13px] font-normal leading-5 text-[var(--text-body)]">{comment.body}</p>
-            </article>
-          ))}
-        </div>
-      </div>
-
-      <div className="shrink-0 border-t border-[#ecebea] p-3">
-        <div className="flex items-end gap-2 rounded-[10px] border border-[var(--border-input)] bg-white px-3 py-2 transition focus-within:border-[#8fc0cf] focus-within:ring-2 focus-within:ring-[var(--accent-soft)]">
-          <textarea
-            aria-label="Add comment"
-            placeholder="Write a comment…"
-            rows={2}
-            className="no-scrollbar max-h-24 min-h-[36px] min-w-0 flex-1 resize-none border-0 bg-transparent p-0 text-[13px] font-normal leading-5 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
-          />
-          <button
-            type="button"
-            aria-label="Send comment"
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[var(--text-primary)] text-white transition hover:bg-[var(--accent-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
-          >
-            <ArrowRight size={15} />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ActivityPanel() {
-  return (
-    <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pb-2">
-      <ol className="divide-y divide-[#ecebea]">
-        {ACTIVITY_ITEMS.map((activity) => {
-          const Icon = activity.icon;
-
-          return (
-            <li key={activity.title} className="flex gap-3 px-5 py-4">
-              <div className="flex h-5 w-5 shrink-0 items-center justify-center pt-0.5 text-[var(--text-muted)]" aria-hidden="true">
-                <Icon size={16} strokeWidth={2} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <h3 className="min-w-0 text-[14px] font-medium leading-5 text-[var(--text-primary)]">{activity.title}</h3>
-                <time className="mt-1 block text-[13px] font-normal leading-5 text-[var(--text-label)]">{activity.time}</time>
-              </div>
-            </li>
-          );
-        })}
-      </ol>
-    </div>
-  );
-}
-
-function RecordHeader({ currentUser, onUserChange }: { currentUser: string; onUserChange: (name: string) => void }) {
-  const ownerName = text(values.businessSponsor);
-
-  return (
-    <header className="z-30 shrink-0 border-b border-[#ecebea] bg-[var(--surface-muted)] px-7 pb-5 pt-5">
-      <div className="mb-5 flex items-center justify-between gap-4">
-        <Link
-          href="/"
-          className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[8px] pr-2 text-[13px] font-medium text-[var(--text-label)] transition hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
-        >
-          <ArrowLeft size={15} />
-          Back to home
-        </Link>
-        <ProfileSwitcher currentUser={currentUser} onUserChange={onUserChange} />
-      </div>
-
-      <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
-        <h1 className="min-w-0 font-display text-[30px] leading-tight">{USE_CASE.name}</h1>
-
-        <div className="flex shrink-0 items-center gap-5">
-          <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">Use Case ID</div>
-            <span className="mt-1.5 inline-block rounded-[6px] bg-[var(--accent-soft)] px-2 py-0.5 text-[13px] font-semibold tracking-[0.02em] text-[var(--accent-strong)]">
-              {USE_CASE.id}
-            </span>
-          </div>
-          <span className="h-9 w-px bg-[#ecebea]" aria-hidden />
-          <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">Use Case Owner</div>
-            <div className="mt-1 flex items-center gap-2">
-              <PersonAvatar name={ownerName} size={24} />
-              <span className="text-[14px] font-medium leading-5 text-[var(--text-primary)]">{ownerName}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </header>
-  );
 }
 
 function StagePath({
@@ -1644,7 +1963,7 @@ function StagePath({
   }, [tip]);
 
   return (
-    <section className="shrink-0 bg-[var(--surface-muted)] px-7 py-3">
+    <section className="shrink-0 bg-transparent px-4 py-3">
       <div className="flex items-center gap-2">
         <div className="relative min-w-0 flex-1">
           <ol ref={trailRef} className="no-scrollbar flex min-w-0 items-center overflow-x-auto py-0.5">
@@ -1757,7 +2076,7 @@ function StagePath({
                 "inline-flex h-10 items-center gap-1.5 rounded-[8px] px-3.5 text-[13px] font-semibold transition",
                 isCurrentComplete
                   ? "border border-[var(--border-input)] bg-white text-[var(--text-body)] hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)] hover:text-[var(--text-primary)]"
-                  : "bg-[var(--stage-action)] text-white shadow-[var(--shadow-sm)] hover:bg-[var(--stage-action-hover)]",
+                  : "bg-[var(--stage-action)] text-white hover:bg-[var(--stage-action-hover)]",
               )}
             >
               {isCurrentComplete ? <RotateCcw size={15} /> : <Check size={15} strokeWidth={3} />}
@@ -1800,7 +2119,7 @@ function StagePath({
           ref={tipRef}
           role="tooltip"
           style={{ position: "fixed", left: tip.x, top: tip.y, transform: "translate(-50%, -100%)" }}
-          className="pointer-events-none z-[60] whitespace-nowrap rounded-[6px] bg-[var(--stage-active)] px-2.5 py-1 text-[11px] font-medium text-white shadow-[var(--shadow-lg)]"
+          className="pointer-events-none z-[60] whitespace-nowrap rounded-[6px] bg-[var(--stage-active)] px-2.5 py-1 text-[11px] font-medium text-white"
         >
           {tip.text}
         </div>
@@ -1821,7 +2140,7 @@ function StageActionMenu({
   onSelect: () => void;
 }) {
   return (
-    <div className="absolute right-0 top-11 z-50 w-56 rounded-[8px] border border-[#e7e5e4] bg-white p-1.5 shadow-[var(--shadow-lg)]" role="menu" aria-label="Stage actions">
+    <div className="absolute right-0 top-11 z-50 w-56 rounded-[8px] border border-[#e7e5e4] bg-white p-1.5" role="menu" aria-label="Stage actions">
       <button
         type="button"
         onClick={onSelect}
@@ -1906,7 +2225,7 @@ function StageActionDialog({
   return createPortal(
     <div className="fixed inset-0 z-[80] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label={isReject ? "Reject stage" : "Send back to a stage"}>
       <div className="absolute inset-0 bg-[rgba(28,25,23,0.35)]" onClick={onCancel} />
-      <div className="relative w-full max-w-[460px] rounded-[14px] border border-[var(--border-default)] bg-white shadow-[var(--shadow-dialog,0_16px_48px_rgba(12,10,9,0.22))]">
+      <div className="relative w-full max-w-[460px] rounded-[14px] border border-[var(--border-default)] bg-white">
         <div className="flex items-start justify-between gap-3 px-5 pt-5">
           <div className="flex items-center gap-2.5">
             <span
@@ -2009,7 +2328,3 @@ function StageActionDialog({
   );
 }
 
-function text(value: FieldValue | undefined) {
-  if (Array.isArray(value)) return value.join("\n");
-  return value?.trim() || "Not provided";
-}
