@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, Lock } from "lucide-react";
 import { useRef, useState } from "react";
 
 import { cn } from "@/lib/cn";
@@ -59,9 +59,13 @@ export function PersonAvatar({
 export function ProfileSwitcher({
   currentUser,
   onUserChange,
+  lockedBy,
 }: {
   currentUser: string;
   onUserChange: (name: string) => void;
+  // When set, the current stage is owned by someone else — shown as a lock
+  // badge on the avatar hinting to switch profiles.
+  lockedBy?: string;
 }) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -74,9 +78,17 @@ export function ProfileSwitcher({
         onClick={() => setOpen((current) => !current)}
         aria-haspopup="menu"
         aria-expanded={open}
+        title={lockedBy ? `This stage is owned by ${lockedBy} — switch profile to edit` : undefined}
         className="inline-flex h-9 items-center gap-2 rounded-full border border-[var(--border-default)] bg-white pl-1 pr-2.5 text-[13px] font-medium text-[var(--text-primary)] transition hover:bg-[var(--surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
       >
-        <PersonAvatar name={currentUser} size={28} active />
+        <span className="relative inline-flex">
+          <PersonAvatar name={currentUser} size={28} active />
+          {lockedBy ? (
+            <span className="absolute -bottom-0.5 -right-0.5 grid h-3.5 w-3.5 place-items-center rounded-full border-2 border-white bg-[#a15c11] text-white">
+              <Lock size={7} strokeWidth={2.5} />
+            </span>
+          ) : null}
+        </span>
         <span className="hidden sm:inline">{currentUser}</span>
         <ChevronDown size={14} className={cn("text-[var(--text-muted)] transition", open && "rotate-180")} />
       </button>

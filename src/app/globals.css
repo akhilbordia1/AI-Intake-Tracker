@@ -211,6 +211,40 @@ input[type="date"] {
   animation: fdeFadeUp 0.18s ease-out;
 }
 
+/* Chat message entry — assistant slides in from the left, user from the right. */
+@keyframes bubbleInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-8px) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) translateY(0);
+  }
+}
+@keyframes bubbleInRight {
+  from {
+    opacity: 0;
+    transform: translateX(8px) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) translateY(0);
+  }
+}
+.bubble-in-left {
+  animation: bubbleInLeft 0.3s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+.bubble-in-right {
+  animation: bubbleInRight 0.3s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bubble-in-left,
+  .bubble-in-right {
+    animation: none;
+  }
+}
+
 /* Accessible focus ring */
 .ui-focusable:focus-visible {
   outline: none;
