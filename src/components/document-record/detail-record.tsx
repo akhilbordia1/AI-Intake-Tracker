@@ -777,45 +777,9 @@ const LONG_LABELS = new Set([
   "Assessment scope",
 ]);
 
-// A few cost bands around the suggested amount, so the chat can offer picks
-// (plus a custom "type your own"). Falls back to just the suggestion.
-function currencyOptions(value: string): string[] {
-  const match = value.match(/^\s*(GBP|USD|EUR|£|\$|€)\s*([\d.,]+)\s*(k|m|bn)?/i);
-  if (!match) return [value];
-  const [, currency, amountStr, unitRaw] = match;
-  const amount = parseFloat(amountStr.replace(/,/g, ""));
-  if (!Number.isFinite(amount)) return [value];
-  const unit = unitRaw ? unitRaw.toLowerCase() : "";
-  const fmt = (n: number) => `${currency} ${Math.round(n).toLocaleString("en-US")}${unit}`;
-  return Array.from(new Set([fmt(amount), fmt(amount / 2), fmt(amount * 2)]));
-}
-
-// Suggested picks for otherwise free-text fields, so the chat can offer a few
-// choices (plus "type your own"). Keyed by a lowercase substring of the label.
-// These don't change the on-doc control (still a text field) — chat only.
-const TEXT_OPTION_SETS: { match: string; options: string[] }[] = [
-  { match: "lawful basis", options: ["Legitimate interest", "Consent", "Contract", "Legal obligation", "Public task"] },
-  { match: "function", options: ["Finance", "Operations", "Customer support", "HR", "Legal", "Marketing", "Procurement"] },
-  { match: "sponsor", options: ["R. Shah", "N. Singh", "M. Kapoor", "V. Holt"] },
-  { match: "assessor", options: ["Lena Osei", "Dana K.", "Noah R.", "Marco B."] },
-  { match: "desired outcome", options: ["Cut handling time", "Reduce error rate", "Improve throughput", "Lower cost to serve"] },
-  { match: "business problem", options: ["Manual backlog", "Slow turnaround", "High error rate", "Rising cost to serve"] },
-  { match: "data sources", options: ["ERP tables", "Supplier master", "CRM records", "Knowledge base", "Ticket history"] },
-  { match: "risk register", options: ["3 rows confirmed", "No material risks", "1 row confirmed", "5 rows confirmed", "Under review"] },
-];
-
-function textOptions(label: string, value: string): string[] | undefined {
-  const lower = label.toLowerCase();
-  const set = TEXT_OPTION_SETS.find((entry) => lower.includes(entry.match));
-  if (!set) return undefined;
-  // Keep the mock suggestion first when it's short enough to be a pick.
-  return Array.from(new Set(value.length <= 40 ? [value, ...set.options] : set.options));
-}
-
 function buildFieldSpec(label: string, value: string): FieldSpec {
   // Currency amounts get a dedicated control (currency dropdown + amount).
-  // Options feed the chat's pick list; the on-doc control stays free-entry.
-  if (CURRENCY_RE.test(value)) return { label, kind: "currency", options: currencyOptions(value), suggestion: value };
+  if (CURRENCY_RE.test(value)) return { label, kind: "currency", suggestion: value };
 
   const options = choiceOptions(label, value);
   if (options) {
@@ -837,9 +801,8 @@ function buildFieldSpec(label: string, value: string): FieldSpec {
     return { label, kind: CARD_FIELDS.has(label) ? "cards" : "chips", options: items, suggestion: items };
   }
 
-  const picks = textOptions(label, value);
-  if (value.length > 96 || LONG_LABELS.has(label)) return { label, kind: "long", options: picks, suggestion: value };
-  return { label, kind: "text", options: picks, suggestion: value };
+  if (value.length > 96 || LONG_LABELS.has(label)) return { label, kind: "long", suggestion: value };
+  return { label, kind: "text", suggestion: value };
 }
 
 // Live governance tier, recomputed from the Assess answers as the user fills them.
@@ -1412,8 +1375,17 @@ function suggestionText(suggestion: string | string[]): string {
 
 const MULTI_KINDS = ["chips", "cards"];
 
+// Fields answered by picking from options in chat — sliders (level), toggles
+// (segmented/radio), and dropdowns (select). Everything else is conversational:
+// the user types, with the AI suggestion offered as a shortcut.
+const PICKER_KINDS = new Set(["level", "segmented", "radio", "select"]);
+
 // Hidden for now — flip to re-enable the one-click "Draft everything" action.
 const SHOW_DRAFT_ALL = false;
+
+// Short, varied acknowledgements shown between answers so the chat reads like a
+// back-and-forth rather than a form. Rotated, not random.
+const CHAT_ACKS = ["Got it.", "Thanks.", "Makes sense.", "Noted.", "Perfect.", "Great — next:", "On it.", "Good call."];
 
 // One-line explainer per stage, shown as the chat's opening message.
 const STAGE_INTROS: Record<string, string> = {
@@ -1432,6 +1404,27 @@ const STAGE_INTROS: Record<string, string> = {
   Monitor: "Monitor tracks drift, value variance, and the post-deploy review.",
   Improve: "Improve records the outcome and the next round of improvements.",
 };
+
+// Fields grouped into themes so the chat asks them in batches with a short
+// framing line per group (like a person would). Stages without an entry are
+// asked ungrouped. Labels must match the stage's field labels + order.
+const STAGE_FIELD_GROUPS: Record<string, { framing: string; labels: string[] }[]> = {
+  Intake: [
+    { framing: "Let's start with the business context.", labels: ["Business problem", "Desired outcome", "Expected value", "Sponsor", "Function"] },
+    { framing: "Now a few on users and scope.", labels: ["Countries", "Affected users"] },
+    { framing: "And the data and model.", labels: ["Model archetype", "Data sources", "PII", "Autonomy"] },
+  ],
+  Assess: [
+    { framing: "First, a few on privacy and data.", labels: ["PII", "Lawful basis", "DPIA required"] },
+    { framing: "Now the model risk and controls.", labels: ["Hallucination risk", "Grounding controls"] },
+    { framing: "Finally, the assessment decision.", labels: ["Risk register", "Outcome", "Conditions"] },
+  ],
+};
+
+// The theme group a field belongs to, if the stage defines groups.
+function groupOf(stageName: string, label: string): { framing: string } | undefined {
+  return STAGE_FIELD_GROUPS[stageName]?.find((group) => group.labels.includes(label));
+}
 
 // Lowercase a label for mid-sentence use, but keep acronyms (PII, DPIA) as-is.
 function humanizeLabel(label: string): string {
@@ -1482,35 +1475,54 @@ function ChatPanel({ stage, s, onMarkComplete }: { stage: StageItem; s: StageFie
       role: "assistant",
       text: STAGE_INTROS[stage.name] ?? `Let's fill in the ${stage.name} stage.`,
     };
-    if (firstField) return [intro];
+    if (firstField) {
+      const opener = groupOf(stage.name, firstField.label)?.framing ?? "I'll ask a few quick things — tap a suggestion or type your own.";
+      // Opener framing, then the first question as its own message.
+      return [
+        intro,
+        { id: bump(), role: "assistant", text: opener },
+        { id: bump(), role: "assistant", text: fieldPrompt(firstField) },
+      ];
+    }
     return [intro, { id: bump(), role: "assistant", text: "Everything's already filled — edit any field on the right." }];
   });
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  // Framing of the group whose questions are currently being asked, so a new
+  // group's framing line fires only when we cross into it.
+  const lastGroupRef = useRef<string | null>(firstField ? groupOf(stage.name, firstField.label)?.framing ?? null : null);
 
   const pushAssistant = (text: string, field?: FieldSpec) =>
     setMessages((current) => [...current, { id: bump(), role: "assistant", text, field }]);
   const pushUser = (text: string, field?: FieldSpec) => setMessages((current) => [...current, { id: bump(), role: "user", text, field }]);
 
-  // Ask a field — the question shows in the docked card at the bottom, not the
-  // stream. The stream gets the Q + reply only once it's answered (recordQA).
+  // Ask a field — the question is an assistant message in the stream. Picker
+  // fields get a docked options card; conversational fields show the AI
+  // suggestion as a ghost in the input (Tab / → to accept).
   function ask(field: FieldSpec) {
     setAsked(field.label);
-  }
-
-  // Log an answered field to the stream: the question, then the user's reply.
-  function recordQA(field: FieldSpec, reply: string) {
     pushAssistant(fieldPrompt(field));
-    pushUser(reply, field);
+    setInput("");
   }
 
   function advance(handledNow: string[]) {
     const next = s.fields.find((field) => !handledNow.includes(field.label));
-    if (next) ask(next);
-    else {
+    if (next) {
+      // A short, varied acknowledgement makes it read like a reply, not a form —
+      // and when we cross into a new theme, tack the group's framing onto it.
+      const ack = CHAT_ACKS[handledNow.length % CHAT_ACKS.length];
+      const framing = groupOf(stage.name, next.label)?.framing;
+      if (framing && framing !== lastGroupRef.current) {
+        lastGroupRef.current = framing;
+        pushAssistant(`${ack} ${framing}`);
+      } else {
+        pushAssistant(ack);
+      }
+      ask(next);
+    } else {
       setAsked(null);
       setDone(true);
-      pushAssistant("All fields filled.");
+      pushAssistant(`That's everything for ${stage.name} — review it on the right, then mark it complete.`);
     }
   }
 
@@ -1552,14 +1564,14 @@ function ChatPanel({ stage, s, onMarkComplete }: { stage: StageItem; s: StageFie
 
   // Skip the current field: mark handled, leave it empty, move on.
   function skip(field: FieldSpec) {
-    recordQA(field, "Skip");
+    pushUser("Skip", field);
     resolve([field.label]);
   }
 
   // Single-select option (or the suggested answer) → fill and advance.
   function pickOption(field: FieldSpec, option: string) {
     s.setField(field.label, option);
-    recordQA(field, option);
+    pushUser(option, field);
     resolve([field.label]);
   }
 
@@ -1572,7 +1584,14 @@ function ChatPanel({ stage, s, onMarkComplete }: { stage: StageItem; s: StageFie
 
   function confirmMulti(field: FieldSpec) {
     const current = Array.isArray(s.values[field.label]) ? (s.values[field.label] as string[]) : [];
-    recordQA(field, current.length ? current.join(", ") : "None");
+    pushUser(current.length ? current.join(", ") : "None", field);
+    resolve([field.label]);
+  }
+
+  // Record a typed/suggested answer for a field, then advance.
+  function sendValue(field: FieldSpec, text: string) {
+    pushUser(text, field);
+    s.setField(field.label, MULTI_KINDS.includes(field.kind) ? text.split(/\s*[;,]\s*/).filter(Boolean) : text);
     resolve([field.label]);
   }
 
@@ -1580,33 +1599,36 @@ function ChatPanel({ stage, s, onMarkComplete }: { stage: StageItem; s: StageFie
   function onSend() {
     const text = input.trim();
     if (!text || !asked) return;
-    setInput("");
     const field = s.fields.find((f) => f.label === asked);
-    if (field) recordQA(field, text);
-    s.setField(asked, field && MULTI_KINDS.includes(field.kind) ? text.split(/\s*[;,]\s*/).filter(Boolean) : text);
-    resolve([asked]);
+    if (!field) return;
+    setInput("");
+    sendValue(field, text);
   }
 
   const activeField = !done && asked ? s.fields.find((f) => f.label === asked && !handled.includes(f.label)) : undefined;
+  // Ghost suggestion for the active conversational field (empty for pickers).
+  const ghost = activeField && !PICKER_KINDS.has(activeField.kind) ? suggestionText(activeField.suggestion) : "";
 
-  // The question + its numbered answer list, together in one container.
-  function renderOptions(field: FieldSpec, question: string) {
+  // The numbered answer list for a picker field. The question itself is a stream
+  // message, so this is just the options + actions.
+  function renderOptions(field: FieldSpec) {
     const multi = MULTI_KINDS.includes(field.kind);
     // Slider / stepper fields have a fixed scale — no free-text "type your own".
     const allowCustom = !multi && field.kind !== "level" && field.kind !== "scale";
     const selected = Array.isArray(s.values[field.label]) ? (s.values[field.label] as string[]) : [];
     return (
       <div className="overflow-hidden rounded-[12px] border border-[#ecebea] bg-white">
-        <div className="px-3 py-2.5 text-[13px] leading-5 text-[var(--text-body)]">{question}</div>
         {fieldPills(field).map((option, index) => {
           const isOn = multi && selected.includes(option);
+          const firstRow = index === 0;
           return (
             <button
               key={option}
               type="button"
               onClick={() => (multi ? toggleOption(field, option) : pickOption(field, option))}
               className={cn(
-                "group flex w-full items-center gap-3 border-t border-[#f2f1f0] px-2.5 py-2 text-left text-[13px] transition",
+                "group flex w-full items-center gap-3 px-2.5 py-2 text-left text-[13px] transition",
+                !firstRow && "border-t border-[#f2f1f0]",
                 isOn ? "bg-[var(--accent-soft)]" : "hover:bg-[#f7f6f5]",
               )}
             >
@@ -1718,25 +1740,15 @@ function ChatPanel({ stage, s, onMarkComplete }: { stage: StageItem; s: StageFie
       </div>
 
       <div className="shrink-0 border-t border-[#ecebea] p-3">
-        {/* Active question, docked above the input. Picker fields show options;
-            others show just the prompt and are answered by typing. */}
-        {activeField ? (
-          activeField.options?.length || activeField.kind === "text" || activeField.kind === "long" ? (
-            <div className="mb-2">{renderOptions(activeField, fieldPrompt(activeField))}</div>
-          ) : (
-            <div className="mb-2 flex items-center justify-between gap-3 rounded-[12px] border border-[#ecebea] bg-white px-3 py-2.5">
-              <span className="text-[13px] leading-5 text-[var(--text-body)]">{fieldPrompt(activeField)}</span>
-              <button
-                type="button"
-                onClick={() => skip(activeField)}
-                className="shrink-0 rounded-[8px] border border-[#e7e5e4] px-2.5 py-1 text-[12px] font-medium text-[var(--text-body)] transition hover:bg-[#f7f6f5]"
-              >
-                Skip
-              </button>
-            </div>
-          )
+        {/* Slider/toggle/dropdown fields dock their options here. Conversational
+            fields need no card — the question is in the stream and the AI
+            suggestion shows as a ghost in the input (Tab / → to accept). */}
+        {activeField && PICKER_KINDS.has(activeField.kind) ? (
+          <div className="mb-2">{renderOptions(activeField)}</div>
         ) : null}
         <div className="flex items-end gap-2 rounded-[10px] border border-[#e7e5e4] bg-white px-2.5 py-2 focus-within:border-[var(--accent-ring)]">
+          {/* Ghost suggestion is the textarea's own placeholder — same font as the
+              typed text, so accepting it (Tab / →) doesn't shift anything. */}
           <textarea
             ref={inputRef}
             value={input}
@@ -1745,10 +1757,16 @@ function ChatPanel({ stage, s, onMarkComplete }: { stage: StageItem; s: StageFie
               if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
                 onSend();
+                return;
+              }
+              // Accept the ghost suggestion into the input to edit or send.
+              if ((event.key === "Tab" || event.key === "ArrowRight") && input === "" && ghost) {
+                event.preventDefault();
+                setInput(ghost);
               }
             }}
             rows={3}
-            placeholder="Type your answer…"
+            placeholder={ghost || "Type your answer…"}
             className="no-scrollbar max-h-40 min-h-[72px] flex-1 resize-none bg-transparent text-[13px] leading-6 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
           />
           <button
