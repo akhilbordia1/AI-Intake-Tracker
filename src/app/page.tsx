@@ -50,7 +50,7 @@ type BoardColumn = {
 // is one phase, condensing the detail-view stages inside it.
 const STAGE_GROUPS: Record<string, string[]> = {
   "Intake & Prioritization": ["Ideation", "Qualification", "Prioritisation", "Triage"],
-  "Governance, Risk & Tech Assessments": ["Assessment - Risk & Compliance", "Business Case", "GTAC"],
+  "Governance & Risk": ["Assessment - Risk & Compliance", "Business Case", "GTAC"],
   Delivery: ["Plan & KPI", "Solution blue print", "Solutionise and Production"],
   "Operate & Adopt": ["Monitoring and tracking", "Adoption"],
 };

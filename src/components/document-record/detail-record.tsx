@@ -193,7 +193,7 @@ const STAGES = [
 // Lifecycle sections for the stage drawer list. Indexes into STAGES.
 const STAGE_GROUPS: { title: string; indexes: number[] }[] = [
   { title: "Intake & Prioritization", indexes: [0, 1, 2, 3] },
-  { title: "Governance, Risk & Tech Assessments", indexes: [4, 5, 6] },
+  { title: "Governance & Risk", indexes: [4, 5, 6] },
   { title: "Delivery", indexes: [7, 8, 9] },
   { title: "Operate & Adopt", indexes: [10, 11] },
 ];
