@@ -1179,7 +1179,7 @@ function ProgressRail({
     <div className="min-h-0 py-3 pl-1 pr-3">
       <aside className="flex h-full min-h-0 flex-col overflow-hidden rounded-[16px] border border-[#ecebea] bg-white">
         <div className="flex shrink-0 items-center border-b border-[#f0efed] px-4 py-3">
-          <span className="font-display text-[17px] text-[var(--text-primary)]">Progress</span>
+          <span className="font-display text-[17px] text-[var(--text-primary)]">Journey</span>
         </div>
         <StagesList activeIndex={activeIndex} completedIndexes={completedIndexes} activeProgress={activeProgress} onSelect={onSelect} />
       </aside>
