@@ -2,7 +2,8 @@
 
 import { USE_CASE } from "@/data/document-workflow-form-schema";
 import { cn } from "@/lib/cn";
-import { ArrowLeft, Ban, Check, ChevronDown, CornerUpLeft, FileText, Lock, Mic, Paperclip, Pencil, RotateCcw, Send, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowLeft, Ban, Check, ChevronDown, CornerUpLeft, FileText, Info, Lock, Mic, Paperclip, Pencil, RotateCcw, Send, ShieldCheck, Sparkles, X } from "lucide-react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactElement, type ReactNode, type RefObject } from "react";
 
@@ -237,6 +238,40 @@ const GATE_TONE: Record<Gate["status"], { fg: string; bg: string; border: string
   Rejected: { fg: "#b32020", bg: "#f7eaea", border: "#e6c3c3" },
 };
 
+// Record-level metadata shown in the Details modal (opened from the header).
+const RECORD_DETAILS: [string, string][] = [
+  ["Use case ID", USE_CASE.id],
+  ["Created by", "Mira Kapoor"],
+  ["Created on", "Jun 18, 2026"],
+  ["Department", "Support"],
+  ["Function", "Customer Experience"],
+  ["Team", "Tier-1 Operations"],
+  ["Country", "Global / multi-country"],
+  ["Business sponsor", "Nora Singh"],
+  ["Target go-live", "Jun 15, 2026"],
+  ["Model archetype", "Agent"],
+];
+
+const RECORD_COMMENTS: { by: string; when: string; text: string }[] = [
+  { by: "Lena Osei", when: "2d ago", text: "Flagged one compliance check (GxP/GCP CSV) — tracking to close before build." },
+  { by: "Amara J.", when: "5d ago", text: "Business case looks solid; payback under a year. Recommending to GTAC." },
+  { by: "Priya N.", when: "1w ago", text: "Intake looks complete — routing to full assessment given GxP relevance." },
+];
+
+const RECORD_ACTIVITY: { icon: "moved" | "approved" | "updated" | "recorded"; title: string; when: string }[] = [
+  { icon: "moved", title: "Noah R. moved stage to Solutionise & Production", when: "Jul 6, 2026, 09:18" },
+  { icon: "approved", title: "Lena Osei approved risk & compliance sign-off", when: "Jul 5, 2026, 16:24" },
+  { icon: "updated", title: "Amara J. updated the business case", when: "Jul 3, 2026, 11:05" },
+  { icon: "recorded", title: "Victor H. recorded GTAC approval", when: "Jun 28, 2026, 14:30" },
+];
+
+const ACTIVITY_ICON: Record<(typeof RECORD_ACTIVITY)[number]["icon"], ReactNode> = {
+  moved: <Check size={16} />,
+  approved: <ShieldCheck size={16} />,
+  updated: <RotateCcw size={16} />,
+  recorded: <FileText size={16} />,
+};
+
 const defaultStageIndex = STAGES.findIndex((stage) => stage.name === "Assessment - Risk & Compliance");
 
 type Kickback = { to: number; from: number; reason: string; by: string };
@@ -255,8 +290,9 @@ export function DetailRecordPage() {
   const [rejections, setRejections] = useState<Rejection[]>([]);
   const [kickbacks, setKickbacks] = useState<Kickback[]>([]);
   // Chat-first: a header toggle switches between the agent (chat) and the form
-  // (document) view. The Progress rail is always shown.
+  // (document) view. The Journey rail is always shown.
   const [view, setView] = useState<"agent" | "form">("agent");
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const currentStage = STAGES[stageIndex] ?? STAGES[0];
   const isCurrentComplete = completedStageIndexes.includes(stageIndex);
@@ -328,6 +364,7 @@ export function DetailRecordPage() {
         currentUser={currentUser}
         onUserChange={setCurrentUser}
         lockedOwner={lockedOwner}
+        onOpenDetails={() => setDetailsOpen(true)}
       />
       {statusNote ? <StageStatusBanner note={statusNote} canClear={canComplete} onClear={clearCurrentStatus} /> : null}
       {/* Main content + a permanent Progress rail on the right. */}
@@ -351,6 +388,7 @@ export function DetailRecordPage() {
           onSelect={(index) => selectStage(index)}
         />
       </div>
+      {detailsOpen ? <RecordDetailsModal onClose={() => setDetailsOpen(false)} /> : null}
       {toast ? (
         <div className="pointer-events-none fixed bottom-6 left-1/2 z-[60] -translate-x-1/2">
           <div className="flex items-center gap-2 rounded-[10px] bg-[var(--text-primary)] px-3.5 py-2.5 text-[13px] font-medium text-white shadow-lg">
@@ -986,6 +1024,173 @@ function StageFieldsGrid({ stage, s, currentUser, canEdit, isComplete = false, e
   );
 }
 
+// Record details modal — the use case's metadata, gates, comments, and activity.
+function RecordDetailsModal({ onClose }: { onClose: () => void }) {
+  const [tab, setTab] = useState<"details" | "gates" | "comments" | "activity">("details");
+  // ponytail: comment list is local prototype state — no persistence.
+  const [comments, setComments] = useState(RECORD_COMMENTS);
+  const [draft, setDraft] = useState("");
+  const addComment = () => {
+    const text = draft.trim();
+    if (!text) return;
+    setComments((prev) => [{ by: "You", when: "just now", text }, ...prev]);
+    setDraft("");
+  };
+  const tabs: { key: typeof tab; label: string; count?: number }[] = [
+    { key: "details", label: "Details" },
+    { key: "gates", label: "Gates", count: GATES.length },
+    { key: "comments", label: "Comments", count: comments.length },
+    { key: "activity", label: "Activity", count: RECORD_ACTIVITY.length },
+  ];
+  return createPortal(
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 sm:p-8">
+      <button type="button" aria-label="Close" onClick={onClose} className="absolute inset-0 bg-black/30" />
+      <div className="relative z-10 flex max-h-[90vh] w-full max-w-[680px] flex-col overflow-hidden rounded-[16px] border border-[#ecebea] bg-white shadow-[0_20px_60px_rgba(31,29,26,0.18)]">
+        <div className="flex shrink-0 items-center gap-6 border-b border-[#ecebea] px-5 pt-2.5">
+          {tabs.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setTab(t.key)}
+              className={cn(
+                "-mb-px flex items-center gap-1.5 border-b-2 py-2.5 text-[13px] font-medium transition",
+                tab === t.key ? "border-[var(--accent)] text-[var(--text-primary)]" : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]",
+              )}
+            >
+              {t.label}
+              {t.count != null ? (
+                <span
+                  className="grid h-[18px] min-w-[18px] place-items-center rounded-full px-1 text-[11px] font-semibold tabular-nums"
+                  style={tab === t.key
+                    ? { background: "color-mix(in srgb, var(--accent) 12%, white)", color: "var(--accent)" }
+                    : { background: "var(--surface-muted)", color: "var(--text-muted)" }}
+                >
+                  {t.count}
+                </span>
+              ) : null}
+            </button>
+          ))}
+          <button type="button" onClick={onClose} aria-label="Close" className="ml-auto grid h-8 w-8 shrink-0 place-items-center rounded-[8px] text-[var(--text-muted)] transition hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)]">
+            <X size={16} />
+          </button>
+        </div>
+        <div className="no-scrollbar h-[560px] max-h-[80vh] overflow-y-auto">
+          {tab === "details" ? (
+            <dl className="divide-y divide-[#f0efed]">
+              {RECORD_DETAILS.map(([label, value]) => (
+                <div key={label} className="flex items-center justify-between gap-6 px-5 py-3">
+                  <dt className="text-[13px] text-[var(--text-muted)]">{label}</dt>
+                  <dd className="text-right text-[14px] font-semibold text-[var(--text-primary)]">{value}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : null}
+          {tab === "gates" ? (
+            <div className="flex flex-col gap-3 p-5">
+              {GATES.map((gate) => {
+                const tone = GATE_TONE[gate.status];
+                return (
+                  <div key={gate.id} className="rounded-[12px] border border-[#ecebea] p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-[15px] font-semibold text-[var(--text-primary)]">
+                          <span className="text-[var(--accent)]">{gate.id}</span> {gate.name}
+                        </p>
+                        <p className="mt-0.5 text-[12px] text-[var(--text-muted)]">After {gate.afterStage}</p>
+                      </div>
+                      <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold" style={{ color: tone.fg, background: tone.bg, borderColor: tone.border }}>
+                        <span className="h-1.5 w-1.5 rounded-full" style={{ background: tone.fg }} />
+                        {gate.status}
+                      </span>
+                    </div>
+                    <div className="mt-2.5 flex items-center justify-between gap-3">
+                      <span className="flex items-center gap-1.5 text-[13px] text-[var(--text-primary)]">
+                        <PersonAvatar name={gate.approver} size={20} /> {gate.approver}
+                      </span>
+                      <span className="text-[13px] text-[var(--text-muted)]">{gate.decided ?? "Decision pending"}</span>
+                    </div>
+                    {gate.artifacts.length ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {gate.artifacts.map((a) => (
+                          <span key={a} className="rounded-[8px] border border-[#ecebea] bg-[var(--surface-muted)] px-2.5 py-1 text-[12px] text-[var(--text-body)]">{a}</span>
+                        ))}
+                      </div>
+                    ) : null}
+                    {gate.conditions.length ? (
+                      <ul className="mt-3 space-y-1 border-t border-[#f0efed] pt-3">
+                        {gate.conditions.map((c) => (
+                          <li key={c} className="flex gap-2 text-[13px] text-[var(--text-body)]">
+                            <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-[var(--text-muted)]" /> {c}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
+          {tab === "comments" ? (
+            <div className="flex min-h-full flex-col">
+              <div className="flex-1 divide-y divide-[#f0efed]">
+                {comments.map((c, i) => (
+                  <div key={i} className="flex gap-3 px-5 py-3">
+                    <PersonAvatar name={c.by} size={26} />
+                    <div className="min-w-0">
+                      <p className="text-[13px]"><span className="font-semibold text-[var(--text-primary)]">{c.by}</span> <span className="text-[var(--text-muted)]">· {c.when}</span></p>
+                      <p className="mt-0.5 text-[13px] leading-5 text-[var(--text-body)]">{c.text}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="sticky bottom-0 flex items-end gap-2 border-t border-[#ecebea] bg-white px-5 py-3">
+                <textarea
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      addComment();
+                    }
+                  }}
+                  rows={1}
+                  placeholder="Add a comment…"
+                  className="no-scrollbar max-h-24 min-h-9 flex-1 resize-none rounded-[10px] border border-[#ecebea] bg-[var(--surface-muted)] px-3 py-2 text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]"
+                />
+                <button
+                  type="button"
+                  onClick={addComment}
+                  disabled={!draft.trim()}
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-[var(--accent)] text-white transition disabled:opacity-40"
+                  aria-label="Post comment"
+                >
+                  <Send size={15} />
+                </button>
+              </div>
+            </div>
+          ) : null}
+          {tab === "activity" ? (
+            <div className="divide-y divide-[#f0efed]">
+              {RECORD_ACTIVITY.map((a, i) => (
+                <div key={i} className="flex gap-3 px-5 py-3.5">
+                  <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full border border-[#ecebea] text-[var(--text-muted)]">
+                    {ACTIVITY_ICON[a.icon]}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-[14px] font-semibold text-[var(--text-primary)]">{a.title}</p>
+                    <p className="mt-0.5 text-[13px] text-[var(--text-muted)]">{a.when}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 // Full-width top bar: home link + ticket identity (left), agent/form toggle
 // (center), profile (right). Stage navigation lives in the permanent Progress
 // rail, not here.
@@ -995,12 +1200,14 @@ function TopBar({
   currentUser,
   onUserChange,
   lockedOwner,
+  onOpenDetails,
 }: {
   view: "agent" | "form";
   onViewChange: (view: "agent" | "form") => void;
   currentUser: string;
   onUserChange: (user: string) => void;
   lockedOwner: string | null;
+  onOpenDetails: () => void;
 }) {
   const views: { value: "agent" | "form"; label: string; icon: ReactNode }[] = [
     { value: "agent", label: "Chat", icon: <Sparkles size={14} /> },
@@ -1045,9 +1252,18 @@ function TopBar({
           </button>
         ))}
       </div>
-      {/* Right: profile (with a lock badge when the stage isn't yours). */}
+      {/* Right: record details + profile (with a lock badge when not yours). */}
       <div className="flex flex-1 items-center justify-end gap-2">
         <ProfileSwitcher currentUser={currentUser} onUserChange={onUserChange} lockedBy={lockedOwner ?? undefined} />
+        <button
+          type="button"
+          onClick={onOpenDetails}
+          aria-label="Record details"
+          title="Record details"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-[8px] border border-[var(--border-default)] bg-white text-[var(--text-muted)] transition hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)] hover:text-[var(--text-primary)]"
+        >
+          <Info size={16} />
+        </button>
       </div>
     </header>
   );
