@@ -2,7 +2,7 @@
 
 import { USE_CASE } from "@/data/document-workflow-form-schema";
 import { cn } from "@/lib/cn";
-import { ArrowLeft, Ban, Check, ChevronDown, ChevronRight, CornerUpLeft, FileText, ListChecks, Lock, Mic, Paperclip, Pencil, RotateCcw, Send, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowLeft, Ban, Check, ChevronDown, CornerUpLeft, FileText, Lock, Mic, Paperclip, Pencil, RotateCcw, Send, ShieldCheck, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactElement, type ReactNode, type RefObject } from "react";
 
@@ -255,9 +255,8 @@ export function DetailRecordPage() {
   const [rejections, setRejections] = useState<Rejection[]>([]);
   const [kickbacks, setKickbacks] = useState<Kickback[]>([]);
   // Chat-first: a header toggle switches between the agent (chat) and the form
-  // (document) view; the stage list is a drawer. Both persist across stages.
+  // (document) view. The Progress rail is always shown.
   const [view, setView] = useState<"agent" | "form">("agent");
-  const [stagesOpen, setStagesOpen] = useState(true);
 
   const currentStage = STAGES[stageIndex] ?? STAGES[0];
   const isCurrentComplete = completedStageIndexes.includes(stageIndex);
@@ -324,10 +323,6 @@ export function DetailRecordPage() {
           an agent/form view toggle, profile), then the selected view.
           Completing a stage is confirmed in the chat. */}
       <TopBar
-        stageName={currentStage.name}
-        stagesDone={completedStageIndexes.length}
-        stagesOpen={stagesOpen}
-        onToggleStages={() => setStagesOpen((open) => !open)}
         view={view}
         onViewChange={setView}
         currentUser={currentUser}
@@ -335,9 +330,8 @@ export function DetailRecordPage() {
         lockedOwner={lockedOwner}
       />
       {statusNote ? <StageStatusBanner note={statusNote} canClear={canComplete} onClear={clearCurrentStatus} /> : null}
-      {/* Main content, with a sticky Progress rail on the right when open — the
-          chat/form shifts left to make room. */}
-      <div className={cn("grid min-h-0 flex-1", stagesOpen ? "grid-cols-[minmax(0,1fr)_344px]" : "grid-cols-1")}>
+      {/* Main content + a permanent Progress rail on the right. */}
+      <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_344px]">
         <ChatFirstLayout
           key={currentStage.name}
           stage={currentStage}
@@ -350,15 +344,12 @@ export function DetailRecordPage() {
           onEditBlocked={showToast}
           onStageProgress={reportProgress}
         />
-        {stagesOpen ? (
-          <ProgressRail
-            activeIndex={stageIndex}
-            completedIndexes={completedStageIndexes}
-            activeProgress={activeProgress}
-            onClose={() => setStagesOpen(false)}
-            onSelect={(index) => selectStage(index)}
-          />
-        ) : null}
+        <ProgressRail
+          activeIndex={stageIndex}
+          completedIndexes={completedStageIndexes}
+          activeProgress={activeProgress}
+          onSelect={(index) => selectStage(index)}
+        />
       </div>
       {toast ? (
         <div className="pointer-events-none fixed bottom-6 left-1/2 z-[60] -translate-x-1/2">
@@ -995,24 +986,16 @@ function StageFieldsGrid({ stage, s, currentUser, canEdit, isComplete = false, e
   );
 }
 
-// Full-width top bar for the chat-first layout: home link + stage-drawer trigger
-// + current-stage badge (left); use-case id, profile, document toggle, and stage
-// actions (right).
+// Full-width top bar: home link + ticket identity (left), agent/form toggle
+// (center), profile (right). Stage navigation lives in the permanent Progress
+// rail, not here.
 function TopBar({
-  stageName,
-  stagesDone,
-  stagesOpen,
-  onToggleStages,
   view,
   onViewChange,
   currentUser,
   onUserChange,
   lockedOwner,
 }: {
-  stageName: string;
-  stagesDone: number;
-  stagesOpen: boolean;
-  onToggleStages: () => void;
   view: "agent" | "form";
   onViewChange: (view: "agent" | "form") => void;
   currentUser: string;
@@ -1062,32 +1045,9 @@ function TopBar({
           </button>
         ))}
       </div>
-      {/* Right: the stage cluster — an ownership hint (if the stage isn't yours),
-          owner (profile), then the current stage + progress as the drawer
-          trigger. */}
+      {/* Right: profile (with a lock badge when the stage isn't yours). */}
       <div className="flex flex-1 items-center justify-end gap-2">
-        {/* A lock badge on the profile hints when the stage isn't yours. */}
         <ProfileSwitcher currentUser={currentUser} onUserChange={onUserChange} lockedBy={lockedOwner ?? undefined} />
-        <span className="mx-0.5 h-5 w-px shrink-0 bg-[#ecebea]" />
-        <button
-          type="button"
-          onClick={onToggleStages}
-          aria-label="Toggle stages"
-          aria-expanded={stagesOpen}
-          title="Browse stages"
-          className={cn(
-            "inline-flex h-9 items-center gap-2 rounded-[8px] border pl-3 pr-2.5 transition",
-            stagesOpen
-              ? "border-[var(--accent-ring)] bg-[var(--accent-hover-bg)]"
-              : "border-[var(--border-default)] bg-white hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)]",
-          )}
-        >
-          <span className="text-[13px] font-semibold text-[var(--text-primary)]">{stageName}</span>
-          <span className="inline-flex items-center rounded-full bg-[var(--accent-soft)] px-1.5 py-0.5 tabular-nums text-[11px] font-medium text-[var(--accent-strong)]">
-            {stagesDone}/{STAGES.length}
-          </span>
-          <ListChecks size={16} className="text-[var(--accent)]" />
-        </button>
       </div>
     </header>
   );
@@ -1116,8 +1076,8 @@ function StagesList({ activeIndex, completedIndexes, onSelect, activeProgress }:
               onClick={() => setCollapsed((current) => ({ ...current, [group.title]: !current[group.title] }))}
               className="mb-1 flex w-full items-center justify-between gap-2 rounded-[8px] px-1 py-1 text-left transition hover:bg-[var(--surface-muted)]"
             >
-              <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">{group.title}</span>
-              <span className="flex items-center gap-1.5 text-[11px] font-medium tabular-nums text-[var(--text-muted)]">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-label)]">{group.title}</span>
+              <span className="flex items-center gap-1.5 text-[11px] font-medium tabular-nums text-[var(--text-label)]">
                 <span className={cn(allDone && "text-[var(--accent-strong)]")}>{done}/{group.indexes.length}</span>
                 {allDone ? <Check size={12} className="text-[var(--accent)]" /> : null}
                 <ChevronDown size={14} className={cn("transition", isCollapsed && "-rotate-90")} />
@@ -1142,7 +1102,7 @@ function StagesList({ activeIndex, completedIndexes, onSelect, activeProgress }:
                       {/* Rail: connector line above/below the status dot, dot aligned
                           to the stage-name line. */}
                       <div className="flex w-5 shrink-0 flex-col items-center">
-                        <span className={cn("h-2.5 w-px", first ? "bg-transparent" : "bg-[#e5e3e1]")} />
+                        <span className={cn("h-2.5 w-px", first ? "bg-transparent" : "bg-[#cfccc8]")} />
                         {complete ? (
                           <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[var(--accent)] text-white">
                             <Check size={12} />
@@ -1151,7 +1111,7 @@ function StagesList({ activeIndex, completedIndexes, onSelect, activeProgress }:
                           <span
                             className={cn(
                               "grid h-5 w-5 shrink-0 place-items-center rounded-full border-2 bg-white",
-                              current ? "border-[var(--accent)]" : "border-[#d3d1cf]",
+                              current ? "border-[var(--accent)]" : "border-[#b4b1ad]",
                             )}
                           >
                             {current ? <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" /> : null}
@@ -1160,14 +1120,14 @@ function StagesList({ activeIndex, completedIndexes, onSelect, activeProgress }:
                         {/* Connector below the dot — for the active stage it fills
                             to show how much of the stage is captured. */}
                         {current && activeProgress && activeProgress.total > 0 && !last ? (
-                          <span className="relative w-[3px] flex-1 overflow-hidden rounded-full bg-[#e5e3e1]">
+                          <span className="relative w-[3px] flex-1 overflow-hidden rounded-full bg-[#cfccc8]">
                             <span
                               className="absolute inset-x-0 top-0 rounded-full bg-[var(--accent)] transition-all duration-300"
                               style={{ height: `${Math.round((activeProgress.done / activeProgress.total) * 100)}%` }}
                             />
                           </span>
                         ) : (
-                          <span className={cn("w-px flex-1", last ? "bg-transparent" : "bg-[#e5e3e1]")} />
+                          <span className={cn("w-px flex-1", last ? "bg-transparent" : "bg-[#cfccc8]")} />
                         )}
                       </div>
                       <div
@@ -1184,8 +1144,8 @@ function StagesList({ activeIndex, completedIndexes, onSelect, activeProgress }:
                             </span>
                           ) : null}
                         </div>
-                        <p className="mt-0.5 truncate text-[12px] leading-4 text-[var(--text-muted)]">
-                          <span className="text-[var(--text-label)]/70">Owner · </span>
+                        <p className="mt-0.5 truncate text-[12px] leading-4 text-[var(--text-body)]">
+                          <span className="text-[var(--text-label)]">Owner · </span>
                           {stage.owner}
                         </p>
                       </div>
@@ -1201,36 +1161,25 @@ function StagesList({ activeIndex, completedIndexes, onSelect, activeProgress }:
   );
 }
 
-// Sticky right rail showing the journey timeline (connection + progress),
-// alongside the chat/form. Collapsible.
+// Permanent right rail showing the journey timeline (connection + progress),
+// alongside the chat/form.
 function ProgressRail({
   activeIndex,
   completedIndexes,
   activeProgress,
-  onClose,
   onSelect,
 }: {
   activeIndex: number;
   completedIndexes: number[];
   activeProgress: { done: number; total: number };
-  onClose: () => void;
   onSelect: (index: number) => void;
 }) {
   return (
-    // Floats as a rounded, shadowed card with a gap from the edges.
+    // Floats as a rounded card with a gap from the edges.
     <div className="min-h-0 py-3 pl-1 pr-3">
       <aside className="flex h-full min-h-0 flex-col overflow-hidden rounded-[16px] border border-[#ecebea] bg-white">
-        <div className="flex shrink-0 items-center justify-between border-b border-[#f0efed] px-4 py-3">
+        <div className="flex shrink-0 items-center border-b border-[#f0efed] px-4 py-3">
           <span className="font-display text-[17px] text-[var(--text-primary)]">Progress</span>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Collapse progress"
-            title="Collapse"
-            className="grid h-8 w-8 place-items-center rounded-[8px] text-[var(--text-muted)] transition hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)]"
-          >
-            <ChevronRight size={16} />
-          </button>
         </div>
         <StagesList activeIndex={activeIndex} completedIndexes={completedIndexes} activeProgress={activeProgress} onSelect={onSelect} />
       </aside>
