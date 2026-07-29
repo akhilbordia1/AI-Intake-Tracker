@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, NotebookPen, Paperclip, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Mic, NotebookPen, Plus, Send, Sparkles } from "lucide-react";
 
 import {
   CompletionMeter,
@@ -82,55 +82,6 @@ const templatePrompts: Record<string, string> = {
     "We want AI to monitor a repeatable workflow, draft next steps, and route exceptions to a human owner.",
 };
 
-const templateDrafts: Record<string, Partial<IntakeForm>> = {
-  "Support assistant": aiDraft,
-  "Document processing": {
-    idea: templatePrompts["Document processing"],
-    useCaseName: "Document Processing Reviewer",
-    oneLineDescription: "Extracts key fields from operational documents and prepares review summaries.",
-    businessProblem: "Teams manually read incoming documents and copy important details into review workflows.",
-    desiredOutcome: "Reviewers receive structured summaries and extracted fields before they approve or route work.",
-    expectedImpact: "Reduce manual document handling time and improve review consistency.",
-    targetUsers: "Operations reviewers and document intake teams",
-    department: "Finance",
-    functionArea: "Accounts Payable",
-    team: "AP Operations",
-    country: "United States",
-    businessSponsor: "Aarav Mehta",
-    goLiveDate: "2026-10-01",
-  },
-  "Knowledge retrieval": {
-    idea: templatePrompts["Knowledge retrieval"],
-    useCaseName: "Policy Knowledge Retrieval Assistant",
-    oneLineDescription: "Answers employee questions using approved internal policy and knowledge content.",
-    businessProblem: "Employees spend time searching across policy pages and asking support teams repeat questions.",
-    desiredOutcome: "Employees receive grounded answers quickly, with links back to approved source material.",
-    expectedImpact: "Improve self-service resolution and reduce repeat internal support questions.",
-    targetUsers: "Employees and shared services teams",
-    department: "HR",
-    functionArea: "People Services",
-    team: "HR Shared Services",
-    country: "Global / multi-country",
-    businessSponsor: "Lina Martin",
-    goLiveDate: "2026-09-30",
-  },
-  "Workflow automation": {
-    idea: templatePrompts["Workflow automation"],
-    useCaseName: "Workflow Exception Coordinator",
-    oneLineDescription: "Monitors repeatable workflows, drafts next steps, and routes exceptions to owners.",
-    businessProblem: "Workflow owners manually track status, chase missing inputs, and identify exceptions late.",
-    desiredOutcome: "Routine next steps are drafted automatically while exceptions are routed to accountable owners.",
-    expectedImpact: "Reduce coordination overhead and improve cycle time for repeatable processes.",
-    targetUsers: "Process owners and operations teams",
-    department: "IT",
-    functionArea: "Platform",
-    team: "AI CoE",
-    country: "India",
-    businessSponsor: "Ravi Shah",
-    goLiveDate: "2026-11-15",
-  },
-};
-
 const templates = Object.keys(templatePrompts);
 const departments = ["Customer Operations", "Finance", "HR", "Legal", "Commercial", "IT", "Supply Chain"];
 const functions = ["Support", "Accounts Payable", "People Services", "Compliance", "Sales", "Platform"];
@@ -172,16 +123,11 @@ export default function IntakePage() {
     if (value) updateField(key, value);
   }
 
+  // A template tag drops its prompt into the describe box — the user can edit or
+  // send it, rather than jumping straight to the draft form.
   function applyTemplate(template: string) {
-    setForm((current) => ({ ...current, ...templateDrafts[template], template }));
+    setForm((current) => ({ ...current, idea: templatePrompts[template], template }));
     setErrors({});
-    setMode("manual");
-  }
-
-  function generateDraft() {
-    setForm((current) => ({ ...current, ...aiDraft, idea: current.idea || aiDraft.idea || "" }));
-    setErrors({});
-    setMode("manual");
   }
 
   function submitIntake(event: FormEvent<HTMLFormElement>) {
@@ -192,20 +138,21 @@ export default function IntakePage() {
     });
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
-    router.push("/detail");
+    router.push("/detail?from=create");
   }
 
   return (
     <main className="relative h-screen overflow-hidden bg-[#faf9f6] text-[var(--text-primary)]">
       <div className="flex h-full min-h-0 flex-col">
-        <div className="pointer-events-none absolute left-0 top-0 z-20 flex h-14 items-center bg-transparent px-7">
+        <div className="pointer-events-none absolute left-0 top-0 z-20 flex h-14 items-center bg-transparent px-5">
           <Link
             href="/"
-            className="pointer-events-auto inline-flex h-8 items-center gap-2 rounded-[8px] border border-[#e7e5e4] bg-white px-3 text-[12px] font-medium text-[var(--text-body)] shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:border-[#8fc0cf] hover:bg-[#f4fafb] hover:text-[#0c5f7a]"
-            >
-              <ArrowLeft size={14} />
-            Back
-            </Link>
+            aria-label="Back to home"
+            title="Back to home"
+            className="pointer-events-auto grid h-9 w-9 shrink-0 place-items-center rounded-[8px] text-[var(--text-label)] transition hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)]"
+          >
+            <ArrowLeft size={17} />
+          </Link>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-7 pb-10 [scrollbar-gutter:stable]">
@@ -221,31 +168,46 @@ export default function IntakePage() {
 
             {mode === "ai" ? (
               <>
-                <section className="mt-8 rounded-[10px] border border-[#e7e5e4] bg-white shadow-[0_1px_3px_rgba(15,23,42,0.05)]">
+                {/* Matches the /detail chat composer: rounded box, + on the left,
+                    mic → send once you've typed. */}
+                <section className="mt-8 rounded-[12px] border border-[#e7e5e4] bg-white px-2.5 pb-2 pt-2 shadow-[0_1px_3px_rgba(15,23,42,0.05)] focus-within:border-[var(--accent-ring)]">
                   <textarea
                     value={form.idea}
                     onChange={(event) => updateField("idea", event.target.value)}
-                    rows={5}
-                    placeholder="Describe the AI agent you want to create..."
-                    className="block min-h-[158px] w-full resize-none rounded-t-[10px] border-0 bg-transparent px-5 py-5 text-[15px] leading-6 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
+                    rows={4}
+                    placeholder="Describe the AI agent you want to create…"
+                    className="no-scrollbar block max-h-52 min-h-[120px] w-full resize-none bg-transparent px-2.5 pt-1.5 text-[15px] leading-6 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
                   />
-
-                  <div className="flex items-center justify-between gap-3 px-3 pb-3">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <FileInput onChange={(value) => updateField("attachment", value)} />
-                      {form.attachment ? (
-                        <span className="truncate text-[12px] text-[var(--text-label)]">{form.attachment}</span>
-                      ) : null}
-                    </div>
-
+                  <div className="mt-1 flex items-center justify-between px-0.5">
                     <button
                       type="button"
-                      onClick={generateDraft}
-                      className="inline-flex h-9 w-[124px] shrink-0 items-center justify-center gap-2 rounded-[8px] bg-[#0e7090] px-3 text-[12px] font-medium text-white shadow-[0_1px_3px_rgba(15,23,42,0.08)] transition hover:bg-[#0c5f7a]"
+                      disabled
+                      aria-label="Add documents (coming soon)"
+                      title="Add documents — coming soon"
+                      className="grid h-8 w-8 cursor-not-allowed place-items-center rounded-full text-[var(--text-muted)] transition hover:bg-[var(--surface-muted)] disabled:opacity-40"
                     >
-                      Draft form
-                      <ArrowRight size={14} />
+                      <Plus size={18} />
                     </button>
+                    {form.idea.trim() ? (
+                      <button
+                        type="button"
+                        onClick={() => router.push("/detail?from=create")}
+                        aria-label="Continue"
+                        className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[var(--accent)] text-white transition hover:bg-[var(--accent-strong)]"
+                      >
+                        <Send size={15} />
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled
+                        aria-label="Voice input (coming soon)"
+                        title="Voice input — coming soon"
+                        className="grid h-8 w-8 shrink-0 cursor-not-allowed place-items-center rounded-full text-[var(--text-muted)] transition hover:bg-[var(--surface-muted)] disabled:opacity-40"
+                      >
+                        <Mic size={17} />
+                      </button>
+                    )}
                   </div>
                 </section>
 
@@ -441,25 +403,5 @@ export default function IntakePage() {
         </div>
       </div>
     </main>
-  );
-}
-
-function FileInput({ onChange }: { onChange: (value: string) => void }) {
-  return (
-    <div>
-      <input
-        id="intake-attachment"
-        type="file"
-        className="sr-only"
-        onChange={(event) => onChange(event.target.files?.[0]?.name ?? "")}
-      />
-      <label
-        htmlFor="intake-attachment"
-        aria-label="Attach document"
-        className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-[8px] border border-[#e7e5e4] bg-white text-[var(--text-label)] transition hover:border-[#8fc0cf] hover:bg-[#f4fafb] hover:text-[#0c5f7a]"
-      >
-        <Paperclip size={14} />
-      </label>
-    </div>
   );
 }

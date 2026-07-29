@@ -238,6 +238,15 @@ input[type="date"] {
 .bubble-in-right {
   animation: bubbleInRight 0.3s cubic-bezier(0.2, 0.7, 0.3, 1) both;
 }
+/* Indeterminate loading bar (form panel while the agent seeds). */
+@keyframes loadbar {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+.loadbar {
+  animation: loadbar 1.1s ease-in-out infinite;
+}
+
 /* Record details sheet sliding in from the right edge. */
 @keyframes sheetInRight {
   from {
