@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, Mic, NotebookPen, Plus, Send, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Mic, Plus, Send } from "lucide-react";
 
 import {
   CompletionMeter,
@@ -105,7 +105,7 @@ type IntakeErrors = Partial<Record<keyof IntakeForm, string>>;
 export default function IntakePage() {
   const router = useRouter();
   const [form, setForm] = useState<IntakeForm>(emptyForm);
-  const [mode, setMode] = useState<"ai" | "manual">("ai");
+  const [mode] = useState<"ai" | "manual">("ai");
   const [errors, setErrors] = useState<IntakeErrors>({});
   const saveState = useSaveStatus(JSON.stringify(form));
 
@@ -155,8 +155,8 @@ export default function IntakePage() {
           </Link>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-7 pb-10 [scrollbar-gutter:stable]">
-          <div className="mx-auto w-full max-w-[760px] pt-20">
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-7 py-16 [scrollbar-gutter:stable]">
+          <div className="mx-auto my-auto w-full max-w-[760px]">
             <div className="text-center">
               <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#0e7090]">
                 Viatris Internal
@@ -193,7 +193,7 @@ export default function IntakePage() {
                         type="button"
                         onClick={() => router.push("/detail?from=create")}
                         aria-label="Continue"
-                        className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[var(--accent)] text-white transition hover:bg-[var(--accent-strong)]"
+                        className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#0e7090] text-white transition hover:bg-[#0c5f7a]"
                       >
                         <Send size={15} />
                       </button>
@@ -226,30 +226,8 @@ export default function IntakePage() {
                   </div>
                 </div>
 
-                <div className="my-9 flex items-center justify-center gap-3">
-                  <span className="text-[12px] text-[var(--text-muted)]">Or start blank</span>
-                  <button
-                    type="button"
-                    onClick={() => setMode("manual")}
-                    className="inline-flex h-8 items-center gap-2 rounded-[8px] border border-[#c5e2ea] bg-white px-3 text-[12px] font-medium text-[#0c5f7a] transition hover:border-[#8fc0cf] hover:bg-[#f4fafb]"
-                  >
-                    <NotebookPen size={14} />
-                    Create manually
-                  </button>
-                </div>
               </>
-            ) : (
-              <div className="mt-8 flex justify-center">
-                <button
-                  type="button"
-                  onClick={() => setMode("ai")}
-                  className="inline-flex h-8 items-center gap-2 rounded-[8px] border border-[#c5e2ea] bg-white px-3 text-[12px] font-medium text-[#0c5f7a] transition hover:border-[#8fc0cf] hover:bg-[#f4fafb]"
-                >
-                  <Sparkles size={14} />
-                  Create with AI
-                </button>
-              </div>
-            )}
+            ) : null}
 
             {mode === "manual" ? (
               <form

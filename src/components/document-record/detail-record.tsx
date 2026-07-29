@@ -834,26 +834,10 @@ const LOADER_KINDS = new Set(["text", "long"]);
 // A document-style field: the value reads as prose (like the read-only record).
 // Empty fields show a quiet placeholder — the value fills in once it's answered
 // in the chat. Clicking a value swaps to the editable control.
-// Brief highlight when a field's value changes (e.g. filled live from the chat).
-function useFlashOnChange(value: string | string[]) {
-  const key = Array.isArray(value) ? value.join("|") : value;
-  const prev = useRef(key);
-  const [flash, setFlash] = useState(false);
-  useEffect(() => {
-    if (prev.current === key) return;
-    prev.current = key;
-    setFlash(true);
-    const timer = setTimeout(() => setFlash(false), 1000);
-    return () => clearTimeout(timer);
-  }, [key]);
-  return flash;
-}
-
 function DocumentField({ field, s, readOnly, onBlockedEdit, forceEdit = false }: { field: FieldSpec; s: StageFieldsState; readOnly: boolean; onBlockedEdit?: () => void; forceEdit?: boolean }) {
   const value = s.values[field.label];
   const loading = s.loadingFields.includes(field.label);
   const empty = isFieldEmpty(value);
-  const flash = useFlashOnChange(value);
 
   // Controls only appear once the whole form is put into edit mode (the header
   // "Edit" toggle) — individual fields aren't click-to-edit.
@@ -889,14 +873,14 @@ function DocumentField({ field, s, readOnly, onBlockedEdit, forceEdit = false }:
       <button
         type="button"
         onClick={onBlockedEdit}
-        className={cn("-mx-2 inline-block max-w-full rounded-[8px] px-2 py-1 text-left transition hover:bg-[var(--surface-muted)]", empty && "text-[15px] leading-6 text-[var(--text-muted)]/50", flash && "field-flash")}
+        className={cn("-mx-2 inline-block max-w-full rounded-[8px] px-2 py-1 text-left transition hover:bg-[var(--surface-muted)]", empty && "text-[15px] leading-6 text-[var(--text-muted)]/50")}
       >
         {empty ? "—" : <ReadValue label={field.label} value={text!} />}
       </button>
     );
   }
   return (
-    <div className={cn("inline-block max-w-full rounded-[8px]", empty && "text-[15px] leading-6 text-[var(--text-muted)]/50", flash && "field-flash")}>
+    <div className={cn("inline-block max-w-full rounded-[8px]", empty && "text-[15px] leading-6 text-[var(--text-muted)]/50")}>
       {empty ? "—" : <ReadValue label={field.label} value={text!} />}
     </div>
   );
@@ -933,7 +917,7 @@ function StageFieldsGrid({ stage, s, currentUser, canEdit, isComplete = false, e
   return (
     // embedded → a plain block inside a shared scroll (stacked stages); otherwise
     // its own scroll container.
-    <section className={cn(embedded ? "px-8 pb-10 pt-3" : "no-scrollbar min-h-0 flex-1 overflow-y-auto px-8 pb-12 pt-6")} aria-label={`${stage.name} stage`}>
+    <section className={cn(embedded ? "px-6 pb-10 pt-3" : "no-scrollbar min-h-0 flex-1 overflow-y-auto px-8 pb-12 pt-6")} aria-label={`${stage.name} stage`}>
       {/* Body header: short description + a compact meta line (owner / gate /
           status). The title + Edit/Submit live in the form card header. */}
       <div className="min-w-0">
@@ -974,7 +958,7 @@ function StageFieldsGrid({ stage, s, currentUser, canEdit, isComplete = false, e
           // the row height. The slider (level) is taller than toggles/inputs.
           const reserve = wide ? undefined : field.kind === "level" ? 50 : 40;
           return (
-            <div key={field.label} className={cn("min-w-0 break-inside-avoid", wide ? "[column-span:all] pt-2 pb-14" : "mb-10")}>
+            <div key={field.label} className={cn("min-w-0 break-inside-avoid pb-9", wide && "[column-span:all]")}>
               <label className="flex items-baseline gap-2 text-[13.5px] font-semibold text-[var(--text-primary)]">
                 <span className="text-[var(--text-muted)]">{stageNo}.{index + 1}</span>
                 {field.label}
@@ -1162,20 +1146,24 @@ function TopBar({
       >
         <ArrowLeft size={17} />
       </Link>
-      <h1 className={cn("font-display min-w-0 flex-1 truncate text-[22px] leading-tight", recordName ? "text-[var(--text-primary)]" : "text-[var(--text-muted)]")}>
-        {recordName ?? "Untitled use case"}
-      </h1>
-      <div className="flex shrink-0 items-center gap-6">
-        <div className="text-right">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-label)]">Use case ID</div>
-          <span className="mt-0.5 inline-block rounded-[6px] bg-[var(--accent-soft)] px-2 py-0.5 text-[12px] font-semibold text-[var(--accent-strong)]">{USE_CASE.id}</span>
-        </div>
-        <div className="text-right">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-label)]">Use case owner</div>
-          <span className="mt-0.5 inline-flex items-center gap-1.5 text-[13px] font-semibold text-[var(--text-primary)]">
-            <PersonAvatar name={USE_CASE_OWNER} size={18} /> {USE_CASE_OWNER}
-          </span>
-        </div>
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        <h1 className={cn("font-display min-w-0 truncate text-[22px] leading-tight", recordName ? "text-[var(--text-primary)]" : "text-[var(--text-muted)]")}>
+          {recordName ?? "Untitled use case"}
+        </h1>
+        <ProfileSwitcher currentUser={currentUser} onUserChange={onUserChange} lockedBy={lockedOwner ?? undefined} compact />
+      </div>
+      <div className="flex shrink-0 items-center gap-3">
+        <span
+          title="Use case ID"
+          className="rounded-[6px] bg-[var(--accent-soft)] px-2 py-0.5 text-[12px] font-semibold text-[var(--accent-strong)]"
+        >
+          {USE_CASE.id}
+        </span>
+        <span className="inline-flex items-center gap-1.5 text-[13px] text-[var(--text-body)]" title="Use case owner">
+          <PersonAvatar name={USE_CASE_OWNER} size={20} />
+          <span className="font-medium text-[var(--text-primary)]">{USE_CASE_OWNER}</span>
+        </span>
+        <span className="mx-1 h-6 w-px bg-[#ecebea]" />
         <button
           type="button"
           onClick={onOpenDetails}
@@ -1190,7 +1178,6 @@ function TopBar({
           <Info size={15} />
           Details
         </button>
-        <ProfileSwitcher currentUser={currentUser} onUserChange={onUserChange} lockedBy={lockedOwner ?? undefined} compact />
       </div>
     </header>
   );
@@ -1229,7 +1216,7 @@ function JourneyBar({
   // the horizontally-scrolling strip.
   const [tip, setTip] = useState<{ text: string; x: number; y: number } | null>(null);
   return (
-    <div className="shrink-0 overflow-hidden border-b border-[#ecebea] px-3 py-2.5">
+    <div className="shrink-0 overflow-hidden px-3 py-2.5">
       <div className="flex items-stretch">
         {STAGES.map((stage, i) => {
           const complete = completedIndexes.includes(i);
@@ -1419,7 +1406,8 @@ function SplitStageView({
       </section>
       {/* Form card — header carries the stage title + Edit / Submit actions. */}
       <aside className="flex min-h-0 flex-col overflow-hidden rounded-[16px] border border-[#ecebea] bg-white">
-        <div className="flex min-h-[53px] shrink-0 items-center gap-3 border-b border-[#ecebea] px-5 py-2">
+        <div className="flex min-h-[53px] shrink-0 items-center gap-2 border-b border-[#ecebea] px-6 py-2">
+          <FileText size={15} className="shrink-0 text-[var(--accent)]" />
           <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--text-primary)]">
             <span className="text-[var(--accent-strong)]">Stage {String(stageNo).padStart(2, "0")}</span>
             {scrolled ? (
@@ -1434,7 +1422,7 @@ function SplitStageView({
               <button
                 type="button"
                 onClick={onMarkComplete}
-                className="inline-flex items-center gap-1.5 rounded-[8px] border border-[var(--border-default)] bg-white px-3 py-1.5 text-[12px] font-semibold text-[var(--text-body)] transition hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)]"
+                className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[var(--border-default)] bg-white px-3.5 text-[12px] font-semibold text-[var(--text-body)] transition hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)]"
               >
                 <RotateCcw size={13} />
                 Reopen
@@ -1444,14 +1432,14 @@ function SplitStageView({
                 type="button"
                 onClick={() => setEditAll((v) => !v)}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-[8px] border px-3 py-1.5 text-[12px] font-semibold transition",
+                  "inline-flex h-9 items-center gap-1.5 rounded-[8px] border px-3.5 text-[12px] font-semibold transition",
                   editAll
                     ? "border-[var(--accent-border)] bg-[var(--accent-soft)] text-[var(--accent-strong)]"
                     : "border-[var(--border-default)] bg-white text-[var(--text-body)] hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)]",
                 )}
               >
                 {editAll ? <Check size={13} /> : <Pencil size={13} />}
-                {editAll ? "Done" : "Edit"}
+                {editAll ? "Save" : "Edit"}
               </button>
             ) : null}
             {showSubmit ? (
@@ -1460,7 +1448,7 @@ function SplitStageView({
                 onClick={onMarkComplete}
                 disabled={!submitReady}
                 title={submitReady ? undefined : submitHint}
-                className="inline-flex items-center gap-1.5 rounded-[8px] bg-[var(--accent)] px-3.5 py-1.5 text-[12px] font-semibold text-white transition hover:opacity-90 disabled:opacity-40"
+                className="inline-flex h-9 items-center gap-1.5 rounded-[8px] bg-[var(--accent)] px-3.5 text-[12px] font-semibold text-white transition hover:opacity-90 disabled:opacity-40"
               >
                 <Check size={13} />
                 Submit {stage.name === "GTAC" ? "decision" : "stage"}
@@ -1477,7 +1465,7 @@ function SplitStageView({
           className="no-scrollbar min-h-0 flex-1 overflow-y-auto"
           onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 12)}
         >
-          <h2 className="px-8 pt-6 font-display text-[24px] leading-tight text-[var(--text-primary)]">{stage.name}</h2>
+          <h2 className="px-6 pt-6 font-display text-[24px] leading-tight text-[var(--text-primary)]">{stage.name}</h2>
           {form}
         </div>
       </aside>
@@ -1820,7 +1808,7 @@ const IDEATION_SCRIPT: ScriptQuestion[] = [
 // user described on the Create page, then the AI's bridge into the follow-ups.
 const IDEATION_SEED: { role: "assistant" | "user"; text: string }[] = [
   { role: "user", text: "We want to build an AI assistant that helps our Clinical Operations team summarize clinical trial protocols. Today the team manually reads long protocol documents to pull out objectives, eligibility criteria, endpoints and safety information — hours per protocol, and often inconsistent. The solution should generate a concise summary and let users ask follow-up questions. The idea is called Clinical Trial Protocol Summarizer." },
-  { role: "assistant", text: "That's really helpful — just a few more things to round this out!\n\nA few quick follow-ups:" },
+  { role: "assistant", text: "That's really helpful — just a few more things to round this out!\n\nSome quick follow-ups:" },
 ];
 // Fields the opening idea description already establishes (filled up front) —
 // including the ones the follow-up questions don't cover, so the stage can be
