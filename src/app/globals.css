@@ -238,9 +238,41 @@ input[type="date"] {
 .bubble-in-right {
   animation: bubbleInRight 0.3s cubic-bezier(0.2, 0.7, 0.3, 1) both;
 }
+/* Record details sheet sliding in from the right edge. */
+@keyframes sheetInRight {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+.sheet-in-right {
+  animation: sheetInRight 0.22s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+/* Brief highlight when a form field is filled/updated from the chat. */
+@keyframes fieldFlash {
+  0% {
+    background-color: var(--accent-soft);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: 0 0 0 3px transparent;
+  }
+}
+.field-flash {
+  animation: fieldFlash 1s ease-out both;
+  border-radius: 8px;
+}
 @media (prefers-reduced-motion: reduce) {
   .bubble-in-left,
-  .bubble-in-right {
+  .bubble-in-right,
+  .field-flash,
+  .sheet-in-right {
     animation: none;
   }
 }

@@ -60,12 +60,15 @@ export function ProfileSwitcher({
   currentUser,
   onUserChange,
   lockedBy,
+  compact = false,
 }: {
   currentUser: string;
   onUserChange: (name: string) => void;
   // When set, the current stage is owned by someone else — shown as a lock
   // badge on the avatar hinting to switch profiles.
   lockedBy?: string;
+  // Avatar + chevron only (no name label).
+  compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -89,7 +92,7 @@ export function ProfileSwitcher({
             </span>
           ) : null}
         </span>
-        <span className="hidden sm:inline">{currentUser}</span>
+        {compact ? null : <span className="hidden sm:inline">{currentUser}</span>}
         <ChevronDown size={14} className={cn("text-[var(--text-muted)] transition", open && "rotate-180")} />
       </button>
 

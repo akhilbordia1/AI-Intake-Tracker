@@ -2,10 +2,10 @@
 
 import { USE_CASE } from "@/data/document-workflow-form-schema";
 import { cn } from "@/lib/cn";
-import { ArrowLeft, Ban, Check, ChevronDown, CornerUpLeft, FileText, Info, Lock, Mic, Paperclip, Pencil, RotateCcw, Send, ShieldCheck, Sparkles, X } from "lucide-react";
-import { createPortal } from "react-dom";
+import { ArrowLeft, Ban, Check, CornerUpLeft, FileText, Info, Lock, Mic, Pencil, Plus, RotateCcw, Send, ShieldCheck, Sparkles, X } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactElement, type ReactNode, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactElement, type ReactNode, type RefObject } from "react";
+import { createPortal } from "react-dom";
 
 import { PersonAvatar, ProfileSwitcher, initials } from "@/components/profile";
 import { extractStageFields, isFieldEmpty } from "@/lib/stage-chat";
@@ -191,14 +191,6 @@ const STAGES = [
   },
 ] satisfies StageItem[];
 
-// Lifecycle sections for the stage drawer list. Indexes into STAGES.
-const STAGE_GROUPS: { title: string; indexes: number[] }[] = [
-  { title: "Intake & Prioritization", indexes: [0, 1, 2, 3] },
-  { title: "Governance & Risk", indexes: [4, 5, 6] },
-  { title: "Delivery", indexes: [7, 8, 9] },
-  { title: "Operate & Adopt", indexes: [10, 11] },
-];
-
 // Hybrid: most stages use the generic editable form; a few high-value stages
 // get bespoke widgets ported from the reference (squad picker, milestone rail,
 // lockable success metrics). Keyed by stage name.
@@ -237,6 +229,9 @@ const GATE_TONE: Record<Gate["status"], { fg: string; bg: string; border: string
   Blocked: { fg: "#b32020", bg: "#f7eaea", border: "#e6c3c3" },
   Rejected: { fg: "#b32020", bg: "#f7eaea", border: "#e6c3c3" },
 };
+
+// The use-case owner shown in the page header (distinct from per-stage owners).
+const USE_CASE_OWNER = "Mira Kapoor";
 
 // Record-level metadata shown in the Details modal (opened from the header).
 const RECORD_DETAILS: [string, string][] = [
@@ -289,9 +284,8 @@ export function DetailRecordPage() {
   const [currentUser, setCurrentUser] = useState("Lena Osei");
   const [rejections, setRejections] = useState<Rejection[]>([]);
   const [kickbacks, setKickbacks] = useState<Kickback[]>([]);
-  // Chat-first: a header toggle switches between the agent (chat) and the form
-  // (document) view. The Journey rail is always shown.
-  const [view, setView] = useState<"agent" | "form">("agent");
+  // Split layout: chat on the left drives the form on the right (always both
+  // shown). A horizontal Journey bar up top navigates between stages.
   const [detailsOpen, setDetailsOpen] = useState(false);
 
   const currentStage = STAGES[stageIndex] ?? STAGES[0];
@@ -300,11 +294,6 @@ export function DetailRecordPage() {
   const canComplete = currentStage.owner === currentUser;
   // An open stage owned by someone else — surfaced as a header indicator.
   const lockedOwner = !isCurrentComplete && currentStage.owner !== currentUser ? currentStage.owner : null;
-
-  // Live fill of the current stage (captured / total fields), reported up from
-  // the chat so the Progress rail can show the active stage's completion.
-  const [activeProgress, setActiveProgress] = useState<{ done: number; total: number }>({ done: 0, total: 0 });
-  const reportProgress = useCallback((done: number, total: number) => setActiveProgress({ done, total }), []);
 
   // Transient toast (e.g. attempting to edit a field you can't).
   const [toast, setToast] = useState<string | null>(null);
@@ -355,40 +344,42 @@ export function DetailRecordPage() {
 
   return (
     <main className="flex h-screen flex-col overflow-hidden bg-[var(--surface-muted)] text-[var(--text-primary)]" style={RECORD_THEME}>
-      {/* Chat-first: a full-width top bar (stage drawer trigger + current stage,
-          an agent/form view toggle, profile), then the selected view.
-          Completing a stage is confirmed in the chat. */}
+      {/* Two-row page header, then the chat + form cards. The Journey stepper
+          lives inside the form card. */}
       <TopBar
-        view={view}
-        onViewChange={setView}
         currentUser={currentUser}
         onUserChange={setCurrentUser}
         lockedOwner={lockedOwner}
-        onOpenDetails={() => setDetailsOpen(true)}
+        detailsOpen={detailsOpen}
+        onOpenDetails={() => setDetailsOpen((v) => !v)}
+      />
+      {/* Full-width stage path, below the header. */}
+      <JourneyBar
+        activeIndex={stageIndex}
+        completedIndexes={completedStageIndexes}
+        onSelect={(index) => selectStage(index)}
       />
       {statusNote ? <StageStatusBanner note={statusNote} canClear={canComplete} onClear={clearCurrentStatus} /> : null}
-      {/* Main content + a permanent Progress rail on the right. */}
-      <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_344px]">
-        <ChatFirstLayout
+      {/* Chat card + form card; an optional record details sheet card slides in. */}
+      <div
+        className={cn(
+          "grid min-h-0 flex-1 gap-3 p-3",
+          detailsOpen
+            ? "grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(380px,1fr)]"
+            : "grid-cols-2",
+        )}
+      >
+        <SplitStageView
           key={currentStage.name}
           stage={currentStage}
           currentUser={currentUser}
           prefill={dataStageIndexes.includes(stageIndex)}
           isComplete={isCurrentComplete}
-          view={view}
           onMarkComplete={toggleCurrentStageComplete}
-          onOpenForm={() => setView("form")}
           onEditBlocked={showToast}
-          onStageProgress={reportProgress}
         />
-        <ProgressRail
-          activeIndex={stageIndex}
-          completedIndexes={completedStageIndexes}
-          activeProgress={activeProgress}
-          onSelect={(index) => selectStage(index)}
-        />
+        {detailsOpen ? <RecordDetailsSheet onClose={() => setDetailsOpen(false)} /> : null}
       </div>
-      {detailsOpen ? <RecordDetailsModal onClose={() => setDetailsOpen(false)} /> : null}
       {toast ? (
         <div className="pointer-events-none fixed bottom-6 left-1/2 z-[60] -translate-x-1/2">
           <div className="flex items-center gap-2 rounded-[10px] bg-[var(--text-primary)] px-3.5 py-2.5 text-[13px] font-medium text-white shadow-lg">
@@ -839,22 +830,32 @@ const LOADER_KINDS = new Set(["text", "long"]);
 // A document-style field: the value reads as prose (like the read-only record).
 // Empty fields show a quiet placeholder — the value fills in once it's answered
 // in the chat. Clicking a value swaps to the editable control.
+// Brief highlight when a field's value changes (e.g. filled live from the chat).
+function useFlashOnChange(value: string | string[]) {
+  const key = Array.isArray(value) ? value.join("|") : value;
+  const prev = useRef(key);
+  const [flash, setFlash] = useState(false);
+  useEffect(() => {
+    if (prev.current === key) return;
+    prev.current = key;
+    setFlash(true);
+    const timer = setTimeout(() => setFlash(false), 1000);
+    return () => clearTimeout(timer);
+  }, [key]);
+  return flash;
+}
+
 function DocumentField({ field, s, readOnly, onBlockedEdit, forceEdit = false }: { field: FieldSpec; s: StageFieldsState; readOnly: boolean; onBlockedEdit?: () => void; forceEdit?: boolean }) {
-  const [editing, setEditing] = useState(false);
   const value = s.values[field.label];
   const loading = s.loadingFields.includes(field.label);
   const empty = isFieldEmpty(value);
+  const flash = useFlashOnChange(value);
 
-  // The control shows when editing this field, or when the whole form is in
-  // edit-all mode.
-  if (!readOnly && (editing || forceEdit)) {
+  // Controls only appear once the whole form is put into edit mode (the header
+  // "Edit" toggle) — individual fields aren't click-to-edit.
+  if (!readOnly && forceEdit) {
     return (
-      <div
-        className="relative w-full min-w-0"
-        onBlur={(event) => {
-          if (!event.currentTarget.contains(event.relatedTarget as Node)) setEditing(false);
-        }}
-      >
+      <div className="relative w-full min-w-0">
         <StageField
           spec={field}
           value={value}
@@ -868,34 +869,32 @@ function DocumentField({ field, s, readOnly, onBlockedEdit, forceEdit = false }:
 
   // Being drafted → shimmer placeholder.
   if (loading) {
-    return <span className="ai-field-loading inline-block h-4 w-40 rounded-[4px] bg-[var(--surface-muted)] align-middle" aria-label="Generating" />;
-  }
-
-  // Empty → a quiet "—". Click edits this field (owned) or explains the block;
-  // the header "Edit" turns the whole form editable at once.
-  if (empty) {
     return (
-      <button
-        type="button"
-        disabled={readOnly && !onBlockedEdit}
-        onClick={() => (readOnly ? onBlockedEdit?.() : setEditing(true))}
-        className="-mx-2 inline-block rounded-[8px] px-2 py-1 text-left text-[15px] leading-6 text-[var(--text-muted)]/50 transition hover:bg-[var(--surface-muted)] disabled:pointer-events-none"
-      >
-        —
-      </button>
+      <span className="inline-flex items-center gap-1.5 text-[14px] text-[var(--text-muted)]" aria-label="Capturing from chat">
+        <Sparkles size={13} className="animate-pulse text-[var(--accent)]" />
+        Capturing…
+      </span>
     );
   }
 
-  const text = Array.isArray(value) ? value.join("; ") : value;
+  // Read-only display. Non-owners get a click that explains the block; owners
+  // just see the value (editing happens via the header "Edit").
+  const text = empty ? null : Array.isArray(value) ? value.join("; ") : value;
+  if (readOnly && onBlockedEdit) {
+    return (
+      <button
+        type="button"
+        onClick={onBlockedEdit}
+        className={cn("-mx-2 inline-block max-w-full rounded-[8px] px-2 py-1 text-left transition hover:bg-[var(--surface-muted)]", empty && "text-[15px] leading-6 text-[var(--text-muted)]/50", flash && "field-flash")}
+      >
+        {empty ? "—" : <ReadValue label={field.label} value={text!} />}
+      </button>
+    );
+  }
   return (
-    <button
-      type="button"
-      disabled={readOnly && !onBlockedEdit}
-      onClick={() => (readOnly ? onBlockedEdit?.() : setEditing(true))}
-      className="-mx-2 inline-block max-w-full rounded-[8px] px-2 py-1 text-left transition hover:bg-[var(--surface-muted)] disabled:pointer-events-none"
-    >
-      <ReadValue label={field.label} value={text} />
-    </button>
+    <div className={cn("inline-block max-w-full rounded-[8px]", empty && "text-[15px] leading-6 text-[var(--text-muted)]/50", flash && "field-flash")}>
+      {empty ? "—" : <ReadValue label={field.label} value={text!} />}
+    </div>
   );
 }
 
@@ -903,6 +902,7 @@ function StageFieldsGrid({ stage, s, currentUser, canEdit, isComplete = false, e
   // Edit-all: one toggle turns every field into its editable control.
   const [editAll, setEditAll] = useState(false);
   const stageNo = STAGES.findIndex((item) => item.name === stage.name) + 1;
+  const filledCount = s.fields.filter((field) => !isFieldEmpty(s.values[field.label])).length;
   const readOnly = !canEdit;
   const ownedByMe = stage.owner === currentUser;
   const riskTier = canEdit && stage.name === "Assessment - Risk & Compliance" ? computeRiskTier(s.values) : null;
@@ -932,53 +932,57 @@ function StageFieldsGrid({ stage, s, currentUser, canEdit, isComplete = false, e
     // embedded → a plain block inside a shared scroll (stacked stages); otherwise
     // its own scroll container.
     <section className={cn(embedded ? "px-8 pb-10 pt-6" : "no-scrollbar min-h-0 flex-1 overflow-y-auto px-8 pb-12 pt-6")} aria-label={`${stage.name} stage`}>
-      {/* Section header — one clean left column: kicker + status, title,
-          description, then a single compact meta line. */}
+      {/* Section header: kicker + status on the left, the edit/reopen action
+          pushed to the right; a compact meta line below. */}
       <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-3">
           <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--accent-strong)]">
             Stage {String(stageNo).padStart(2, "0")}
+            <span className="ml-1.5 font-medium tabular-nums normal-case tracking-normal text-[var(--text-label)]">({filledCount}/{s.fields.length})</span>
           </p>
           {statusBadge}
-          {onReopen ? (
-            <button
-              type="button"
-              onClick={onReopen}
-              className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border-default)] bg-white px-2.5 py-1 text-[11px] font-semibold text-[var(--text-body)] transition hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)]"
-            >
-              <RotateCcw size={11} />
-              Reopen to edit
-            </button>
-          ) : canEdit ? (
-            <button
-              type="button"
-              onClick={() => setEditAll((v) => !v)}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition",
-                editAll
-                  ? "border-[var(--accent-border)] bg-[var(--accent-soft)] text-[var(--accent-strong)]"
-                  : "border-[var(--border-default)] bg-white text-[var(--text-body)] hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)]",
-              )}
-            >
-              {editAll ? <Check size={11} /> : <Pencil size={11} />}
-              {editAll ? "Done editing" : "Edit"}
-            </button>
-          ) : onBlockedEdit ? (
-            <button
-              type="button"
-              onClick={onBlockedEdit}
-              className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border-default)] bg-white px-2.5 py-1 text-[11px] font-semibold text-[var(--text-body)] transition hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)]"
-            >
-              <Pencil size={11} />
-              Edit
-            </button>
-          ) : null}
+          <div className="ml-auto shrink-0">
+            {onReopen ? (
+              <button
+                type="button"
+                onClick={onReopen}
+                className="inline-flex items-center gap-1 rounded-[7px] border border-[var(--border-default)] bg-white px-2 py-0.5 text-[11px] font-semibold text-[var(--text-body)] transition hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)]"
+              >
+                <RotateCcw size={11} />
+                Reopen to edit
+              </button>
+            ) : canEdit ? (
+              <button
+                type="button"
+                onClick={() => setEditAll((v) => !v)}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-[7px] border px-2 py-0.5 text-[11px] font-semibold transition",
+                  editAll
+                    ? "border-[var(--accent-border)] bg-[var(--accent-soft)] text-[var(--accent-strong)]"
+                    : "border-[var(--border-default)] bg-white text-[var(--text-body)] hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)]",
+                )}
+              >
+                {editAll ? <Check size={11} /> : <Pencil size={11} />}
+                {editAll ? "Done" : "Edit"}
+              </button>
+            ) : onBlockedEdit ? (
+              <button
+                type="button"
+                onClick={onBlockedEdit}
+                className="inline-flex items-center gap-1 rounded-[7px] border border-[var(--border-default)] bg-white px-2 py-0.5 text-[11px] font-semibold text-[var(--text-body)] transition hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)]"
+              >
+                <Pencil size={11} />
+                Edit
+              </button>
+            ) : null}
+          </div>
         </div>
-        <h2 className="mt-2 font-display text-[30px] leading-tight text-[var(--text-primary)]">{stage.name}</h2>
+        {/* Stage title + a short description. (The Journey bar shows only the meter.) */}
+        <h2 className={cn("mt-2 font-display leading-tight text-[var(--text-primary)]", embedded ? "text-[24px]" : "text-[30px]")}>{stage.name}</h2>
         {STAGE_INTROS[stage.name] ? (
-          <p className="mt-2.5 max-w-[56ch] text-[15px] leading-6 text-[var(--text-muted)]">{STAGE_INTROS[stage.name]}</p>
+          <p className={cn("mt-2 leading-6 text-[var(--text-muted)]", embedded ? "text-[14px]" : "max-w-[60ch] text-[15px]")}>{STAGE_INTROS[stage.name]}</p>
         ) : null}
-        <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[13px] text-[var(--text-muted)]">
+        <div className={cn("flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[13px] text-[var(--text-muted)]", embedded ? "mt-3" : "mt-4")}>
           <span className="inline-flex items-center gap-1.5">
             {gate ? "Prepared by" : "Owner"}
             <PersonAvatar name={stage.owner} size={18} highlight={ownedByMe} />
@@ -1000,7 +1004,7 @@ function StageFieldsGrid({ stage, s, currentUser, canEdit, isComplete = false, e
         </div>
       </div>
 
-      <div className="mt-7 grid grid-cols-1 gap-x-12 gap-y-7 border-t border-[#ecebea] pt-7 md:grid-cols-2">
+      <div className={cn("mt-7 grid grid-cols-1 gap-y-7 border-t border-[#ecebea] pt-7 sm:grid-cols-2 -mx-8 px-8", embedded ? "gap-x-8" : "gap-x-12")}>
         {s.fields.map((field, index) => {
           // Long text and multi-selects need the full width; the rest pair up.
           const wide = ["long", "cards", "chips"].includes(field.kind);
@@ -1025,7 +1029,7 @@ function StageFieldsGrid({ stage, s, currentUser, canEdit, isComplete = false, e
 }
 
 // Record details modal — the use case's metadata, gates, comments, and activity.
-function RecordDetailsModal({ onClose }: { onClose: () => void }) {
+function RecordDetailsSheet({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<"details" | "gates" | "comments" | "activity">("details");
   // ponytail: comment list is local prototype state — no persistence.
   const [comments, setComments] = useState(RECORD_COMMENTS);
@@ -1042,39 +1046,39 @@ function RecordDetailsModal({ onClose }: { onClose: () => void }) {
     { key: "comments", label: "Comments", count: comments.length },
     { key: "activity", label: "Activity", count: RECORD_ACTIVITY.length },
   ];
-  return createPortal(
-    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 sm:p-8">
-      <button type="button" aria-label="Close" onClick={onClose} className="absolute inset-0 bg-black/30" />
-      <div className="relative z-10 flex max-h-[90vh] w-full max-w-[680px] flex-col overflow-hidden rounded-[16px] border border-[#ecebea] bg-white shadow-[0_20px_60px_rgba(31,29,26,0.18)]">
-        <div className="flex shrink-0 items-center gap-6 border-b border-[#ecebea] px-5 pt-2.5">
-          {tabs.map((t) => (
-            <button
-              key={t.key}
-              type="button"
-              onClick={() => setTab(t.key)}
-              className={cn(
-                "-mb-px flex items-center gap-1.5 border-b-2 py-2.5 text-[13px] font-medium transition",
-                tab === t.key ? "border-[var(--accent)] text-[var(--text-primary)]" : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]",
-              )}
-            >
-              {t.label}
-              {t.count != null ? (
-                <span
-                  className="grid h-[18px] min-w-[18px] place-items-center rounded-full px-1 text-[11px] font-semibold tabular-nums"
-                  style={tab === t.key
-                    ? { background: "color-mix(in srgb, var(--accent) 12%, white)", color: "var(--accent)" }
-                    : { background: "var(--surface-muted)", color: "var(--text-muted)" }}
-                >
-                  {t.count}
-                </span>
-              ) : null}
-            </button>
-          ))}
-          <button type="button" onClick={onClose} aria-label="Close" className="ml-auto grid h-8 w-8 shrink-0 place-items-center rounded-[8px] text-[var(--text-muted)] transition hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)]">
+  return (
+    <aside className="sheet-in-right flex min-h-0 flex-col overflow-hidden rounded-[16px] border border-[#ecebea] bg-white">
+        <div className="flex shrink-0 items-center gap-2 border-b border-[#ecebea] pl-4 pr-2 pt-2.5">
+          <div className="no-scrollbar flex min-w-0 flex-1 items-center gap-4 overflow-x-auto">
+            {tabs.map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => setTab(t.key)}
+                className={cn(
+                  "-mb-px flex shrink-0 items-center gap-1.5 border-b-2 py-2.5 text-[13px] font-medium transition",
+                  tab === t.key ? "border-[var(--accent)] text-[var(--text-primary)]" : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]",
+                )}
+              >
+                {t.label}
+                {t.count != null ? (
+                  <span
+                    className="grid h-[18px] min-w-[18px] place-items-center rounded-full px-1 text-[11px] font-semibold tabular-nums"
+                    style={tab === t.key
+                      ? { background: "color-mix(in srgb, var(--accent) 12%, white)", color: "var(--accent)" }
+                      : { background: "var(--surface-muted)", color: "var(--text-muted)" }}
+                  >
+                    {t.count}
+                  </span>
+                ) : null}
+              </button>
+            ))}
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close" className="mb-1 grid h-8 w-8 shrink-0 place-items-center rounded-[8px] text-[var(--text-muted)] transition hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)]">
             <X size={16} />
           </button>
         </div>
-        <div className="no-scrollbar h-[560px] max-h-[80vh] overflow-y-auto">
+        <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto">
           {tab === "details" ? (
             <dl className="divide-y divide-[#f0efed]">
               {RECORD_DETAILS.map(([label, value]) => (
@@ -1143,7 +1147,7 @@ function RecordDetailsModal({ onClose }: { onClose: () => void }) {
                   </div>
                 ))}
               </div>
-              <div className="sticky bottom-0 flex items-end gap-2 border-t border-[#ecebea] bg-white px-5 py-3">
+              <div className="sticky bottom-0 flex min-h-[64px] items-center gap-2 border-t border-[#ecebea] bg-white px-4 py-3">
                 <textarea
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
@@ -1185,223 +1189,156 @@ function RecordDetailsModal({ onClose }: { onClose: () => void }) {
             </div>
           ) : null}
         </div>
-      </div>
-    </div>,
-    document.body,
+    </aside>
   );
 }
 
-// Full-width top bar: home link + ticket identity (left), agent/form toggle
-// (center), profile (right). Stage navigation lives in the permanent Progress
-// rail, not here.
+// Two-row page header: back link + profile (top), then the use-case title with
+// its ID + owner meta and a details toggle (bottom).
 function TopBar({
-  view,
-  onViewChange,
   currentUser,
   onUserChange,
   lockedOwner,
   onOpenDetails,
+  detailsOpen,
 }: {
-  view: "agent" | "form";
-  onViewChange: (view: "agent" | "form") => void;
   currentUser: string;
   onUserChange: (user: string) => void;
+  detailsOpen?: boolean;
   lockedOwner: string | null;
   onOpenDetails: () => void;
 }) {
-  const views: { value: "agent" | "form"; label: string; icon: ReactNode }[] = [
-    { value: "agent", label: "Chat", icon: <Sparkles size={14} /> },
-    { value: "form", label: "Form", icon: <FileText size={14} /> },
-  ];
   return (
-    <header className="flex shrink-0 items-center gap-4 border-b border-[#ecebea] bg-white px-4 py-2.5">
-      {/* Left: back, then the ticket identity (id + name) with the current stage
-          + progress. */}
-      <div className="flex min-w-0 flex-1 items-center gap-2">
-        <Link
-          href="/"
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-[8px] text-[var(--text-label)] transition hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)]"
-          aria-label="Back to home"
-        >
-          <ArrowLeft size={16} />
-        </Link>
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-[14px] font-semibold text-[var(--text-primary)]">{USE_CASE.name}</span>
-          <span className="inline-block shrink-0 rounded-[6px] bg-[var(--surface-muted)] px-2 py-0.5 text-[12px] font-semibold tracking-[0.02em] text-[var(--text-body)]">
-            {USE_CASE.id}
+    <header className="flex shrink-0 items-center gap-4 px-5 py-3">
+      <Link
+        href="/"
+        aria-label="Back to home"
+        title="Back to home"
+        className="grid h-9 w-9 shrink-0 place-items-center rounded-[8px] text-[var(--text-label)] transition hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)]"
+      >
+        <ArrowLeft size={17} />
+      </Link>
+      <h1 className="font-display min-w-0 flex-1 truncate text-[22px] leading-tight text-[var(--text-primary)]">{USE_CASE.name}</h1>
+      <div className="flex shrink-0 items-center gap-6">
+        <div className="text-right">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-label)]">Use case ID</div>
+          <span className="mt-0.5 inline-block rounded-[6px] bg-[var(--accent-soft)] px-2 py-0.5 text-[12px] font-semibold text-[var(--accent-strong)]">{USE_CASE.id}</span>
+        </div>
+        <div className="text-right">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-label)]">Use case owner</div>
+          <span className="mt-0.5 inline-flex items-center gap-1.5 text-[13px] font-semibold text-[var(--text-primary)]">
+            <PersonAvatar name={USE_CASE_OWNER} size={18} /> {USE_CASE_OWNER}
           </span>
         </div>
-      </div>
-      {/* Center: agent / form view toggle. */}
-      <div className="inline-flex shrink-0 items-center rounded-[9px] border border-[var(--border-default)] bg-[var(--surface-muted)] p-0.5">
-        {views.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            onClick={() => onViewChange(option.value)}
-            aria-pressed={view === option.value}
-            className={cn(
-              "inline-flex h-8 items-center gap-1.5 rounded-[7px] px-3 text-[13px] font-medium transition",
-              view === option.value
-                ? "bg-white text-[var(--text-primary)] shadow-sm"
-                : "text-[var(--text-muted)] hover:text-[var(--text-primary)]",
-            )}
-          >
-            {option.icon}
-            {option.label}
-          </button>
-        ))}
-      </div>
-      {/* Right: record details + profile (with a lock badge when not yours). */}
-      <div className="flex flex-1 items-center justify-end gap-2">
-        <ProfileSwitcher currentUser={currentUser} onUserChange={onUserChange} lockedBy={lockedOwner ?? undefined} />
         <button
           type="button"
           onClick={onOpenDetails}
-          aria-label="Record details"
-          title="Record details"
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-[8px] border border-[var(--border-default)] bg-white text-[var(--text-muted)] transition hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)] hover:text-[var(--text-primary)]"
+          aria-pressed={detailsOpen}
+          className={cn(
+            "inline-flex shrink-0 items-center gap-1.5 rounded-[9px] border px-3 py-1.5 text-[13px] font-medium transition",
+            detailsOpen
+              ? "border-[var(--accent-border)] bg-[var(--accent-soft)] text-[var(--accent-strong)]"
+              : "border-[var(--border-default)] bg-white text-[var(--text-body)] hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)]",
+          )}
         >
-          <Info size={16} />
+          <Info size={15} />
+          Details
         </button>
+        <ProfileSwitcher currentUser={currentUser} onUserChange={onUserChange} lockedBy={lockedOwner ?? undefined} compact />
       </div>
     </header>
   );
 }
 
-// The lifecycle as a vertical timeline — connector line with status dots, each
-// row showing the stage name and its owner; the current stage is marked Active.
-// Fully-done sections collapse by default; click a header to expand.
-function StagesList({ activeIndex, completedIndexes, onSelect, activeProgress }: { activeIndex: number; completedIndexes: number[]; onSelect: (index: number) => void; activeProgress?: { done: number; total: number } }) {
-  const groupDone = (group: (typeof STAGE_GROUPS)[number]) => group.indexes.every((index) => completedIndexes.includes(index));
-  // Collapse completed sections by default; user can toggle any open/closed.
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(STAGE_GROUPS.map((group) => [group.title, groupDone(group)])),
-  );
+// Short chevron labels for the stage path (index-aligned with STAGES).
+const SHORT_STAGE_LABELS = [
+  "Ideation",
+  "Qualify",
+  "Prioritize",
+  "Triage",
+  "Assess",
+  "Business case",
+  "GTAC",
+  "Plan",
+  "Design",
+  "Build",
+  "Monitor",
+  "Adopt",
+];
 
-  return (
-    <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-4">
-      {STAGE_GROUPS.map((group, groupIndex) => {
-        const done = group.indexes.filter((index) => completedIndexes.includes(index)).length;
-        const isCollapsed = collapsed[group.title];
-        const allDone = done === group.indexes.length;
-        return (
-          <div key={group.title} className={cn(groupIndex > 0 && "-mx-4 mt-3 border-t border-[#ecebea] px-4 pt-3")}>
-            <button
-              type="button"
-              onClick={() => setCollapsed((current) => ({ ...current, [group.title]: !current[group.title] }))}
-              className="mb-1 flex w-full items-center justify-between gap-2 rounded-[8px] px-1 py-1 text-left transition hover:bg-[var(--surface-muted)]"
-            >
-              <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-label)]">{group.title}</span>
-              <span className="flex items-center gap-1.5 text-[11px] font-medium tabular-nums text-[var(--text-label)]">
-                <span className={cn(allDone && "text-[var(--accent-strong)]")}>{done}/{group.indexes.length}</span>
-                {allDone ? <Check size={12} className="text-[var(--accent)]" /> : null}
-                <ChevronDown size={14} className={cn("transition", isCollapsed && "-rotate-90")} />
-              </span>
-            </button>
-            {isCollapsed ? null : (
-              <div>
-                {group.indexes.map((index, i) => {
-                  const stage = STAGES[index];
-                  const complete = completedIndexes.includes(index);
-                  const current = index === activeIndex;
-                  const first = i === 0;
-                  const last = i === group.indexes.length - 1;
-                  return (
-                    <button
-                      key={index}
-                      type="button"
-                      onClick={() => onSelect(index)}
-                      aria-current={current}
-                      className="group flex w-full items-stretch gap-3 text-left"
-                    >
-                      {/* Rail: connector line above/below the status dot, dot aligned
-                          to the stage-name line. */}
-                      <div className="flex w-5 shrink-0 flex-col items-center">
-                        <span className={cn("h-2.5 w-px", first ? "bg-transparent" : "bg-[#cfccc8]")} />
-                        {complete ? (
-                          <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[var(--accent)] text-white">
-                            <Check size={12} />
-                          </span>
-                        ) : (
-                          <span
-                            className={cn(
-                              "grid h-5 w-5 shrink-0 place-items-center rounded-full border-2 bg-white",
-                              current ? "border-[var(--accent)]" : "border-[#b4b1ad]",
-                            )}
-                          >
-                            {current ? <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" /> : null}
-                          </span>
-                        )}
-                        {/* Connector below the dot — for the active stage it fills
-                            to show how much of the stage is captured. */}
-                        {current && activeProgress && activeProgress.total > 0 && !last ? (
-                          <span className="relative w-[3px] flex-1 overflow-hidden rounded-full bg-[#cfccc8]">
-                            <span
-                              className="absolute inset-x-0 top-0 rounded-full bg-[var(--accent)] transition-all duration-300"
-                              style={{ height: `${Math.round((activeProgress.done / activeProgress.total) * 100)}%` }}
-                            />
-                          </span>
-                        ) : (
-                          <span className={cn("w-px flex-1", last ? "bg-transparent" : "bg-[#cfccc8]")} />
-                        )}
-                      </div>
-                      <div
-                        className={cn(
-                          "mb-1 min-w-0 flex-1 rounded-[10px] px-2.5 py-1.5 transition",
-                          current ? "bg-[var(--accent-soft)]" : "group-hover:bg-[var(--surface-muted)]",
-                        )}
-                      >
-                        <div className="flex items-center gap-2">
-                          <p className={cn("min-w-0 flex-1 text-[14px] leading-5 text-[var(--text-primary)]", current ? "font-semibold" : "font-medium")}>{stage.name}</p>
-                          {current ? (
-                            <span className="shrink-0 rounded-full border border-[var(--accent-border)] bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.04em] text-[var(--accent-strong)]">
-                              Active
-                            </span>
-                          ) : null}
-                        </div>
-                        <p className="mt-0.5 truncate text-[12px] leading-4 text-[var(--text-body)]">
-                          <span className="text-[var(--text-label)]">Owner · </span>
-                          {stage.owner}
-                        </p>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// Permanent right rail showing the journey timeline (connection + progress),
-// alongside the chat/form.
-function ProgressRail({
+// Horizontal stage path: a chevron/arrow strip, one segment per stage. Completed
+// = green (with a check), current = dark, upcoming = light grey. Click to jump.
+// Scrolls horizontally inside the form card when it overflows.
+function JourneyBar({
   activeIndex,
   completedIndexes,
-  activeProgress,
   onSelect,
 }: {
   activeIndex: number;
   completedIndexes: number[];
-  activeProgress: { done: number; total: number };
   onSelect: (index: number) => void;
 }) {
+  const notch = 14; // arrow depth in px
+  // Tooltip is portaled to the body so it isn't clipped by (or scroll-forced on)
+  // the horizontally-scrolling strip.
+  const [tip, setTip] = useState<{ text: string; x: number; y: number } | null>(null);
   return (
-    // Floats as a rounded card with a gap from the edges.
-    <div className="min-h-0 py-3 pl-1 pr-3">
-      <aside className="flex h-full min-h-0 flex-col overflow-hidden rounded-[16px] border border-[#ecebea] bg-white">
-        <div className="flex shrink-0 items-center border-b border-[#f0efed] px-4 py-3">
-          <span className="font-display text-[17px] text-[var(--text-primary)]">Journey</span>
-        </div>
-        <StagesList activeIndex={activeIndex} completedIndexes={completedIndexes} activeProgress={activeProgress} onSelect={onSelect} />
-      </aside>
+    <div className="shrink-0 overflow-hidden border-b border-[#ecebea] px-3 py-2.5">
+      <div className="flex items-stretch">
+        {STAGES.map((stage, i) => {
+          const complete = completedIndexes.includes(i);
+          const current = i === activeIndex;
+          const first = i === 0;
+          const last = i === STAGES.length - 1;
+          const leftNotch = first ? 0 : notch;
+          const clipPath = last
+            ? `polygon(0 0, 100% 0, 100% 100%, 0 100%, ${leftNotch}px 50%)`
+            : `polygon(0 0, calc(100% - ${notch}px) 0, 100% 50%, calc(100% - ${notch}px) 100%, 0 100%, ${leftNotch}px 50%)`;
+          const background = complete ? "#1f9d57" : current ? "var(--text-primary)" : "#edefed";
+          const color = complete || current ? "#ffffff" : "var(--text-muted)";
+          const state = complete ? "Completed" : current ? "Active" : "Upcoming";
+          return (
+            <button
+              key={i}
+              type="button"
+              onClick={() => onSelect(i)}
+              onMouseEnter={(e) => {
+                const r = e.currentTarget.getBoundingClientRect();
+                setTip({ text: `${stage.name} · ${state} · ${stage.owner}`, x: r.left + r.width / 2, y: r.bottom });
+              }}
+              onMouseLeave={() => setTip(null)}
+              aria-current={current}
+              aria-label={`${stage.name} · ${state} · ${stage.owner}`}
+              className={cn(
+                "flex h-10 items-center gap-1.5 overflow-hidden whitespace-nowrap text-[13px] font-semibold transition hover:brightness-[0.97]",
+                "justify-center",
+                complete ? "shrink-0 pr-4" : "min-w-0 flex-1 pr-7",
+                first ? "rounded-l-[20px] pl-5" : "-ml-[11px] pl-7",
+                last && "rounded-r-[20px]",
+              )}
+              style={{ clipPath, background, color }}
+            >
+              {complete ? <Check size={15} strokeWidth={2.5} /> : (SHORT_STAGE_LABELS[i] ?? stage.name)}
+            </button>
+          );
+        })}
+        <span aria-hidden className="w-2 shrink-0" />
+      </div>
+      {tip
+        ? createPortal(
+            <span
+              className="pointer-events-none fixed z-[80] -translate-x-1/2 whitespace-nowrap rounded-[8px] bg-[var(--text-primary)] px-3 py-1.5 text-[12px] font-medium text-white shadow-md"
+              style={{ left: tip.x, top: tip.y + 8 }}
+            >
+              {tip.text}
+            </span>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
+
 
 // A hookless, read-only field state for a stage — its recorded values are the
 // mock suggestions. Cheaper than useStageFields for read-only summaries.
@@ -1412,30 +1349,24 @@ function readOnlyStageState(stage: StageItem): StageFieldsState {
   return { fields, values, loadingFields: [], setField: noop, suggestField: noop, suggestAll: noop, suggestingAll: false, draftDurationMs: 0, fillNow: noop };
 }
 
-// Chat-first stage view. The header toggle switches between the agent (chat) and
-// the form (document). Both scroll through every stage worked so far — completed
-// stages first (read-only, divider-separated), then the current stage — so the
-// history is never lost. The form has no fill controls; the chat fills it.
-function ChatFirstLayout({
+// Split stage view (artifact-style): the chat on the left drives the form on the
+// right, which fills live as answers land (both share one field state). Returns a
+// fragment of two columns so the parent grid lays them side by side. The owner
+// can click any field on the right to edit it; non-owners see it read-only.
+function SplitStageView({
   stage,
   currentUser,
   prefill,
   isComplete,
-  view,
   onMarkComplete,
-  onOpenForm,
   onEditBlocked,
-  onStageProgress,
 }: {
   stage: StageItem;
   currentUser: string;
   prefill: boolean;
   isComplete: boolean;
-  view: "agent" | "form";
   onMarkComplete: () => void;
-  onOpenForm: () => void;
   onEditBlocked: (message: string) => void;
-  onStageProgress: (done: number, total: number) => void;
 }) {
   const s = useStageFields(stage, prefill);
   const owned = stage.owner === currentUser;
@@ -1443,85 +1374,108 @@ function ChatFirstLayout({
   // Conversational fill runs only on an open stage you own that isn't bespoke.
   const guided = !isComplete && owned && !bespoke;
 
-  // Report the current stage's fill up to the Progress rail.
+  // Captured / total — used for submit readiness.
   const capturedDone = s.fields.filter((field) => !isFieldEmpty(s.values[field.label])).length;
   const capturedTotal = s.fields.length;
-  useEffect(() => {
-    onStageProgress(capturedDone, capturedTotal);
-  }, [capturedDone, capturedTotal, onStageProgress]);
 
-  // ---- FORM VIEW: just the current stage's document, unwrapped on the canvas.
-  // (Other stages are reached from the Progress panel.) ----
-  if (view === "form") {
-    const doc =
-      bespoke && !isComplete && owned ? (
-        <div className="px-8 pb-12 pt-6">
-          <StageColumnHeader stage={stage} currentUser={currentUser} />
-          <StageContent isComplete={false} stage={stage} />
-        </div>
-      ) : (
-        <StageFieldsGrid
-          stage={stage}
-          s={s}
-          currentUser={currentUser}
-          canEdit={guided}
-          isComplete={isComplete}
-          embedded
-          onReopen={isComplete && owned ? onMarkComplete : undefined}
-          onBlockedEdit={
-            guided
-              ? undefined
-              : () =>
-                  onEditBlocked(
-                    isComplete
-                      ? `${stage.name} is complete — use “Reopen to edit” to make changes.`
-                      : `${stage.name} is owned by ${stage.owner}. Switch to their profile to edit.`,
-                  )
-          }
-        />
-      );
-    return (
-      <div className="flex min-h-0 h-full flex-col bg-[var(--surface-muted)]">
-        <div className="no-scrollbar mx-auto min-h-0 w-full max-w-[760px] flex-1 overflow-y-auto">{doc}</div>
-      </div>
-    );
-  }
-
-  // ---- AGENT VIEW: the current stage's conversation only (no prior history). ----
+  // ---- LEFT: the conversation. Guided stages run the fill flow; the rest keep
+  // an open, ask-anything composer (locked / bespoke / completed). ----
+  let chat: ReactNode;
   if (guided) {
-    return (
-      <div className="flex min-h-0 h-full flex-col bg-[var(--surface-muted)]">
-        <div className="mx-auto flex min-h-0 w-full max-w-[760px] flex-1 flex-col overflow-hidden">
-          <ChatPanel stage={stage} s={s} onMarkComplete={onMarkComplete} onOpenForm={onOpenForm} />
-        </div>
+    chat = <ChatPanel stage={stage} s={s} />;
+  } else {
+    let intro: string;
+    let editNote: string | undefined;
+    if (!isComplete && !owned) {
+      intro = `Hi — I can walk you through the ${stage.name} stage. It's owned by ${stage.owner}, so recording changes needs their profile, but ask me anything about it.`;
+      editNote = `Switch to ${stage.owner} up top to edit.`;
+    } else if (!isComplete) {
+      intro = `Here's the ${stage.name} so far — set the details on the form to the right, then submit.`;
+      editNote = "Fill it in on the form panel.";
+    } else {
+      intro = `The ${stage.name} stage is complete — here's what was captured. Ask me anything about it.`;
+      editNote = owned ? "Reopen it on the form panel to make changes." : `${stage.owner} can reopen it to make changes.`;
+    }
+    chat = <AsideChat stage={stage} intro={intro} editNote={editNote} />;
+  }
+
+  // ---- RIGHT: the form/document, filling live. Completed stages show the
+  // summary card; owned bespoke stages their custom widgets; else the field grid. ----
+  let form: ReactNode;
+  if (bespoke && owned && !isComplete) {
+    form = (
+      <div className="pb-10">
+        <StageColumnHeader stage={stage} currentUser={currentUser} />
+        <StageContent isComplete={false} stage={stage} />
       </div>
+    );
+  } else {
+    // Open (owned → editable, else locked) OR complete (read-only, reopenable by
+    // the owner) — the same field grid, just in the right state.
+    form = (
+      <StageFieldsGrid
+        stage={stage}
+        s={s}
+        currentUser={currentUser}
+        canEdit={guided}
+        isComplete={isComplete}
+        embedded
+        onReopen={isComplete && owned ? onMarkComplete : undefined}
+        onBlockedEdit={
+          guided
+            ? undefined
+            : () =>
+                onEditBlocked(
+                  !owned
+                    ? `${stage.name} is owned by ${stage.owner}. Switch to their profile to edit.`
+                    : `${stage.name} is complete — use “Reopen to edit” to make changes.`,
+                )
+        }
+      />
     );
   }
 
-  // Non-guided stages (locked / bespoke / completed) keep an open, conversational
-  // composer via AsideChat. editNote explains the (read-only) editing rule.
-  let intro: string;
-  let editNote: string | undefined;
-  let footer: ReactNode = null;
-  if (!isComplete && !owned) {
-    intro = `Hi — I can walk you through the ${stage.name} stage. It's owned by ${stage.owner}, so recording changes needs their profile, but ask me anything about it.`;
-    editNote = `Switch to ${stage.owner} up top to edit.`;
-  } else if (!isComplete) {
-    intro = `Here's the ${stage.name} so far — set the details in the Form view, then submit.`;
-    editNote = "Open the Form view to fill it in.";
-    footer = <SummaryCard stage={stage} s={readOnlyStageState(stage)} onSubmit={onMarkComplete} onEdit={onOpenForm} />;
-  } else {
-    intro = `The ${stage.name} stage is complete — here's what was captured. Ask me anything about it.`;
-    editNote = owned ? "Reopen it above to make changes." : `${stage.owner} can reopen it to make changes.`;
-    footer = <SummaryCard stage={stage} s={s} onReopen={owned ? onMarkComplete : undefined} />;
+  // Submit lives at the bottom of the form panel (owner, open stages). For guided
+  // stages it unlocks once every detail is captured and any gate is cleared.
+  const showSubmit = owned && !isComplete;
+  let submitReady = true;
+  let submitHint: string | undefined;
+  if (guided) {
+    const gate = stageGateReason(stage.name, s.values);
+    const allFilled = capturedTotal > 0 && capturedDone === capturedTotal;
+    submitReady = allFilled && !gate;
+    submitHint = gate ?? (allFilled ? undefined : `${capturedTotal - capturedDone} of ${capturedTotal} details still to capture.`);
   }
 
   return (
-    <div className="flex min-h-0 h-full flex-col bg-[var(--surface-muted)]">
-      <div className="mx-auto flex min-h-0 w-full max-w-[760px] flex-1 flex-col overflow-hidden">
-        <AsideChat stage={stage} intro={intro} editNote={editNote} footer={footer} />
-      </div>
-    </div>
+    <>
+      {/* Chat card. */}
+      <section className="flex min-h-0 flex-col overflow-hidden rounded-[16px] border border-[#ecebea] bg-white">
+        <div className="mx-auto flex min-h-0 w-full max-w-[720px] flex-1 flex-col overflow-hidden">
+          {chat}
+        </div>
+      </section>
+      {/* Form card. */}
+      <aside className="flex min-h-0 flex-col overflow-hidden rounded-[16px] border border-[#ecebea] bg-white">
+        <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto">{form}</div>
+        {showSubmit ? (
+          <div className="flex min-h-[64px] shrink-0 items-center justify-between gap-4 border-t border-[#ecebea] px-7 py-3">
+            <span className="text-[12.5px] text-[var(--text-muted)]">
+              {submitReady ? "All details captured — ready to submit." : submitHint}
+            </span>
+            <button
+              type="button"
+              onClick={onMarkComplete}
+              disabled={!submitReady}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-[10px] bg-[var(--accent)] px-4 py-2 text-[13px] font-semibold text-white transition hover:opacity-90 disabled:opacity-40"
+            >
+              <Check size={15} />
+              Submit {stage.name === "GTAC" ? "decision" : "stage"}
+            </button>
+          </div>
+        ) : null}
+      </aside>
+    </>
   );
 }
 
@@ -1630,11 +1584,11 @@ function MessageBubble({ role, text }: { role: "assistant" | "user"; text: strin
   return (
     <div className={cn("flex", role === "user" ? "justify-end" : "justify-start")}>
       {role === "user" ? (
-        <div className="bubble-in-right max-w-[85%] whitespace-pre-line rounded-[12px] bg-[var(--accent)] px-3 py-2 text-[13px] leading-5 text-white">
+        <div className="bubble-in-right max-w-[85%] whitespace-pre-line rounded-[12px] bg-[var(--accent)] px-3.5 py-2 text-[14.5px] leading-6 text-white">
           {text}
         </div>
       ) : (
-        <div className="bubble-in-left max-w-[92%] whitespace-pre-line py-1 text-[13px] leading-6 text-[var(--text-body)]">
+        <div className="bubble-in-left max-w-[92%] whitespace-pre-line py-1 text-[14.5px] leading-6 text-[var(--text-body)]">
           {text}
         </div>
       )}
@@ -1704,41 +1658,43 @@ function ChatComposer({
           value={value}
           onChange={(event) => onChange(event.target.value)}
           onKeyDown={onKeyDown}
-          rows={3}
+          rows={2}
           disabled={disabled}
           placeholder={placeholder}
-          className="no-scrollbar block max-h-40 min-h-[64px] w-full resize-none bg-transparent text-[13px] leading-6 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] disabled:opacity-60"
+          className="no-scrollbar block max-h-32 min-h-[40px] w-full resize-none bg-transparent text-[14.5px] leading-6 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] disabled:opacity-60"
         />
         <div className="mt-1 flex items-center justify-between">
-          <div className="flex items-center gap-0.5">
+          <button
+            type="button"
+            disabled={disabled}
+            aria-label="Add documents (coming soon)"
+            title="Add documents — coming soon"
+            className="grid h-8 w-8 cursor-not-allowed place-items-center rounded-full text-[var(--text-muted)] transition hover:bg-[var(--surface-muted)] disabled:opacity-40"
+          >
+            <Plus size={18} />
+          </button>
+          {/* One trailing control: mic when empty (coming soon), send once typed. */}
+          {value.trim() ? (
             <button
               type="button"
-              disabled={disabled}
-              aria-label="Add documents (coming soon)"
-              title="Add documents — coming soon"
-              className="grid h-8 w-8 cursor-not-allowed place-items-center rounded-[8px] text-[var(--text-muted)]/70 transition hover:bg-[var(--surface-muted)] disabled:opacity-40"
+              onClick={onSend}
+              disabled={sendDisabled}
+              aria-label="Send"
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[var(--accent)] text-white transition hover:bg-[var(--accent-strong)] disabled:opacity-40"
             >
-              <Paperclip size={16} />
+              <Send size={15} />
             </button>
+          ) : (
             <button
               type="button"
               disabled={disabled}
               aria-label="Voice input (coming soon)"
               title="Voice input — coming soon"
-              className="grid h-8 w-8 cursor-not-allowed place-items-center rounded-[8px] text-[var(--text-muted)]/70 transition hover:bg-[var(--surface-muted)] disabled:opacity-40"
+              className="grid h-8 w-8 shrink-0 cursor-not-allowed place-items-center rounded-full text-[var(--text-muted)] transition hover:bg-[var(--surface-muted)] disabled:opacity-40"
             >
-              <Mic size={16} />
+              <Mic size={17} />
             </button>
-          </div>
-          <button
-            type="button"
-            onClick={onSend}
-            disabled={sendDisabled}
-            aria-label="Send"
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] bg-[var(--accent)] text-white transition hover:bg-[var(--accent-strong)] disabled:opacity-40"
-          >
-            <Send size={14} />
-          </button>
+          )}
         </div>
       </div>
     </div>
@@ -1832,7 +1788,7 @@ const bump = () => (chatMsgId += 1);
 // question per group), reads the user's paragraph reply, extracts the values it
 // can (mocked keyword/option matching), then follows up only on the gaps. Drives
 // the same field-state instance as the document, so both stay in sync.
-function ChatPanel({ stage, s, onMarkComplete, onOpenForm }: { stage: StageItem; s: StageFieldsState; onMarkComplete: () => void; onOpenForm: () => void }) {
+function ChatPanel({ stage, s }: { stage: StageItem; s: StageFieldsState }) {
   // Theme batches for the stage. Stages without a defined map are asked as one
   // batch (everything at once); gaps are followed up either way.
   const groups: FieldGroup[] = useMemo(() => stageGroupsFor(stage, s.fields), [stage, s.fields]);
@@ -1906,7 +1862,7 @@ function ChatPanel({ stage, s, onMarkComplete, onOpenForm }: { stage: StageItem;
       setGating(true);
       pushAssistant(`${g}\nTell me which ones are signed off, or say "all cleared".`);
     } else {
-      setDone(true);
+      sayLines(["That's everything I need. Take a quick look at the form on the right — everything should be filled in. When it looks right, hit Submit at the bottom."], () => setDone(true));
     }
   }
 
@@ -1921,7 +1877,22 @@ function ChatPanel({ stage, s, onMarkComplete, onOpenForm }: { stage: StageItem;
   // Send a reply — the typed input, or an override (the accepted ghost reply).
   function send(textArg?: string) {
     const text = (textArg ?? input).trim();
-    if (!text || done) return;
+    if (!text) return;
+
+    // Post-finish: the flow is done but the chat stays open so the user can
+    // still tweak details here. Re-parse against every field and update matches.
+    if (done) {
+      pushUser(text);
+      setInput("");
+      const fills = extractStageFields(text, s.fields, []);
+      fills.forEach((fill, index) => s.fillNow(fill.label, fill.value, 450 + index * 250));
+      sayLines([
+        fills.length
+          ? `Done — updated the ${joinList(fills.map((fill) => humanizeLabel(fill.label)))}. Anything else, or submit on the form when it's ready.`
+          : "Sure — tell me the field and the new value, or edit it directly on the form. Submit on the right when it looks right.",
+      ]);
+      return;
+    }
 
     // Gating reply: clear compliance checks conversationally.
     if (gating) {
@@ -1938,7 +1909,7 @@ function ChatPanel({ stage, s, onMarkComplete, onOpenForm }: { stage: StageItem;
         sayLines([`Thanks. Still open: ${joinList(stillOpen)}. Let me know once those are signed off.`]);
       } else {
         setGating(false);
-        sayLines(["Perfect — every compliance check is cleared. Here's the summary."], () => setDone(true));
+        sayLines(["Perfect — every compliance check is cleared. Review the form on the right and hit Submit when it looks right."], () => setDone(true));
       }
       return;
     }
@@ -2002,7 +1973,6 @@ function ChatPanel({ stage, s, onMarkComplete, onOpenForm }: { stage: StageItem;
           {messages.map((message) => (
             <MessageBubble key={message.id} role={message.role} text={message.text} />
           ))}
-          {done ? <SummaryCard stage={stage} s={s} onSubmit={onMarkComplete} onEdit={onOpenForm} /> : null}
         </div>
       </div>
 
@@ -2011,9 +1981,8 @@ function ChatPanel({ stage, s, onMarkComplete, onOpenForm }: { stage: StageItem;
         value={input}
         onChange={setInput}
         onSend={() => send()}
-        disabled={done}
-        sendDisabled={!input.trim() || done}
-        placeholder={done ? "All set — submit in the summary above." : gating ? "Reply to clear the remaining checks…" : ghost || "Describe it in your own words…"}
+        sendDisabled={!input.trim()}
+        placeholder={done ? "Ask me to change any detail, or submit on the form…" : gating ? "Reply to clear the remaining checks…" : ghost || "Describe it in your own words…"}
         onKeyDown={(event) => {
           if (event.key === "Enter" && !event.shiftKey) {
             event.preventDefault();
@@ -2031,118 +2000,6 @@ function ChatPanel({ stage, s, onMarkComplete, onOpenForm }: { stage: StageItem;
   );
 }
 
-// A tidy recap of everything captured for a stage, shown in the chat once the
-// conversation is done (and for completed stages). Read-only — edits happen on
-// the document panel.
-// Compliance checklist — read-only status list shown in the summary card. No
-// checkboxes (those read as editable); just a status marker + label + state.
-function ComplianceChecklist({ cleared }: { cleared: string[] }) {
-  return (
-    <div className="mt-1 flex flex-wrap gap-1.5">
-      {COMPLIANCE_REQS.map((req) => {
-        const on = cleared.includes(req);
-        return (
-          <span
-            key={req}
-            className={cn(
-              "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[12px] font-medium",
-              on ? "border-[#bfdcc7] bg-[#eef4ee] text-[#15803d]" : "border-[#e6d4b8] bg-[#f6f0e6] text-[#a15c11]",
-            )}
-          >
-            {on ? <Check size={11} /> : <span className="h-1.5 w-1.5 rounded-full bg-[#a15c11]" />}
-            {req}
-          </span>
-        );
-      })}
-    </div>
-  );
-}
-
-function SummaryCard({ stage, s, onSubmit, onEdit, onReopen }: { stage: StageItem; s: StageFieldsState; onSubmit?: () => void; onEdit?: () => void; onReopen?: () => void }) {
-  const hasActions = Boolean(onSubmit || onEdit || onReopen);
-  const filled = s.fields.filter((field) => !isFieldEmpty(s.values[field.label])).length;
-  // Some stages gate submission on a checklist clearing.
-  const gate = onSubmit ? stageGateReason(stage.name, s.values) : null;
-  return (
-    <div className="overflow-hidden rounded-[16px] border border-[#ecebea] bg-white shadow-[0_1px_3px_rgba(31,29,26,0.04)]">
-      {/* Header band */}
-      <div className="flex items-center justify-between gap-3 border-b border-[#f0efed] bg-[var(--surface-muted)]/60 px-4 py-3">
-        <span className="flex items-center gap-2">
-          <span className="grid h-6 w-6 place-items-center rounded-full bg-[var(--accent-soft)] text-[var(--accent-strong)]">
-            <Sparkles size={13} />
-          </span>
-          <span className="text-[13px] font-semibold text-[var(--text-primary)]">{stage.name} summary</span>
-        </span>
-        <span className="shrink-0 tabular-nums text-[11px] font-medium text-[var(--text-muted)]">{filled}/{s.fields.length} captured</span>
-      </div>
-      {/* Field list — label above value, row-divided for scanability. */}
-      <dl className="divide-y divide-[#f2f1f0]">
-        {s.fields.map((field) => {
-          const value = s.values[field.label];
-          const text = Array.isArray(value) ? value.join(", ") : value;
-          const empty = isFieldEmpty(value);
-          return (
-            <div key={field.label} className="px-4 py-2.5">
-              <dt className="text-[11px] font-medium uppercase tracking-[0.05em] text-[var(--text-muted)]">{field.label}</dt>
-              {field.label === "Compliance checks" ? (
-                <dd>
-                  <ComplianceChecklist cleared={Array.isArray(value) ? value : []} />
-                </dd>
-              ) : (
-                <dd className={cn("mt-0.5 text-[13.5px] leading-5", empty ? "italic text-[var(--text-muted)]/60" : "text-[var(--text-body)]")}>
-                  {empty ? "Not captured" : text}
-                </dd>
-              )}
-            </div>
-          );
-        })}
-      </dl>
-      {gate ? (
-        <p className="flex items-center gap-1.5 border-t border-[#f0efed] px-4 pt-3 text-[12px] text-[#a15c11]">
-          <Lock size={12} className="shrink-0" />
-          {gate}
-        </p>
-      ) : null}
-      {hasActions ? (
-        <div className="flex items-center gap-2 border-t border-[#f0efed] px-4 py-3">
-          {onSubmit ? (
-            <button
-              type="button"
-              onClick={onSubmit}
-              disabled={Boolean(gate)}
-              title={gate ?? undefined}
-              className="inline-flex items-center gap-2 rounded-[10px] bg-[#249a57] px-3.5 py-2 text-[13px] font-medium text-white transition hover:bg-[#1f7a46] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Check size={14} />
-              Submit &amp; continue
-            </button>
-          ) : null}
-          {onEdit ? (
-            <button
-              type="button"
-              onClick={onEdit}
-              className="inline-flex items-center gap-2 rounded-[10px] border border-[var(--border-default)] bg-white px-3.5 py-2 text-[13px] font-medium text-[var(--text-body)] transition hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)]"
-            >
-              <Pencil size={14} />
-              Edit
-            </button>
-          ) : null}
-          {onReopen ? (
-            <button
-              type="button"
-              onClick={onReopen}
-              className="inline-flex items-center gap-2 rounded-[10px] border border-[var(--border-default)] bg-white px-3.5 py-2 text-[13px] font-medium text-[var(--text-body)] transition hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)]"
-            >
-              <RotateCcw size={14} />
-              Reopen to edit
-            </button>
-          ) : null}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 // Generating shimmer, overlaid on the real field (absolute inset-0) so the
 // field keeps its exact height — no resize while the value fills in.
 function FieldGenerating({ tall = false }: { tall?: boolean }) {
@@ -2153,7 +2010,7 @@ function FieldGenerating({ tall = false }: { tall?: boolean }) {
         tall ? "items-start py-2.5" : "items-center",
       )}
     >
-      <span>Generating…</span>
+      <span>Capturing…</span>
       <span
         className={cn(
           "absolute right-2 grid h-6 w-6 place-items-center text-[var(--accent)]",
@@ -2301,10 +2158,10 @@ function PlanStageForm() {
 
 function PlanRow({ label, hint, children }: { label: string; hint?: string; children: ReactElement }) {
   return (
-    <div className="grid grid-cols-[184px_minmax(0,1fr)] gap-6 px-7 py-4">
-      <div className="pt-1">
-        <div className="text-[13.5px] font-medium leading-5 text-[var(--text-label)]">{label}</div>
-        {hint ? <div className="mt-0.5 text-[11px] leading-4 text-[var(--text-muted)]">{hint}</div> : null}
+    <div className="px-7 py-4">
+      <div className="mb-3 flex flex-wrap items-baseline gap-x-2">
+        <span className="text-[13.5px] font-semibold leading-5 text-[var(--text-primary)]">{label}</span>
+        {hint ? <span className="text-[11.5px] leading-4 text-[var(--text-muted)]">{hint}</span> : null}
       </div>
       <div className="min-w-0">{children}</div>
     </div>
@@ -2313,21 +2170,21 @@ function PlanRow({ label, hint, children }: { label: string; hint?: string; chil
 
 function MandateBanner() {
   return (
-    <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-[10px] border border-[#cfe6d8] bg-gradient-to-r from-[#eef6f0] to-[#f6faf7] px-4 py-3">
+    <div className="rounded-[10px] border border-[#cfe6d8] bg-gradient-to-r from-[#eef6f0] to-[#f6faf7] px-4 py-3">
       <div className="flex items-center gap-3">
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#15803d] text-white">
           <Check size={19} strokeWidth={2.5} />
         </span>
-        <div>
+        <div className="min-w-0">
           <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#15803d]">Funded · GTAC approved</div>
           <div className="font-display text-[21px] leading-6 text-[var(--text-primary)]">GBP 180k approved</div>
         </div>
       </div>
-      <div className="flex flex-1 flex-wrap items-center justify-end gap-2">
+      <div className="mt-3 flex flex-wrap gap-2">
         {["2 binding conditions", "Go-live Q3 2026", "Standard tier"].map((chip) => (
           <span
             key={chip}
-            className="rounded-full border border-[#cfe6d8] bg-white/80 px-2.5 py-1 text-[12px] font-medium text-[#25603f]"
+            className="whitespace-nowrap rounded-full border border-[#cfe6d8] bg-white/80 px-2.5 py-1 text-[12px] font-medium text-[#25603f]"
           >
             {chip}
           </span>
