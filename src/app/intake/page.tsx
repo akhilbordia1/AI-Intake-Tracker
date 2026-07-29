@@ -174,9 +174,9 @@ export default function IntakePage() {
                   <textarea
                     value={form.idea}
                     onChange={(event) => updateField("idea", event.target.value)}
-                    rows={4}
+                    rows={2}
                     placeholder="Describe the AI agent you want to create…"
-                    className="no-scrollbar block max-h-52 min-h-[120px] w-full resize-none bg-transparent px-2.5 pt-1.5 text-[15px] leading-6 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
+                    className="no-scrollbar block max-h-40 min-h-[68px] w-full resize-none bg-transparent px-2.5 pt-1.5 text-[15px] leading-6 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
                   />
                   <div className="mt-1 flex items-center justify-between px-0.5">
                     <button
