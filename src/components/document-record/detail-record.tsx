@@ -230,9 +230,6 @@ const GATE_TONE: Record<Gate["status"], { fg: string; bg: string; border: string
   Rejected: { fg: "#b32020", bg: "#f7eaea", border: "#e6c3c3" },
 };
 
-// The use-case owner shown in the page header (distinct from per-stage owners).
-const USE_CASE_OWNER = "Mira Kapoor";
-
 // Record-level metadata shown in the Details modal (opened from the header).
 const RECORD_DETAILS: [string, string][] = [
   ["Use case ID", USE_CASE.id],
@@ -366,10 +363,10 @@ export function DetailRecordPage() {
       {/* Chat card + form card; an optional record details sheet card slides in. */}
       <div
         className={cn(
-          "grid min-h-0 flex-1 gap-3 p-3",
+          "grid min-h-0 flex-1 border-t border-[#ecebea]",
           detailsOpen
-            ? "grid-cols-[minmax(0,1fr)_minmax(520px,1.4fr)_minmax(0,1fr)]"
-            : "grid-cols-2",
+            ? "grid-cols-[minmax(0,3fr)_minmax(0,4fr)_minmax(0,3fr)]"
+            : "grid-cols-[minmax(0,2fr)_minmax(0,3fr)]",
         )}
       >
         <SplitStageView
@@ -993,7 +990,7 @@ function RecordDetailsSheet({ onClose }: { onClose: () => void }) {
     { key: "activity", label: "Activity", count: RECORD_ACTIVITY.length },
   ];
   return (
-    <aside className="sheet-in-right flex min-h-0 flex-col overflow-hidden rounded-[16px] border border-[#ecebea] bg-white">
+    <aside className="sheet-in-right flex min-h-0 flex-col overflow-hidden border-l border-[#ecebea] bg-white">
         <div className="flex shrink-0 items-center gap-2 border-b border-[#ecebea] pl-4 pr-2 pt-2.5">
           <div className="no-scrollbar flex min-w-0 flex-1 items-center gap-4 overflow-x-auto">
             {tabs.map((t) => (
@@ -1150,20 +1147,15 @@ function TopBar({
         <h1 className={cn("font-display min-w-0 truncate text-[22px] leading-tight", recordName ? "text-[var(--text-primary)]" : "text-[var(--text-muted)]")}>
           {recordName ?? "Untitled use case"}
         </h1>
-        <ProfileSwitcher currentUser={currentUser} onUserChange={onUserChange} lockedBy={lockedOwner ?? undefined} compact />
-      </div>
-      <div className="flex shrink-0 items-center gap-3">
         <span
           title="Use case ID"
-          className="rounded-[6px] bg-[var(--accent-soft)] px-2 py-0.5 text-[12px] font-semibold text-[var(--accent-strong)]"
+          className="shrink-0 rounded-[6px] bg-[var(--accent-soft)] px-2 py-0.5 text-[12px] font-semibold text-[var(--accent-strong)]"
         >
           {USE_CASE.id}
         </span>
-        <span className="inline-flex items-center gap-1.5 text-[13px] text-[var(--text-body)]" title="Use case owner">
-          <PersonAvatar name={USE_CASE_OWNER} size={20} />
-          <span className="font-medium text-[var(--text-primary)]">{USE_CASE_OWNER}</span>
-        </span>
-        <span className="mx-1 h-6 w-px bg-[#ecebea]" />
+        <ProfileSwitcher currentUser={currentUser} onUserChange={onUserChange} lockedBy={lockedOwner ?? undefined} compact />
+      </div>
+      <div className="flex shrink-0 items-center gap-3">
         <button
           type="button"
           onClick={onOpenDetails}
@@ -1394,18 +1386,18 @@ function SplitStageView({
 
   return (
     <>
-      {/* Chat card. */}
-      <section className="flex min-h-0 flex-col overflow-hidden rounded-[16px] border border-[#ecebea] bg-white">
+      {/* Chat panel — divided from the form by a border, not a card gap. */}
+      <section className="flex min-h-0 flex-col overflow-hidden border-r border-[#ecebea] bg-white">
         <div className="flex min-h-[53px] shrink-0 items-center gap-2 border-b border-[#ecebea] px-4 py-2">
           <Sparkles size={15} className="text-[var(--accent)]" />
-          <span className="text-[14px] font-semibold text-[var(--text-primary)]">Agent</span>
+          <span className="text-[14px] font-semibold text-[var(--text-primary)]">Assistant</span>
         </div>
         <div className="mx-auto flex min-h-0 w-full max-w-[720px] flex-1 flex-col overflow-hidden">
           {chat}
         </div>
       </section>
-      {/* Form card — header carries the stage title + Edit / Submit actions. */}
-      <aside className="flex min-h-0 flex-col overflow-hidden rounded-[16px] border border-[#ecebea] bg-white">
+      {/* Form panel — header carries the stage title + Edit / Submit actions. */}
+      <aside className="flex min-h-0 flex-col overflow-hidden bg-white">
         <div className="flex min-h-[53px] shrink-0 items-center gap-2 border-b border-[#ecebea] px-6 py-2">
           <FileText size={15} className="shrink-0 text-[var(--accent)]" />
           <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--text-primary)]">
@@ -1586,7 +1578,7 @@ function MessageBubble({ role, text, recap = false }: { role: "assistant" | "use
   return (
     <div className={cn("flex", role === "user" ? "justify-end" : "justify-start")}>
       {role === "user" ? (
-        <div className="bubble-in-right max-w-[85%] whitespace-pre-line rounded-[12px] bg-[var(--accent)] px-3.5 py-2 text-[14.5px] leading-6 text-white">
+        <div className="bubble-in-right max-w-[85%] whitespace-pre-line rounded-[12px] bg-[#f1efec] px-3.5 py-2 text-[14.5px] leading-6 text-[var(--text-primary)]">
           {text}
         </div>
       ) : (
@@ -1907,8 +1899,9 @@ function GuidedQuestions({ stage, s, onStarted, onBusyChange }: { stage: StageIt
   const [answers, setAnswers] = useState<Record<number, string>>(() => Object.fromEntries(questions.map((q, i) => [i, q.answer])));
   const [skipped, setSkipped] = useState<Record<number, boolean>>({});
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  // seed = opening exchange (normal composer); questions = the card flow; done = wrap-up.
-  const [phase, setPhase] = useState<"seed" | "questions" | "done">("seed");
+  // seed = opening exchange; questions = the card flow; confirm = recap + await
+  // the user's yes before filling the form; done = wrap-up.
+  const [phase, setPhase] = useState<"seed" | "questions" | "confirm" | "done">("seed");
   const done = phase === "done";
   const [input, setInput] = useState("");
   const { scrollRef, contentRef } = useBottomPinnedScroll();
@@ -1925,46 +1918,46 @@ function GuidedQuestions({ stage, s, onStarted, onBusyChange }: { stage: StageIt
   const timers = useRef<number[]>([]);
   useEffect(() => () => timers.current.forEach((t) => clearTimeout(t)), []);
   useEffect(() => {
-    onBusyChange?.(true);
     // 1. the idea the user described (from Create) appears first.
     timers.current.push(window.setTimeout(() => setMessages((cur) => [...cur, { id: bump(), role: "user", text: IDEATION_SEED[0].text }]), 300));
     // 2. the agent thinks…
     timers.current.push(window.setTimeout(() => setThinking(true), 600));
-    // 3. …then replies with the bridge into the follow-ups.
+    // 3. …then replies with the bridge and the question flow begins. Nothing is
+    // written to the form yet — that waits for the user's confirmation.
     timers.current.push(
       window.setTimeout(() => {
         setThinking(false);
         setMessages((cur) => [...cur, { id: bump(), role: "assistant", text: IDEATION_SEED[1].text }]);
-      }, 1900),
-    );
-    // 4. fill the fields the idea establishes + start the question flow.
-    timers.current.push(
-      window.setTimeout(() => {
         onStarted?.();
-        IDEATION_SEED_FIELDS.forEach((label, i) => {
-          const f = fieldByLabel.get(label);
-          if (f) s.fillNow(label, f.suggestion, 200 + i * 200);
-        });
         setPhase("questions");
-        onBusyChange?.(false);
-      }, 2100),
+      }, 1900),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Per-question Q&A stays hidden until every question is done, then appends
-  // below the seed exchange.
+  // Captured answers are held until the user confirms — only then is the form
+  // written to.
+  const resultRef = useRef<{ answers: Record<number, string>; skipped: Record<number, boolean> }>({ answers: {}, skipped: {} });
+
+  // All questions answered → recap the Q&A, summarise, and ask to confirm before
+  // touching the form.
   function finish(nextAnswers: Record<number, string>, nextSkipped: Record<number, boolean>) {
-    // All answered Q&A in one recap message.
+    resultRef.current = { answers: nextAnswers, skipped: nextSkipped };
     const recap = questions
       .map((q, i) => (nextSkipped[i] || !(nextAnswers[i] ?? "").trim() ? null : `Q: ${q.text}\nA: ${nextAnswers[i].trim()}`))
       .filter(Boolean)
       .join("\n\n");
+    const answered = questions.filter((_, i) => !nextSkipped[i] && (nextAnswers[i] ?? "").trim());
     const transcript: ChatMessage[] = [];
     if (recap) transcript.push({ id: bump(), role: "user", text: recap });
-    transcript.push({ id: bump(), role: "assistant", text: "That's everything — take a look at the form on the right and hit Submit when it's ready." });
+    transcript.push({
+      id: bump(),
+      role: "assistant",
+      text: `Got it — that covers the ${joinList(answered.map((q) => humanizeLabel(q.field)))}.`,
+    });
+    transcript.push({ id: bump(), role: "assistant", text: "Want me to fill these into the form on the right? Reply “yes” to confirm." });
     setMessages((m) => [...m, ...transcript]);
-    setPhase("done");
+    setPhase("confirm");
   }
 
   function advance(nextAnswers: Record<number, string>, nextSkipped: Record<number, boolean>) {
@@ -1972,12 +1965,10 @@ function GuidedQuestions({ stage, s, onStarted, onBusyChange }: { stage: StageIt
     else setIdx(idx + 1);
   }
 
+  // Answers are only recorded locally here — the form is written after confirm.
   function saveCurrent() {
-    const q = questions[idx];
     const answer = (answers[idx] ?? "").trim();
     if (!answer) return;
-    onStarted?.();
-    if (fieldByLabel.has(q.field)) s.fillNow(q.field, answer, 300);
     const nextSkipped = { ...skipped, [idx]: false };
     setSkipped(nextSkipped);
     advance(answers, nextSkipped);
@@ -1989,12 +1980,40 @@ function GuidedQuestions({ stage, s, onStarted, onBusyChange }: { stage: StageIt
     advance(answers, nextSkipped);
   }
 
-  // Post-flow: free-text edits, re-parsed into fields (same as the old chat).
-  function sendEdit() {
+  // On confirmation, write every captured answer (+ the fields the idea already
+  // established) into the form, with the loading state.
+  function fillForm() {
+    onBusyChange?.(true);
+    let d = 0;
+    IDEATION_SEED_FIELDS.forEach((label) => {
+      const f = fieldByLabel.get(label);
+      if (f) s.fillNow(label, f.suggestion, 300 + d++ * 200);
+    });
+    questions.forEach((q, i) => {
+      if (resultRef.current.skipped[i]) return;
+      const a = (resultRef.current.answers[i] ?? "").trim();
+      if (a && fieldByLabel.has(q.field)) s.fillNow(q.field, a, 300 + d++ * 200);
+    });
+    timers.current.push(window.setTimeout(() => onBusyChange?.(false), 300 + d * 200 + 400));
+    pushAssistant("Done — I've filled the form on the right. Review it and hit Submit when it's ready.");
+    setPhase("done");
+  }
+
+  // Composer send: confirm the fill, or (post-fill) apply free-text edits.
+  function handleSend() {
     const text = input.trim();
     if (!text) return;
     pushUser(text);
     setInput("");
+    if (phase === "confirm") {
+      if (/\b(yes|yep|yeah|yup|confirm|go ahead|do it|sure|ok|okay|proceed|fill|please)\b/i.test(text)) {
+        fillForm();
+      } else {
+        pushAssistant("No problem — tell me what to change, or say “yes” when you're ready to fill the form.");
+      }
+      return;
+    }
+    // Post-fill free-text edits.
     const fills = extractStageFields(text, s.fields, []);
     fills.forEach((fill, i) => s.fillNow(fill.label, fill.value, 300 + i * 200));
     pushAssistant(
@@ -2042,13 +2061,13 @@ function GuidedQuestions({ stage, s, onStarted, onBusyChange }: { stage: StageIt
           inputRef={inputRef}
           value={input}
           onChange={setInput}
-          onSend={sendEdit}
+          onSend={handleSend}
           sendDisabled={!input.trim()}
-          placeholder={done ? "Ask me to change any detail, or submit on the form…" : "Type a message…"}
+          placeholder={phase === "confirm" ? "Reply “yes” to confirm, or tell me what to change…" : done ? "Ask me to change any detail, or submit on the form…" : "Type a message…"}
           onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault();
-              sendEdit();
+              handleSend();
             }
           }}
         />
