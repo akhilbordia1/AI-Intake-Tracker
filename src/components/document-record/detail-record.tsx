@@ -13,6 +13,7 @@ import {
   type StageItem,
 } from "@/data/lifecycle";
 import { GateBadge, RecordDetailsSheet } from "@/components/document-record/record-details-sheet";
+import { RecordSummary } from "@/components/document-record/record-summary";
 import { ProgressRing, Tag, titleCaseTag } from "@/components/ui/kit";
 import { cn } from "@/lib/cn";
 import {
@@ -67,8 +68,11 @@ export function DetailRecordPage({ initialStageIndex, initialIdea }: { initialSt
   );
   // Stages that have ever been completed hold recorded data — so reopening one
   // shows its data (editable) rather than a blank form.
+  // Ideation holds its recorded data from the start: the demo opens on a finished
+  // intake — every detail captured, and the chat showing the exchange that
+  // captured it.
   const [dataStageIndexes, setDataStageIndexes] = useState<number[]>(() =>
-    deepLink === null ? [] : Array.from({ length: deepLink }, (_, index) => index),
+    deepLink === null ? [defaultStageIndex] : Array.from({ length: deepLink }, (_, index) => index),
   );
   const [currentUser, setCurrentUser] = useState("Priya N.");
   const [rejections, setRejections] = useState<Rejection[]>([]);
@@ -1089,7 +1093,7 @@ function SplitStageView({
     // the conversational paragraph flow.
     chat =
       stage.name === "Ideation" ? (
-        <GuidedQuestions stage={stage} s={s} idea={initialIdea} onBusyChange={setFormBusy} />
+        <GuidedQuestions stage={stage} s={s} idea={initialIdea} replay={prefill} onBusyChange={setFormBusy} />
       ) : (
         <ChatPanel stage={stage} s={s} />
       );
@@ -1251,6 +1255,9 @@ function SplitStageView({
           </>
         }
       >
+        {/* The record first, then the stage — the same block the overview opens
+            with, so moving between the two doesn't lose where you are. */}
+        <RecordSummary currentUser={currentUser} />
         {formBusy ? (
           <div className="h-[3px] w-full shrink-0 overflow-hidden bg-[var(--surface-muted)]">
             <div className="loadbar h-full w-1/3 rounded-full bg-[var(--accent)]" />
@@ -1747,6 +1754,36 @@ function QuestionCard({
   );
 }
 
+// The finished Ideation exchange, laid out in order: the idea, what was read from
+// it, the confirmation, the follow-ups and their answers, then the wrap-up.
+function replayTranscript({ idea, seedSummary, questions }: { idea?: string; seedSummary: string; questions: ScriptQuestion[] }): ChatMessage[] {
+  const at = formatChatTime();
+  const transcript: ChatMessage[] = [
+    { id: bump(), role: "user", text: idea?.trim() || IDEATION_SEED[0].text, time: at },
+    { id: bump(), role: "assistant", text: seedSummary },
+    { id: bump(), role: "assistant", text: "Shall I add these to the form on the right? Reply “yes” to confirm." },
+    { id: bump(), role: "user", text: "Yes, add them.", time: at },
+    { id: bump(), role: "assistant", text: `${IDEATION_SEED_FIELDS.length} details added to the form`, activity: "Added" },
+    { id: bump(), role: "assistant", text: IDEATION_SEED[1].text },
+  ];
+  questions.forEach((question) => {
+    transcript.push({ id: bump(), role: "assistant", text: question.text });
+    transcript.push({ id: bump(), role: "user", text: question.answer, time: at });
+  });
+  transcript.push({
+    id: bump(),
+    role: "assistant",
+    text: `Got it — that covers the ${joinList(questions.map((question) => humanizeLabel(question.field)))}.`,
+  });
+  transcript.push({ id: bump(), role: "assistant", text: `${questions.length} answers added to the form`, activity: "Added" });
+  transcript.push({
+    id: bump(),
+    role: "assistant",
+    text: "Every detail is captured, so this stage is ready to submit — or tell me what to change and I'll update it.",
+  });
+  return transcript;
+}
+
 // Guided flow driven by a question script: asks one question at a time in a
 // QuestionCard, records each answer into the shared field state, and keeps a
 // running transcript above. Once through (or dismissed), it hands off to a plain
@@ -1755,25 +1792,41 @@ function GuidedQuestions({
   stage,
   s,
   idea,
+  replay = false,
   onBusyChange,
 }: {
   stage: StageItem;
   s: StageFieldsState;
   idea?: string;
+  // The stage already holds its data: show the finished conversation rather than
+  // running the capture live.
+  replay?: boolean;
   onBusyChange?: (busy: boolean) => void;
 }) {
   const questions = useMemo(() => scriptFor(stage, s.fields), [stage, s.fields]);
   const fieldByLabel = useMemo(() => new Map(s.fields.map((f) => [f.label, f])), [s.fields]);
 
+  // What the opening description already establishes, as a "here's what I read"
+  // list the user confirms before any of it lands on the form.
+  const seedSummary = useMemo(() => {
+    const lines = IDEATION_SEED_FIELDS.map((label) => {
+      const f = fieldByLabel.get(label);
+      return f ? `• ${label} — ${clip(suggestionText(f.suggestion), 68)}` : null;
+    }).filter(Boolean);
+    return `Here's what I picked up from your description:\n\n${lines.join("\n")}`;
+  }, [fieldByLabel]);
+
   const [idx, setIdx] = useState(0);
   // Answers prefilled with each question's example — editable, or Skip to clear.
   const [answers, setAnswers] = useState<Record<number, string>>(() => Object.fromEntries(questions.map((q, i) => [i, q.answer])));
   const [skipped, setSkipped] = useState<Record<number, boolean>>({});
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  // Already captured: the conversation that captured it *is* the initial state —
+  // nothing is typed and nothing fills, the record is simply at this point.
+  const [messages, setMessages] = useState<ChatMessage[]>(() => (replay ? replayTranscript({ idea, seedSummary, questions }) : []));
   // seed = opening exchange; confirmSeed = await the user's yes on what was
   // extracted from their description; questions = the card flow; confirm = recap
   // + await the yes before filling the answers; done = wrap-up.
-  const [phase, setPhase] = useState<"seed" | "confirmSeed" | "questions" | "confirm" | "done">("seed");
+  const [phase, setPhase] = useState<"seed" | "confirmSeed" | "questions" | "confirm" | "done">(replay ? "done" : "seed");
   const done = phase === "done";
   const [input, setInput] = useState("");
   const { scrollRef, contentRef } = useBottomPinnedScroll();
@@ -1786,21 +1839,14 @@ function GuidedQuestions({
   // The agent "thinks" between the user's idea and its bridge reply.
   const [thinking, setThinking] = useState(false);
 
-  // What the opening description already establishes, as a "here's what I read"
-  // list the user confirms before any of it lands on the form.
-  const seedSummary = useMemo(() => {
-    const lines = IDEATION_SEED_FIELDS.map((label) => {
-      const f = fieldByLabel.get(label);
-      return f ? `• ${label} — ${clip(suggestionText(f.suggestion), 68)}` : null;
-    }).filter(Boolean);
-    return `Here's what I picked up from your description:\n\n${lines.join("\n")}`;
-  }, [fieldByLabel]);
-
   // Show the user's idea, then a thinking beat, then the summary of what was
   // extracted — nothing reaches the form until the user confirms it.
   const timers = useRef<number[]>([]);
   useEffect(() => () => timers.current.forEach((t) => clearTimeout(t)), []);
   useEffect(() => {
+    // A replayed stage has its transcript already; only the live flow animates.
+    if (replay) return;
+
     // 1. the idea the user described (from Create) appears first.
     timers.current.push(
       window.setTimeout(

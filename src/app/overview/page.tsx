@@ -1,30 +1,26 @@
 "use client";
 
-import { CalendarDays, FileText, Info, ShieldCheck } from "lucide-react";
+import { FileText, Info } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 
 import { AppShell, ContentPanel, PanelBreadcrumb, RailHeader, TabBarToggle, useRailMode } from "@/components/app-shell";
 import { MiniChatRail } from "@/components/chat/mini-chat-rail";
 import { RecordDetailsSheet } from "@/components/document-record/record-details-sheet";
+import { RecordSummary } from "@/components/document-record/record-summary";
 import { PersonAvatar, ProfileSwitcher } from "@/components/profile";
 import { USE_CASE } from "@/data/document-workflow-form-schema";
 import {
   ACTIVE_STAGE_INDEX,
   COMPLETED_STAGE_INDEXES,
   GATES,
-  type Gate,
-  RECORD_DETAILS,
   OUTCOME_ROW,
   SUBSTAGE_TO_GROUP,
   STAGE_INTROS,
   STAGES,
-  type StageItem,
   firstName,
-  gateForStage,
-  stageValue,
 } from "@/data/lifecycle";
-import { StageNode, Tag, titleCaseTag, type Tone } from "@/components/ui/kit";
+import { StageNode } from "@/components/ui/kit";
 import { cn } from "@/lib/cn";
 
 // ── The record's landing page ──
@@ -39,8 +35,6 @@ function stateOf(index: number): StageState {
   if (COMPLETED_STAGE_INDEXES.includes(index)) return "complete";
   return index === ACTIVE_STAGE_INDEX ? "active" : "upcoming";
 }
-
-const recordDetail = (label: string) => RECORD_DETAILS.find(([key]) => key === label)?.[1];
 
 // ── Role-aware actions ──
 // One list, ordered yours-first. "Yours" is anything the current profile is the
@@ -224,7 +218,7 @@ export default function OverviewPage() {
           </>
         }
       >
-        <RecordSummary activeStage={activeStage} currentUser={currentUser} />
+        <RecordSummary currentUser={currentUser} />
         {/* Two columns: the work on the left, where it needs the reading width;
  the lifecycle on the right as a vertical rail, which fills the column
  instead of leaving a band of dead space under a thin strip. */}
@@ -238,76 +232,6 @@ export default function OverviewPage() {
 // One status line, one lead paragraph, three facts. The record's id and phase are
 // in the panel breadcrumb and the gate is an action row below, so neither is
 // repeated here.
-
-// Risk and gate wording map onto the product's four tones — no bespoke colours.
-function riskTone(risk?: string): Tone {
-  const value = (risk ?? "").toLowerCase();
-  if (value.includes("high") || value.includes("critical")) return "danger";
-  if (value.includes("medium")) return "warning";
-  if (value.includes("low")) return "success";
-  return "neutral";
-}
-
-function gateStatusTone(status: Gate["status"]): Tone {
-  if (status === "Passed") return "success";
-  if (status === "Blocked" || status === "Rejected") return "danger";
-  if (status === "In review") return "warning";
-  return "neutral";
-}
-
-function RecordSummary({ activeStage, currentUser }: { activeStage: StageItem; currentUser: string }) {
-  const tier = stageValue("Triage", "Risk governance tier");
-  const overallRisk = stageValue("Assessment - Risk & Compliance", "Overall risk");
-  const gateOnActive = gateForStage(activeStage.name);
-  const ownedByMe = activeStage.owner === currentUser;
-
-  return (
-    <div className="border-b border-[var(--border-hairline)] px-7 pb-6 pt-6">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <h2 className="font-display text-[20px] leading-tight text-[var(--text-primary)]">{USE_CASE.name}</h2>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--accent-muted)] px-2.5 py-1 text-[11px] font-semibold text-[var(--accent-strong)]">
-          <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-strong)]" />
-          {titleCaseTag("In delivery")}
-        </span>
-        <span className="text-[13px] text-[var(--text-muted)]">
-          {activeStage.name} · stage {ACTIVE_STAGE_INDEX + 1} of {STAGES.length}
-        </span>
-      </div>
-
-      <p className="mt-3 max-w-[82ch] text-[14px] leading-6 text-[var(--text-body)]">{stageValue("Ideation", "Problem statement")}</p>
-
-      {/* Facts as chips: an icon carries the label, so the row reads at a glance
- instead of as three `label · value` pairs. */}
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border-default)] bg-[var(--surface)] py-1 pl-1 pr-2.5 text-[13px]">
-          <PersonAvatar name={activeStage.owner} size={20} highlight={ownedByMe} />
-          <span className={cn("text-[var(--text-primary)]", ownedByMe && "font-semibold")}>{activeStage.owner}</span>
-        </span>
-
-        {tier ? (
-          <Tag tone={riskTone(overallRisk)} icon={<ShieldCheck size={12} />} className="px-2.5 py-1 text-[12px]">
-            {`${tier} assessment${overallRisk ? ` · ${overallRisk.toLowerCase()} risk` : ""}`}
-          </Tag>
-        ) : null}
-
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border-default)] bg-[var(--surface)] px-2.5 py-1 text-[13px] text-[var(--text-primary)]">
-          <CalendarDays size={12} className="text-[var(--text-muted)]" />
-          Go-live {recordDetail("Target go-live") ?? "—"}
-        </span>
-
-        {gateOnActive ? (
-          <Tag tone={gateStatusTone(gateOnActive.status)} icon={<ShieldCheck size={12} />} className="px-2.5 py-1 text-[12px]">
-            {gateOnActive.id} · {gateOnActive.status}
-          </Tag>
-        ) : null}
-      </div>
-
-      <p className="mt-3 text-[12px] text-[var(--text-muted)]">
-        Raised by {recordDetail("Created by")} on {recordDetail("Created on")}.
-      </p>
-    </div>
-  );
-}
 
 // ── The lifecycle, as a table ──
 // Every stage on one row: where it is, whose it is, what came out of it. The rows
