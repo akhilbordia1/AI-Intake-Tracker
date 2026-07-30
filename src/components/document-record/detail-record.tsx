@@ -14,7 +14,7 @@ import {
 } from "@/data/lifecycle";
 import { GateBadge, RecordDetailsSheet } from "@/components/document-record/record-details-sheet";
 import { RecordSummary } from "@/components/document-record/record-summary";
-import { ProgressRing, titleCaseTag } from "@/components/ui/kit";
+import { ProgressRing, StageIcon, titleCaseTag } from "@/components/ui/kit";
 import { cn } from "@/lib/cn";
 import {
   Ban,
@@ -903,6 +903,11 @@ function StagePathMenu({
           open ? "bg-[var(--surface-strong)]" : "hover:bg-[var(--surface-hover)]",
         )}
       >
+        <StageIcon
+          stage={STAGES[activeIndex].name}
+          size={variant === "heading" ? 15 : 13}
+          className={cn("shrink-0", open || variant === "crumb" ? "text-[var(--accent)]" : "text-[var(--text-muted)]")}
+        />
         <span
           className={cn(
             variant === "heading" ? "font-display min-w-0 truncate text-[18px] leading-tight" : "whitespace-nowrap text-[14px] font-medium",
@@ -949,12 +954,7 @@ function StagePathMenu({
                         current ? "bg-[var(--surface-strong)]" : "hover:bg-[var(--surface-hover)]",
                       )}
                     >
-                      <span
-                        className={cn(
-                          "w-[14px] shrink-0 text-right text-[11px] tabular-nums",
-                          current ? "font-semibold text-[var(--accent-strong)]" : "text-[var(--text-muted)]",
-                        )}
-                      >
+                      <span className={cn("w-[14px] shrink-0 text-right text-[11px] tabular-nums", current ? "font-semibold text-[var(--accent-strong)]" : "text-[var(--text-muted)]")}>
                         {index + 1}
                       </span>
                       <span

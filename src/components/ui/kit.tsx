@@ -1,5 +1,21 @@
 "use client";
 
+import {
+  Activity,
+  ArrowUpDown,
+  Calculator,
+  Filter,
+  Gavel,
+  Hammer,
+  Layers,
+  Lightbulb,
+  PenTool,
+  ShieldCheck,
+  Split,
+  Target,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 import Link from "next/link";
 import type { ComponentProps, ReactNode } from "react";
 
@@ -226,6 +242,29 @@ export function ProgressBar({ ratio, complete = false, className }: { ratio: num
       />
     </span>
   );
+}
+
+// ── Stage icons ──
+// One glyph per lifecycle stage, so a stage is recognisable before its name is
+// read — in the stage header, the path menu, the overview table and the board.
+export const STAGE_ICONS: Record<string, LucideIcon> = {
+  Ideation: Lightbulb,
+  Qualification: Filter,
+  Prioritisation: ArrowUpDown,
+  Triage: Split,
+  "Assessment - Risk & Compliance": ShieldCheck,
+  "Business Case": Calculator,
+  GTAC: Gavel,
+  "Plan & KPI": Target,
+  "Solution blue print": PenTool,
+  "Solutionise and Production": Hammer,
+  "Monitoring and tracking": Activity,
+  Adoption: Users,
+};
+
+export function StageIcon({ stage, size = 14, className }: { stage: string; size?: number; className?: string }) {
+  const Glyph = STAGE_ICONS[stage] ?? Layers;
+  return <Glyph size={size} className={className} aria-hidden />;
 }
 
 // ── Lifecycle nodes ──

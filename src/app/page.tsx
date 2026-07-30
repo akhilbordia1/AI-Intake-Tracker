@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, CalendarDays, ChevronDown, Columns3, Flag, Layers, Search, SlidersHorizontal, Table2 } from "lucide-react";
+import { ArrowRight, CalendarDays, ChevronDown, Columns3, Flag, Search, SlidersHorizontal, Table2 } from "lucide-react";
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
@@ -10,7 +10,7 @@ import { ChatHistoryButton, useChatSessions, type ChatSession, type ChatTurn } f
 import { JumpToTop } from "@/components/chat/chat-ui";
 import { MiniChatRail } from "@/components/chat/mini-chat-rail";
 import { PersonAvatar, ProfileSwitcher } from "@/components/profile";
-import { IconButton, titleCaseTag } from "@/components/ui/kit";
+import { IconButton, StageIcon, titleCaseTag } from "@/components/ui/kit";
 import { SHORT_STAGE_LABELS, STAGE_GROUPS, STAGES, SUBSTAGE_TO_GROUP } from "@/data/lifecycle";
 import { useClickOutside } from "@/lib/use-click-outside";
 
@@ -1081,7 +1081,7 @@ function UseCaseBoardCard({ card }: { card: UseCaseCard }) {
 
           <div className="flex min-w-0 items-center gap-2 text-[var(--text-body)]">
             <span data-tip={`Stage — ${card.substage}`} className="flex min-w-0 items-center gap-1.5">
-              <Layers size={12} className="shrink-0 text-[var(--text-muted)]" />
+              <StageIcon stage={card.substage} size={12} className="shrink-0 text-[var(--text-muted)]" />
               <span className="min-w-0 truncate">{shortStageLabel(card.substage)}</span>
             </span>
             <span
