@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, AtSign, Check, LoaderCircle, Sparkles } from "lucide-react";
+import { ArrowUp, ArrowUpToLine, AtSign, Check, LoaderCircle, Sparkles } from "lucide-react";
 import { useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 
 import { cn } from "@/lib/cn";
@@ -75,6 +75,23 @@ export function ChatLine({ role = "assistant", text, recap = false, time, activi
       </div>
       {time ? <span className="mt-1 pr-1 text-[11px] text-[var(--text-muted)]">{time}</span> : null}
     </div>
+  );
+}
+
+// Jump back to the opening message. Floats just above the composer, in the
+// conversation it scrolls — not in the header, which is a long way from where the
+// reader's attention is.
+export function JumpToTop({ visible, onClick }: { visible: boolean; onClick: () => void }) {
+  if (!visible) return null;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="Jump to first message"
+      className="absolute bottom-[104px] right-2 z-20 grid h-6 w-7 place-items-center rounded-[7px] border border-[var(--border-hairline)] bg-[var(--surface)] text-[var(--text-muted)] transition hover:border-[var(--border-default)] hover:text-[var(--text-body)]"
+    >
+      <ArrowUpToLine size={13} />
+    </button>
   );
 }
 

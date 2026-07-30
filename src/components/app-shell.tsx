@@ -23,19 +23,15 @@ import { cn } from "@/lib/cn";
 export function RailHeader({
   label = "AI Factory",
   scrolled = false,
-  onJumpToTop,
-  canJumpToTop = false,
   expanded = false,
   onToggleExpand,
   collapsed = false,
   onToggleCollapse,
   onNewChat,
+  history,
 }: {
   label?: string;
   scrolled?: boolean;
-  // Scrolls the conversation back to its opening message.
-  onJumpToTop: () => void;
-  canJumpToTop?: boolean;
   // Full-width chat: the content panel steps aside entirely.
   expanded?: boolean;
   onToggleExpand: () => void;
@@ -44,6 +40,8 @@ export function RailHeader({
   onToggleCollapse: () => void;
   // Clears the conversation and starts again from the empty state.
   onNewChat?: () => void;
+  // Past conversations on this surface.
+  history?: ReactNode;
 }) {
   // Collapsed, the header *is* the way back — it keeps its place in the row so
   // the control never moves out from under the pointer.
@@ -65,18 +63,16 @@ export function RailHeader({
       )}
     >
       {toggle}
-      <Link href="/" data-tip="All use cases" className="text-[14px] font-medium text-[var(--text-primary)] transition hover:text-[var(--accent-strong)]">
+      <Link href="/" className="text-[14px] font-medium text-[var(--text-primary)] transition hover:text-[var(--accent-strong)]">
         {label}
       </Link>
       <span className="ml-auto flex items-center gap-0.5">
+        {history}
         {onNewChat ? (
           <IconButton label="New chat" onClick={onNewChat} size={28}>
             <MessageSquarePlus size={15} />
           </IconButton>
         ) : null}
-        <IconButton label="Jump to first message" onClick={onJumpToTop} disabled={!canJumpToTop} size={28}>
-          <ArrowUpGlyph />
-        </IconButton>
         <IconButton label={expanded ? "Restore the split view" : "Expand chat to full width"} onClick={onToggleExpand} active={expanded} size={28}>
           {expanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
         </IconButton>
@@ -95,25 +91,6 @@ export function useRailMode() {
     toggleCollapse: () => setMode((current) => (current === "collapsed" ? "split" : "collapsed")),
     toggleExpand: () => setMode((current) => (current === "expanded" ? "split" : "expanded")),
   };
-}
-
-function ArrowUpGlyph() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <path d="M12 19V5" />
-      <path d="m5 12 7-7 7 7" />
-    </svg>
-  );
 }
 
 // ── The panel's views ──

@@ -67,10 +67,12 @@ export function IconButton({
   size = 32,
   className,
   children,
+  ref,
   ...rest
 }: { label: string; active?: boolean; size?: number } & ComponentProps<"button">) {
   return (
     <button
+      ref={ref}
       type="button"
       aria-label={label}
       data-tip={label}

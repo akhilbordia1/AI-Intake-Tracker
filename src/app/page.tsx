@@ -6,6 +6,8 @@ import { useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 import { AppShell, ContentPanel, PanelTabs, RailHeader, useRailMode } from "@/components/app-shell";
+import { ChatHistoryButton, useChatSessions, type ChatSession, type ChatTurn } from "@/components/chat/chat-history";
+import { JumpToTop } from "@/components/chat/chat-ui";
 import { MiniChatRail } from "@/components/chat/mini-chat-rail";
 import { PersonAvatar, ProfileSwitcher } from "@/components/profile";
 import { IconButton, titleCaseTag } from "@/components/ui/kit";
@@ -89,6 +91,34 @@ function answerAboutPortfolio(question: string, person: string): string | undefi
 
   return undefined;
 }
+
+// Earlier conversations on the registry. Hardcoded like the rest of the
+// prototype's data; anything the user says is archived alongside them.
+const REGISTRY_HISTORY: ChatSession[] = [
+  {
+    id: "seed-blocked",
+    title: "Which use cases are blocked?",
+    when: "Yesterday",
+    turns: [
+      { role: "user", text: "Which use cases are blocked?", time: "4:12 PM" },
+      {
+        role: "assistant",
+        text: "2 use cases are not moving:\n\n• UC-132 Invoice Exception Classifier — gate R2 blocked at Business case\n• UC-097 Refund Auto-Approval Agent — rejected at Business case",
+      },
+      { role: "user", text: "Who can unblock UC-132?", time: "4:13 PM" },
+      { role: "assistant", text: "Elena Weber owns the Business case stage, and R2 is Nisha Patel's decision once the evidence is in." },
+    ],
+  },
+  {
+    id: "seed-gtac",
+    title: "What's waiting on GTAC?",
+    when: "Mon",
+    turns: [
+      { role: "user", text: "What's waiting on GTAC?", time: "10:02 AM" },
+      { role: "assistant", text: "At or past the GTAC board:\n\n• UC-142 Support Ticket Response Agent — Screening · owner Nisha Patel" },
+    ],
+  },
+];
 
 type BoardColumn = {
   title: string;
@@ -373,8 +403,10 @@ export default function HomePage() {
   const [railScrolled, setRailScrolled] = useState(false);
   const railScrollRef = useRef<HTMLDivElement>(null);
   const railMode = useRailMode();
-  // Bumping this remounts the rail, which is exactly "start a new chat".
-  const [chatKey, setChatKey] = useState(0);
+  // Past conversations, plus whatever the user archives by starting a new one.
+  const history = useChatSessions(REGISTRY_HISTORY);
+  const liveTurns = useRef<ChatTurn[]>([]);
+  const pastSession = history.sessions.find((session) => session.id === history.activeId) ?? null;
   const scopedUseCases = useMemo(() => filterUseCasesByScope(useCases, scopeFilter), [scopeFilter]);
   const attentionCount = useMemo(() => scopedUseCases.filter((card) => card.needsAttention).length, [scopedUseCases]);
   const filteredUseCases = useMemo(() => {
@@ -415,32 +447,38 @@ export default function HomePage() {
       railHeader={
         <RailHeader
           scrolled={railScrolled}
-          canJumpToTop={railScrolled}
-          onJumpToTop={() => railScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" })}
           expanded={railMode.expanded}
           onToggleExpand={railMode.toggleExpand}
           collapsed={railMode.collapsed}
           onToggleCollapse={railMode.toggleCollapse}
-          onNewChat={() => setChatKey((key) => key + 1)}
+          onNewChat={() => history.startNew(liveTurns.current, liveTurns.current[0]?.text ?? "Untitled chat")}
+          history={<ChatHistoryButton sessions={history.sessions} activeId={history.activeId} onOpen={history.open} />}
         />
       }
       rail={
-        <MiniChatRail
-          key={chatKey}
-          scrollRef={railScrollRef}
-          onScrolledChange={setRailScrolled}
-          emptyTitle={`How can I help, ${activeProfile.split(" ")[0]}?`}
-          intro={`${useCases.length} use cases are in the registry and ${attentionCount} need attention. Describe an idea and I'll start a new one, or ask me about what's already here.`}
-          starters={[
-            { label: "Start a new use case", draft: "I want to build an AI assistant that " },
-            "What needs my attention?",
-            "Which use cases are blocked?",
-          ]}
-          answer={(question) => answerAboutPortfolio(question, activeProfile)}
-          newIdeaHref="/detail"
-          placeholder="Describe an idea, or ask about the registry"
-          reply="I can answer on what needs attention, what's blocked, and what's at the GTAC board — or describe an idea and I'll start a new use case."
-        />
+        <div className="relative flex min-h-0 flex-1 flex-col">
+          <JumpToTop visible={railScrolled} onClick={() => railScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" })} />
+          <MiniChatRail
+            key={history.liveKey}
+            past={pastSession ? { session: pastSession, onBack: () => history.open(null) } : undefined}
+            onTurnsChange={(turns) => {
+              liveTurns.current = turns;
+            }}
+            scrollRef={railScrollRef}
+            onScrolledChange={setRailScrolled}
+            emptyTitle={`How can I help, ${activeProfile.split(" ")[0]}?`}
+            intro={`${useCases.length} use cases are in the registry and ${attentionCount} need attention. Describe an idea and I'll start a new one, or ask me about what's already here.`}
+            starters={[
+              { label: "Start a new use case", draft: "I want to build an AI assistant that " },
+              "What needs my attention?",
+              "Which use cases are blocked?",
+            ]}
+            answer={(question) => answerAboutPortfolio(question, activeProfile)}
+            newIdeaHref="/detail"
+            placeholder="Describe an idea, or ask about the registry"
+            reply="I can answer on what needs attention, what's blocked, and what's at the GTAC board — or describe an idea and I'll start a new use case."
+          />
+        </div>
       }
     >
       <ContentPanel
@@ -765,7 +803,9 @@ function UseCaseTableRow({ row }: { row: UseCaseCard }) {
       <td className="px-4 align-middle">
         <span className="flex min-w-0 items-center gap-1.5">
           {lifecycleTag ? (
-            <span className={["shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold", lifecycleTag].join(" ")}>{titleCaseTag(row.lifecycle)}</span>
+            <span className={["shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold", lifecycleTag].join(" ")}>
+              {titleCaseTag(row.lifecycle)}
+            </span>
           ) : null}
           {row.gate ? <GateChip gate={row.gate} /> : null}
           {row.needsAttention ? (

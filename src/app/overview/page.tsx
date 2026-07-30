@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 
 import { AppShell, ContentPanel, PanelBreadcrumb, RailHeader, TabBarToggle, useRailMode } from "@/components/app-shell";
+import { ChatHistoryButton, useChatSessions, type ChatSession, type ChatTurn } from "@/components/chat/chat-history";
+import { JumpToTop } from "@/components/chat/chat-ui";
 import { MiniChatRail } from "@/components/chat/mini-chat-rail";
 import { RecordDetailsSheet } from "@/components/document-record/record-details-sheet";
 import { RecordSummary } from "@/components/document-record/record-summary";
@@ -157,6 +159,33 @@ function answerAboutRecord(question: string, person: string, actions: ActionItem
   return undefined;
 }
 
+// Earlier conversations about this record, alongside anything said now.
+const RECORD_HISTORY: ChatSession[] = [
+  {
+    id: "seed-decisions",
+    title: "Summarise the decisions so far",
+    when: "Jul 5",
+    turns: [
+      { role: "user", text: "Summarise the decisions so far", time: "3:41 PM" },
+      {
+        role: "assistant",
+        text: "9 of 12 stages are complete, with R1 and R2 passed. Triage set a full assessment, risk & compliance cleared with conditions, and GTAC funded it at the June board.",
+      },
+      { role: "user", text: "Any conditions attached?", time: "3:43 PM" },
+      { role: "assistant", text: "Yes — human review stays mandatory on every output, and the CSV documentation has to close before production." },
+    ],
+  },
+  {
+    id: "seed-owner",
+    title: "Who owns the next stage?",
+    when: "Jun 30",
+    turns: [
+      { role: "user", text: "Who owns the next stage?", time: "9:18 AM" },
+      { role: "assistant", text: "Solutionise and Production is with Noah R. now. Next is Monitoring and tracking, owned by Marco B." },
+    ],
+  },
+];
+
 export default function OverviewPage() {
   // Default to whoever the record is actually waiting on, so the page opens in its
   // "something needs you" state rather than a list of other people's work.
@@ -164,8 +193,9 @@ export default function OverviewPage() {
   const [railScrolled, setRailScrolled] = useState(false);
   const railScrollRef = useRef<HTMLDivElement>(null);
   const railMode = useRailMode();
-  // Bumping this remounts the rail, which is exactly "start a new chat".
-  const [chatKey, setChatKey] = useState(0);
+  const history = useChatSessions(RECORD_HISTORY);
+  const liveTurns = useRef<ChatTurn[]>([]);
+  const pastSession = history.sessions.find((session) => session.id === history.activeId) ?? null;
   const [detailsOpen, setDetailsOpen] = useState(false);
   const actions = useMemo(() => actionsFor(currentUser), [currentUser]);
 
@@ -179,27 +209,33 @@ export default function OverviewPage() {
       railHeader={
         <RailHeader
           scrolled={railScrolled}
-          canJumpToTop={railScrolled}
-          onJumpToTop={() => railScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" })}
           expanded={railMode.expanded}
           onToggleExpand={railMode.toggleExpand}
           collapsed={railMode.collapsed}
           onToggleCollapse={railMode.toggleCollapse}
-          onNewChat={() => setChatKey((key) => key + 1)}
+          onNewChat={() => history.startNew(liveTurns.current, liveTurns.current[0]?.text ?? "Untitled chat")}
+          history={<ChatHistoryButton sessions={history.sessions} activeId={history.activeId} onOpen={history.open} />}
         />
       }
       rail={
-        <MiniChatRail
-          key={chatKey}
-          scrollRef={railScrollRef}
-          onScrolledChange={setRailScrolled}
-          intro={`This is ${USE_CASE.name} (${USE_CASE.id}). It's at ${activeStage.name}, stage ${ACTIVE_STAGE_INDEX + 1} of ${STAGES.length}, with ${activeStage.owner} preparing it. Ask me anything, or open the workflow to record the next stage.`}
-          emptyTitle={`How can I help, ${firstName(currentUser)}?`}
-          starters={["What's outstanding?", "Summarise the decisions so far", "Who owns the next stage?"]}
-          answer={(question) => answerAboutRecord(question, currentUser, actions)}
-          placeholder="Ask about this use case"
-          reply="I can answer on what's outstanding, the decisions so far, and who owns the next stage. Open the Workflow tab and I'll walk you through the stage you own."
-        />
+        <div className="relative flex min-h-0 flex-1 flex-col">
+          <JumpToTop visible={railScrolled} onClick={() => railScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" })} />
+          <MiniChatRail
+            key={history.liveKey}
+            past={pastSession ? { session: pastSession, onBack: () => history.open(null) } : undefined}
+            onTurnsChange={(turns) => {
+              liveTurns.current = turns;
+            }}
+            scrollRef={railScrollRef}
+            onScrolledChange={setRailScrolled}
+            intro={`This is ${USE_CASE.name} (${USE_CASE.id}). It's at ${activeStage.name}, stage ${ACTIVE_STAGE_INDEX + 1} of ${STAGES.length}, with ${activeStage.owner} preparing it. Ask me anything, or open the workflow to record the next stage.`}
+            emptyTitle={`How can I help, ${firstName(currentUser)}?`}
+            starters={["What's outstanding?", "Summarise the decisions so far", "Who owns the next stage?"]}
+            answer={(question) => answerAboutRecord(question, currentUser, actions)}
+            placeholder="Ask about this use case"
+            reply="I can answer on what's outstanding, the decisions so far, and who owns the next stage. Open the Workflow tab and I'll walk you through the stage you own."
+          />
+        </div>
       }
     >
       <ContentPanel

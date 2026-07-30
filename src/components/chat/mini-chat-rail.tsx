@@ -1,8 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 
+import { PastChatTranscript, type ChatSession, type ChatTurn } from "@/components/chat/chat-history";
 import { ChatComposer, ChatDock, ChatLine, ChatStartScreen, ChatTimeDivider, formatChatTime } from "@/components/chat/chat-ui";
 
 // A composer-only assistant rail for the routes that don't run a guided flow
@@ -26,6 +27,8 @@ export function MiniChatRail({
   scrollRef,
   placeholder = "Ask about this",
   emptyTitle,
+  past,
+  onTurnsChange,
   newIdeaHref,
 }: {
   intro: string;
@@ -37,6 +40,11 @@ export function MiniChatRail({
   // The empty state shown before the first message: a headline and the intro as a
   // lead line, above the suggestions.
   emptyTitle?: string;
+  // A past conversation to show instead of the live one: read-only, with a way
+  // back to the current chat.
+  past?: { session: ChatSession; onBack: () => void };
+  // Lets the surface archive what's on screen when a new chat is started.
+  onTurnsChange?: (turns: ChatTurn[]) => void;
   // Anything that reads as "I want to build X" opens the record's guided flow with
   // the idea carried across, instead of being answered in the rail. There is no
   // form in between.
@@ -50,8 +58,13 @@ export function MiniChatRail({
   const router = useRouter();
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [draft, setDraft] = useState("");
-  const [turns, setTurns] = useState<{ role: "assistant" | "user"; text: string; time?: string; activity?: string }[]>([]);
+  const [turns, setTurns] = useState<ChatTurn[]>([]);
   const empty = turns.length === 0;
+
+  // The surface holds the archive, so it needs whatever is currently on screen.
+  useEffect(() => {
+    onTurnsChange?.(turns);
+  }, [turns, onTurnsChange]);
 
   function send(text: string) {
     const message = text.trim();
@@ -111,6 +124,11 @@ export function MiniChatRail({
       placeholder={placeholder}
     />
   );
+
+  // A past conversation reads as a transcript: no composer, and a way back.
+  if (past) {
+    return <PastChatTranscript session={past.session} onBack={past.onBack} scrollRef={scrollRef} onScrolledChange={onScrolledChange} />;
+  }
 
   // Nothing asked yet: the rail shows the shared start screen, laid out in normal
   // flow (an overlaying dock would sit on top of the lead line).

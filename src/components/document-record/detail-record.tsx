@@ -34,7 +34,8 @@ import {
 } from "lucide-react";
 import { createPortal } from "react-dom";
 
-import { ChatComposer, ChatDock, ChatLine, ChatStarters, ChatTimeDivider, formatChatTime } from "@/components/chat/chat-ui";
+import { ChatHistoryButton, PastChatTranscript, useChatSessions, type ChatSession } from "@/components/chat/chat-history";
+import { ChatComposer, ChatDock, ChatLine, ChatStarters, ChatTimeDivider, JumpToTop, formatChatTime } from "@/components/chat/chat-ui";
 import { useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from "react";
 
 import { PersonAvatar, ProfileSwitcher, initials } from "@/components/profile";
@@ -998,6 +999,40 @@ function readOnlyStageState(stage: StageItem): StageFieldsState {
   };
 }
 
+// Conversations already had on this record. Each one belongs to a stage that has
+// been recorded, so they read as the history of how it got here.
+const STAGE_CHAT_HISTORY: ChatSession[] = [
+  {
+    id: "chat-business-case",
+    title: "Business Case",
+    when: "Jul 3",
+    turns: [
+      { role: "user", text: "How were the savings estimated?", time: "11:02 AM" },
+      {
+        role: "assistant",
+        text: "From today's volume and cost: 4,200 reviews a year at £38 each, with a projected 45% time saving — about £71k a year against a £120k investment.",
+      },
+      { role: "user", text: "Add that to the case.", time: "11:05 AM" },
+      { role: "assistant", text: "4 details added to the form", activity: "Added" },
+      { role: "assistant", text: "Recorded. Payback lands just under two years, which is what the board will debate." },
+    ],
+  },
+  {
+    id: "chat-assessment",
+    title: "Assessment - Risk & Compliance",
+    when: "Jul 5",
+    turns: [
+      { role: "user", text: "What are the top risks?", time: "3:20 PM" },
+      {
+        role: "assistant",
+        text: "• Overall risk — Medium\n• Model risk — Medium, mitigated by mandatory human review\n• Ethical risk — Low, no automated decisions about people",
+      },
+      { role: "user", text: "Any conditions to proceed?", time: "3:22 PM" },
+      { role: "assistant", text: "One: the GxP/GCP CSV documentation has to close before production. Everything else cleared." },
+    ],
+  },
+];
+
 // Split stage view (artifact-style): the chat on the left drives the form on the
 // right, which fills live as answers land (both share one field state). Returns a
 // fragment of two columns so the parent grid lays them side by side. The owner
@@ -1052,8 +1087,9 @@ function SplitStageView({
   const chatScrollElement = useRef<HTMLElement | null>(null);
   // Put away / full width — one mode, so the two can't both be on.
   const railMode = useRailMode();
-  // Bumping this remounts the conversation — "start a new chat" for this stage.
-  const [chatKey, setChatKey] = useState(0);
+  // Past conversations on this record, plus a remount key for "new chat".
+  const history = useChatSessions(STAGE_CHAT_HISTORY);
+  const pastSession = history.sessions.find((session) => session.id === history.activeId) ?? null;
   // Form panel shows a loading bar while the guided Ideation flow is seeding.
   const [formBusy, setFormBusy] = useState(false);
 
@@ -1147,13 +1183,12 @@ function SplitStageView({
       railHeader={
         <RailHeader
           scrolled={chatScrolled}
-          canJumpToTop={chatScrolled}
-          onJumpToTop={() => chatScrollElement.current?.scrollTo({ top: 0, behavior: "smooth" })}
           expanded={railMode.expanded}
           onToggleExpand={railMode.toggleExpand}
           collapsed={railMode.collapsed}
           onToggleCollapse={railMode.toggleCollapse}
-          onNewChat={() => setChatKey((key) => key + 1)}
+          onNewChat={() => history.startNew([], "")}
+          history={<ChatHistoryButton sessions={history.sessions} activeId={history.activeId} onOpen={history.open} />}
         />
       }
       rail={
@@ -1164,10 +1199,11 @@ function SplitStageView({
             chatScrollElement.current = element;
             setChatScrolled(element.scrollTop > 4);
           }}
-          className="mx-auto flex min-h-0 w-full max-w-[720px] flex-1 flex-col overflow-hidden"
-          key={chatKey}
+          className="relative mx-auto flex min-h-0 w-full max-w-[720px] flex-1 flex-col overflow-hidden"
+          key={history.liveKey}
         >
-          {chat}
+          <JumpToTop visible={chatScrolled} onClick={() => chatScrollElement.current?.scrollTo({ top: 0, behavior: "smooth" })} />
+          {pastSession ? <PastChatTranscript session={pastSession} onBack={() => history.open(null)} /> : chat}
         </div>
       }
       aside={detailsOpen ? <RecordDetailsSheet onClose={onOpenDetails} /> : undefined}
