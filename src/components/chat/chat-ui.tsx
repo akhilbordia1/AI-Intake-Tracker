@@ -135,7 +135,7 @@ export function ChatComposer({
   const canSend = Boolean(value.trim()) && !sendDisabled && !disabled;
   return (
     <div className={cn("shrink-0", padded && "pt-1.5")}>
-      <div className="rounded-[14px] border border-[var(--border-default)] bg-[var(--surface)] px-2 pb-1.5 pt-2.5 transition focus-within:border-[var(--accent-ring)]">
+      <div className="rounded-[14px] border border-[var(--border-default)] bg-[var(--surface)] px-2 pb-1.5 pt-2.5 transition focus-within:border-[var(--border-input)]">
         <textarea
           ref={inputRef}
           value={value}
@@ -238,7 +238,7 @@ export function ChatStartScreen<T extends { id: string; label: string; icon?: Re
       >
         <span
           className={cn(
-            "grid shrink-0 place-items-center rounded-[10px] bg-[var(--accent-soft)] text-[var(--accent)]",
+            "grid shrink-0 place-items-center rounded-[10px] bg-[var(--surface-hover)] text-[var(--accent)]",
             large ? "h-9 w-9" : "h-8 w-8",
           )}
         >
@@ -285,7 +285,7 @@ export function ChatStarters<T extends { id: string; label: string; icon?: React
           key={item.id}
           type="button"
           onClick={() => onPick(item)}
-          className="inline-flex max-w-full items-start gap-1.5 whitespace-normal rounded-[14px] border border-[var(--border-default)] bg-[var(--surface)] px-3 py-1.5 text-left text-[12px] font-medium leading-[1.45] text-[var(--text-body)] transition hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)] hover:text-[var(--text-primary)]"
+          className="inline-flex max-w-full items-start gap-1.5 whitespace-normal rounded-[14px] border border-[var(--border-default)] bg-[var(--surface)] px-3 py-1.5 text-left text-[12px] font-medium leading-[1.45] text-[var(--text-body)] transition hover:border-[var(--border-input)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
         >
           {item.icon ? <span className="mt-[2px] shrink-0 text-[var(--accent)]">{item.icon}</span> : null}
           {item.label}

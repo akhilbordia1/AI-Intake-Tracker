@@ -25,7 +25,7 @@ export function buttonClass(tone: ButtonTone = "secondary", size: ButtonSize = "
     size === "sm" ? "h-8 px-3 text-[13px]" : "h-9 px-3.5 text-[14px]",
     tone === "primary" && "bg-[var(--accent)] text-white hover:bg-[var(--accent-strong)]",
     tone === "secondary" &&
-      "border border-[var(--border-default)] bg-[var(--surface)] text-[var(--text-body)] hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)] hover:text-[var(--accent-strong)]",
+      "border border-[var(--border-default)] bg-[var(--surface)] text-[var(--text-body)] hover:border-[var(--border-input)] hover:bg-[var(--surface-hover)] hover:text-[var(--accent-strong)]",
     tone === "quiet" && "text-[var(--text-label)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]",
     tone === "danger" && "border border-[var(--tone-danger-border)] bg-[var(--tone-danger-bg)] text-[var(--tone-danger-fg)] hover:brightness-95",
   );
@@ -44,7 +44,7 @@ export function Button({
       {...rest}
       className={cn(
         buttonClass(tone, size),
-        active && tone === "secondary" && "border-[var(--accent-border)] bg-[var(--accent-soft)] text-[var(--accent-strong)]",
+        active && tone === "secondary" && "border-[var(--border-input)] bg-[var(--surface-strong)] text-[var(--text-primary)]",
         className,
       )}
     />
@@ -82,7 +82,7 @@ export function IconButton({
       className={cn(
         "grid shrink-0 place-items-center rounded-[8px] transition disabled:cursor-not-allowed disabled:opacity-45",
         active
-          ? "bg-[var(--accent-soft)] text-[var(--accent-strong)]"
+          ? "bg-[var(--surface-strong)] text-[var(--text-primary)]"
           : "text-[var(--text-label)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]",
         className,
       )}
@@ -147,8 +147,8 @@ export const TONE_CLASS_MANIFEST = [
 export function cardClass({ selected = false, interactive = false }: { selected?: boolean; interactive?: boolean } = {}) {
   return cn(
     "rounded-[10px] border",
-    selected ? "border-[var(--accent-border)] bg-[var(--accent-soft)]" : "border-[var(--border-default)] bg-[var(--surface)]",
-    interactive && !selected && "transition hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)]",
+    selected ? "border-[var(--border-default)] bg-[var(--surface-hover)]" : "border-[var(--border-default)] bg-[var(--surface)]",
+    interactive && !selected && "transition hover:border-[var(--border-input)] hover:bg-[var(--surface-hover)]",
   );
 }
 

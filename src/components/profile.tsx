@@ -47,7 +47,7 @@ export function PersonAvatar({
         active
           ? "bg-[var(--accent)] text-white"
           : highlight
-            ? "bg-[var(--accent-soft)] text-[var(--accent-strong)] ring-1 ring-[var(--accent-border)]"
+            ? "bg-[var(--surface-hover)] text-[var(--accent-strong)] ring-1 ring-[var(--border-default)]"
             : "bg-[var(--border-default)] text-[var(--text-label)]",
       )}
     >
@@ -117,7 +117,7 @@ export function ProfileSwitcher({
                 }}
                 className={cn(
                   "flex w-full items-center gap-2.5 rounded-[8px] px-2 py-2 text-left transition",
-                  isCurrent ? "bg-[var(--accent-soft)]" : "hover:bg-[var(--surface-hover)]",
+                  isCurrent ? "bg-[var(--surface-hover)]" : "hover:bg-[var(--surface-hover)]",
                 )}
               >
                 <PersonAvatar name={person.name} size={28} active={isCurrent} highlight={isCurrent} />

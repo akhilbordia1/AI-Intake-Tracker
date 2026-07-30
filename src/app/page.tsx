@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronDown, Columns3, Search, SlidersHorizontal, Table2 } from "lucide-react";
+import { ArrowRight, CalendarDays, ChevronDown, Columns3, Flag, Layers, Search, SlidersHorizontal, Table2 } from "lucide-react";
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
@@ -527,7 +527,7 @@ export default function HomePage() {
                   className="grid h-full min-h-[320px] gap-6"
                   style={{
                     gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))`,
-                    minWidth: `${columns.length * 320 + (columns.length - 1) * 24}px`,
+                    minWidth: `${columns.length * 340 + (columns.length - 1) * 24}px`,
                   }}
                 >
                   {columns.map((column) => (
@@ -584,7 +584,7 @@ function CollapsingSearch({ value, onChange }: { value: string; onChange: (value
           }
         }}
         placeholder="Search use cases…"
-        className="h-8 w-[180px] rounded-[8px] border border-[var(--border-default)] bg-[var(--surface)] pl-7 pr-2.5 text-[12px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--accent-ring)]"
+        className="h-8 w-[180px] rounded-[8px] border border-[var(--border-default)] bg-[var(--surface)] pl-7 pr-2.5 text-[12px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--border-input)]"
       />
     </label>
   );
@@ -629,8 +629,8 @@ function FilterMenu({
         className={[
           "inline-flex h-8 items-center gap-1.5 rounded-[8px] border px-2.5 text-[12px] transition",
           open || activeCount > 0
-            ? "border-[var(--accent-ring)] bg-[var(--accent-soft)] text-[var(--accent-strong)]"
-            : "border-[var(--border-default)] bg-[var(--surface)] text-[var(--text-body)] hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)]",
+            ? "border-[var(--accent-ring)] bg-[var(--surface-hover)] text-[var(--accent-strong)]"
+            : "border-[var(--border-default)] bg-[var(--surface)] text-[var(--text-body)] hover:border-[var(--border-input)] hover:bg-[var(--surface-hover)]",
         ].join(" ")}
       >
         <SlidersHorizontal size={14} />
@@ -686,7 +686,7 @@ function MenuOption({ selected, onClick, children }: { selected: boolean; onClic
       className={[
         "flex h-8 w-full items-center rounded-[6px] px-2 text-left text-[12px] font-medium transition",
         selected
-          ? "bg-[var(--accent-soft)] text-[var(--accent-strong)]"
+          ? "bg-[var(--surface-hover)] text-[var(--accent-strong)]"
           : "text-[var(--text-body)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]",
       ].join(" ")}
     >
@@ -762,7 +762,7 @@ function UseCaseTableRow({ row }: { row: UseCaseCard }) {
   const due = dueDate(row.due);
 
   return (
-    <tr className="group h-[64px] border-b border-[var(--border-hairline)] transition last:border-b-0 hover:bg-[var(--accent-hover-bg)]">
+    <tr className="group h-[64px] border-b border-[var(--border-hairline)] transition last:border-b-0 hover:bg-[var(--surface-hover)]">
       <td className="px-6 align-middle">
         <Link href={row.href} className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
           {row.id}
@@ -811,7 +811,7 @@ function UseCaseTableRow({ row }: { row: UseCaseCard }) {
           {row.needsAttention ? (
             <span
               data-tip={getAttentionMessage(row)}
-              className="min-w-0 shrink truncate rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-[11px] font-semibold text-[var(--accent-strong)]"
+              className="min-w-0 shrink truncate rounded-full bg-[var(--surface-hover)] px-2 py-0.5 text-[11px] font-semibold text-[var(--accent-strong)]"
             >
               {getAttentionMessage(row)}
             </span>
@@ -841,6 +841,14 @@ function TableHeader({ children, align = "left" }: { children: ReactNode; align?
     </th>
   );
 }
+
+// The flag on a card takes the priority's colour; the dot version is still used
+// in the table, where the column header supplies the label.
+const PRIORITY_ICON: Record<Priority, string> = {
+  High: "text-[var(--status-danger)]",
+  Medium: "text-[var(--tone-warning-fg)]",
+  Low: "text-[var(--status-success)]",
+};
 
 const PRIORITY_DOT: Record<Priority, string> = {
   High: "bg-[var(--status-danger)]",
@@ -965,6 +973,20 @@ function KanbanColumn({ column }: { column: BoardColumn }) {
   );
 }
 
+// Very light colour coding on the board: a card's header band and a 3px left edge
+// take the tone of its state, so a column reads at a glance — red is stuck, amber
+// is waiting on a decision, green is live, accent is yours to act on. Everything
+// else stays neutral, so the colour marks exceptions rather than decorating rows.
+type CardTone = "danger" | "warning" | "success" | "info" | "neutral";
+
+function cardTone(card: UseCaseCard): CardTone {
+  if (card.lifecycle === "Rejected" || card.gate?.status === "Rejected" || card.gate?.status === "Blocked") return "danger";
+  if (card.lifecycle === "On hold" || card.gate?.status === "In review") return "warning";
+  if (card.lifecycle === "Live") return "success";
+  if (card.needsAttention) return "info";
+  return "neutral";
+}
+
 // Passed = green, in-review = amber, blocked/rejected = red, pending = neutral.
 const GATE_BADGE: Record<GateStatus, string> = {
   Pending: "bg-[var(--surface-strong)] text-[var(--text-muted)]",
@@ -992,92 +1014,100 @@ function GateChip({ gate }: { gate: { id: string; status: GateStatus } }) {
   );
 }
 
-function MetaCell({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="min-w-0">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--text-muted)]">{label}</div>
-      <div className="mt-1">{children}</div>
-    </div>
-  );
-}
-
-function PriorityInline({ card }: { card: UseCaseCard }) {
-  const effective = card.orgPriority ?? card.priority;
-  if (!effective) return <span className="block text-[12px] font-medium text-[var(--text-muted)]">Not prioritized</span>;
-  const showFunctional = card.orgPriority && card.priority && card.orgPriority !== card.priority;
-
-  return (
-    <span className="block min-w-0">
-      <span className="flex items-center gap-1.5 text-[12px] font-medium text-[var(--text-primary)]">
-        <span className={["h-1.5 w-1.5 shrink-0 rounded-full", PRIORITY_DOT[effective]].join(" ")} />
-        {effective}
-      </span>
-      {showFunctional ? <span className="mt-0.5 block truncate text-[11px] text-[var(--text-muted)]">functional: {card.priority}</span> : null}
-    </span>
-  );
-}
-
-function OwnerInline({ card }: { card: UseCaseCard }) {
-  return (
-    <div className="flex min-w-0 items-center gap-1.5">
-      <div className="flex shrink-0 items-center">
-        <PersonAvatar name={card.owner} size={18} />
-        {card.coOwner ? (
-          <span className="-ml-1.5 rounded-full ring-2 ring-white">
-            <PersonAvatar name={card.coOwner} size={18} />
-          </span>
-        ) : null}
-      </div>
-      <span
-        data-tip={card.coOwner ? `${formatStageOwner(card)} and ${card.coOwner}` : formatStageOwner(card)}
-        className="min-w-0 truncate text-[12px] font-medium text-[var(--text-primary)]"
-      >
-        {card.coOwner ? `${formatStageOwner(card)} +1` : formatStageOwner(card)}
-      </span>
-    </div>
-  );
-}
-
 function UseCaseBoardCard({ card }: { card: UseCaseCard }) {
   const lifecycleTag = LIFECYCLE_TAG[card.lifecycle];
+  const priority = card.orgPriority ?? card.priority;
+  const due = dueDate(card.due);
+  const tone = cardTone(card);
+  const toned = tone !== "neutral";
 
   return (
-    <Link href={card.href} className="group block">
-      <div className="relative z-10 rounded-[10px] border border-[var(--border-default)] bg-white transition group-hover:border-[var(--accent-ring)] group-hover:bg-[var(--accent-hover-bg)]">
-        <div className="px-5 pb-4 pt-4.5">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">{card.id}</span>
-            <div className="flex shrink-0 items-center gap-1.5">
-              {lifecycleTag ? (
-                <span className={["rounded-full px-2 py-0.5 text-[11px] font-semibold", lifecycleTag].join(" ")}>{card.lifecycle}</span>
+    <Link
+      href={card.href}
+      className="group block shrink-0 overflow-hidden rounded-[10px] border border-[var(--border-default)] bg-[var(--surface)] transition hover:border-[var(--border-input)]"
+    >
+      {/* Header band: the record's id and the tags that qualify it, on its own
+          ground — the same treatment as the panel and table-group headers. */}
+      <div
+        style={toned ? { background: `var(--tone-${tone}-bg)`, borderColor: `var(--tone-${tone}-border)` } : undefined}
+        className="flex min-h-[34px] items-center gap-2 border-b border-[var(--border-hairline)] bg-[var(--surface-strong)] px-4 py-1.5"
+      >
+        <span
+          style={toned ? { color: `var(--tone-${tone}-fg)` } : undefined}
+          className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-label)]"
+        >
+          {card.id}
+        </span>
+        <span className="ml-auto flex shrink-0 items-center gap-1.5">
+          {lifecycleTag ? (
+            <span className={["rounded-full px-2 py-0.5 text-[11px] font-semibold", lifecycleTag].join(" ")}>{titleCaseTag(card.lifecycle)}</span>
+          ) : null}
+          {card.gate ? <GateChip gate={card.gate} /> : null}
+        </span>
+      </div>
+
+      <div className="px-4 pb-3.5 pt-3">
+        <h3 className="text-[14px] font-semibold leading-[1.4] text-[var(--text-primary)] transition group-hover:text-[var(--accent-strong)]">
+          {card.title}
+        </h3>
+        <p className="mt-1 line-clamp-2 text-[12px] leading-[1.5] text-[var(--text-body)]">{card.description}</p>
+
+        {/* Each value carries an icon, so it says what it is without a caption and
+            without waiting for a tooltip: who owns it, when it's due, where it is
+            in the lifecycle, how urgent it is. */}
+        <div className="mt-3.5 space-y-1.5 text-[12px]">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="flex shrink-0 items-center">
+              <PersonAvatar name={card.owner} size={18} />
+              {card.coOwner ? (
+                <span className="-ml-1.5 rounded-full ring-2 ring-[var(--surface)]">
+                  <PersonAvatar name={card.coOwner} size={18} />
+                </span>
               ) : null}
-              {card.gate ? <GateChip gate={card.gate} /> : null}
-            </div>
-          </div>
-          <h3 className="mt-2.5 text-[15px] font-semibold leading-[1.35] text-[var(--text-primary)]">{card.title}</h3>
-          <p className="mt-2 line-clamp-2 text-[12px] leading-[1.5] text-[var(--text-body)]">{card.description}</p>
-        </div>
-        <div className="grid grid-cols-2 gap-x-6 gap-y-4 border-t border-[var(--border-hairline)] px-5 py-4">
-          <MetaCell label="Stage">
-            {/* The short lifecycle label — the full name doesn't fit a card column. */}
-            <span data-tip={card.substage} className="block truncate text-[12px] font-medium text-[var(--text-primary)]">
-              {shortStageLabel(card.substage)}
             </span>
-          </MetaCell>
-          <MetaCell label="Priority">
-            <PriorityInline card={card} />
-          </MetaCell>
-          <MetaCell label={card.coOwner ? "Owners" : "Owner"}>
-            <OwnerInline card={card} />
-          </MetaCell>
-          <MetaCell label="Due">
-            <span className="block truncate text-[12px] font-medium text-[var(--text-primary)]">{card.due}</span>
-          </MetaCell>
+            <span
+              data-tip={card.coOwner ? `Owners — ${formatStageOwner(card)} and ${card.coOwner}` : `Owner — ${formatStageOwner(card)}`}
+              className="min-w-0 truncate text-[var(--text-body)]"
+            >
+              {card.coOwner ? `${formatStageOwner(card)} +1` : formatStageOwner(card)}
+            </span>
+            {due ? (
+              <span data-tip={`Due ${due}`} className="ml-auto flex shrink-0 items-center gap-1.5 tabular-nums text-[var(--text-body)]">
+                <CalendarDays size={12} className="text-[var(--text-muted)]" />
+                {due}
+              </span>
+            ) : null}
+          </div>
+
+          <div className="flex min-w-0 items-center gap-2 text-[var(--text-body)]">
+            <span data-tip={`Stage — ${card.substage}`} className="flex min-w-0 items-center gap-1.5">
+              <Layers size={12} className="shrink-0 text-[var(--text-muted)]" />
+              <span className="min-w-0 truncate">{shortStageLabel(card.substage)}</span>
+            </span>
+            <span
+              data-tip={
+                priority
+                  ? card.orgPriority && card.priority !== card.orgPriority
+                    ? `Priority — portfolio ${card.orgPriority}, functional ${card.priority}`
+                    : `Priority — ${priority.toLowerCase()}`
+                  : "Not prioritised yet"
+              }
+              className="ml-auto flex shrink-0 items-center gap-1.5"
+            >
+              <Flag size={12} className={priority ? PRIORITY_ICON[priority] : "text-[var(--text-muted)]"} />
+              {priority ?? "None"}
+            </span>
+          </div>
         </div>
       </div>
+
+      {/* What this card wants from you, inside its border rather than hanging off
+          the bottom of it. */}
       {card.needsAttention ? (
-        <div className="-mt-2 rounded-b-[10px] bg-[var(--accent-soft)] px-5 pb-2.5 pt-4 text-[12px] font-semibold leading-5 text-[var(--accent-strong)] transition group-hover:bg-[#d3e9f0]">
-          {getAttentionMessage(card)}
+        <div className="flex items-center gap-1.5 border-t border-[var(--border-hairline)] bg-[var(--surface-muted)] px-4 py-2 text-[12px] font-medium text-[var(--text-primary)] transition group-hover:bg-[var(--surface-hover)]">
+          <ArrowRight size={12} className="shrink-0 text-[var(--accent)]" />
+          <span className="min-w-0 truncate">{getAttentionMessage(card)}</span>
+          {card.pendingFor ? <span className="ml-auto shrink-0 text-[11px] text-[var(--text-muted)]">{card.pendingFor}</span> : null}
         </div>
       ) : null}
     </Link>

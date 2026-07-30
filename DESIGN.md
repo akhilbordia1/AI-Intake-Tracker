@@ -43,10 +43,14 @@ field borders). Pick the lightest one that still reads.
 
 ### Accent
 
-`--accent` #0e7090 is the only brand colour: primary buttons, current-stage nodes,
-links, focus. Scale: `--accent-strong` (text on tint, hover), `--accent-soft`
-(tints), `--accent-border`, `--accent-ring` (hover borders), `--accent-hover-bg`
-(secondary-button hover).
+`--accent` #0e7090 is the only brand colour, and it marks what something **is** —
+a link, the current stage, the primary action, a focus ring. It is never an
+interaction state: hover is `--surface-hover`, selected/open is
+`--surface-strong`, so a row you're pointing at and a row that's chosen read as
+two shades of the same neutral rather than a wash of blue.
+
+Scale: `--accent-strong` (accent text), `--accent-soft` (tints, focus rings),
+`--accent-border`, `--accent-ring`.
 
 ### Status tones
 
@@ -78,7 +82,8 @@ sizes.
 | 14 | Form values and field labels, stage description |
 | 15 | Prose that is meant to be read (intake lead, long copy) |
 | 18 | Panel titles, section headings (Fraunces) |
-| 20 | Page title (Fraunces) |
+| 20 | Section titles (Fraunces) |
+| 28 | Record name (Fraunces) |
 | 40 | Intake hero only (Fraunces) |
 
 Uppercase micro-labels are for group headers only — never a grid of them as a

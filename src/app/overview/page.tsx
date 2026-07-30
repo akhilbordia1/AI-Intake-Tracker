@@ -309,7 +309,7 @@ function LifecycleTable({ currentUser }: { currentUser: string }) {
                 key={stage.name}
                 className={cn(
                   "group h-[52px] border-b border-[var(--border-hairline)] transition last:border-b-0",
-                  state === "active" ? "bg-[var(--accent-soft)]/50" : "hover:bg-[var(--accent-hover-bg)]",
+                  state === "active" ? "bg-[var(--surface-muted)]" : "hover:bg-[var(--surface-hover)]",
                 )}
               >
                 <th scope="row" className="min-w-0 px-6 text-left align-middle font-normal">

@@ -900,7 +900,7 @@ function StagePathMenu({
         className={cn(
           "inline-flex max-w-full items-center gap-1.5 rounded-[8px] text-left transition",
           variant === "heading" ? "-mx-2 -my-1 gap-2 px-2 py-1" : "-mx-1 px-1 py-0.5",
-          open ? "bg-[var(--accent-soft)]" : "hover:bg-[var(--surface-muted)]",
+          open ? "bg-[var(--surface-strong)]" : "hover:bg-[var(--surface-hover)]",
         )}
       >
         <span
@@ -946,7 +946,7 @@ function StagePathMenu({
                       }}
                       className={cn(
                         "flex w-full items-center gap-2.5 rounded-[8px] px-2 py-1.5 text-left transition",
-                        current ? "bg-[var(--accent-soft)]" : "hover:bg-[var(--surface-hover)]",
+                        current ? "bg-[var(--surface-strong)]" : "hover:bg-[var(--surface-hover)]",
                       )}
                     >
                       <span
@@ -1248,7 +1248,7 @@ function SplitStageView({
                 <button
                   type="button"
                   onClick={() => setEditAll((v) => !v)}
-                  className={cn(shellButton(), editAll && "border-[var(--accent-border)] bg-[var(--accent-soft)] text-[var(--accent-strong)]")}
+                  className={cn(shellButton(), editAll && "border-[var(--border-default)] bg-[var(--surface-hover)] text-[var(--accent-strong)]")}
                 >
                   {editAll ? <Check size={13} /> : <Pencil size={13} />}
                   {editAll ? "Save" : "Edit"}
@@ -2713,14 +2713,14 @@ function GrowText({ value, onChange, onSuggest, label }: { value: string; onChan
         rows={1}
         aria-label={label}
         // ponytail: field-sizing handles the auto-grow; older browsers scroll instead.
-        className="field-sizing-content w-full resize-none rounded-[8px] border border-[var(--border-default)] bg-white px-3 py-1.5 pr-9 text-[14px] leading-6 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent-ring)]"
+        className="field-sizing-content w-full resize-none rounded-[8px] border border-[var(--border-default)] bg-white px-3 py-1.5 pr-9 text-[14px] leading-6 text-[var(--text-primary)] outline-none transition focus:border-[var(--border-input)]"
       />
       <button
         type="button"
         onClick={onSuggest}
         aria-label={`Suggest ${label}`}
         data-tip="Suggest"
-        className="absolute right-1 top-1 grid h-7 w-7 place-items-center rounded-[8px] text-[var(--text-muted)] transition hover:bg-[var(--accent-soft)] hover:text-[var(--accent-strong)]"
+        className="absolute right-1 top-1 grid h-7 w-7 place-items-center rounded-[8px] text-[var(--text-muted)] transition hover:bg-[var(--surface-hover)] hover:text-[var(--accent-strong)]"
       >
         <Sparkles size={14} />
       </button>
@@ -2768,7 +2768,7 @@ function PlanStageForm() {
             aria-label="Delivery notes"
             rows={3}
             placeholder="Optional…"
-            className="block w-full resize-none rounded-[8px] border border-[var(--border-default)] bg-white px-3 py-2.5 text-[13px] leading-5 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent-ring)] focus:ring-2 focus:ring-[var(--accent-soft)]"
+            className="block w-full resize-none rounded-[8px] border border-[var(--border-default)] bg-white px-3 py-2.5 text-[13px] leading-5 text-[var(--text-primary)] outline-none transition focus:border-[var(--border-input)] focus:ring-2 focus:ring-[var(--accent-soft)]"
           />
         </PlanRow>
       </div>
@@ -2836,8 +2836,8 @@ function SquadPicker() {
               className={cn(
                 "relative flex flex-col items-start gap-2.5 rounded-[10px] border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]",
                 on
-                  ? "border-[var(--accent-border)] bg-[var(--accent-soft)]"
-                  : "border-[var(--border-default)] bg-white hover:border-[var(--accent-border)] hover:bg-[var(--accent-hover-bg)]",
+                  ? "border-[var(--border-default)] bg-[var(--surface-hover)]"
+                  : "border-[var(--border-default)] bg-white hover:border-[var(--accent-border)] hover:bg-[var(--surface-hover)]",
               )}
             >
               <span className="absolute right-2.5 top-2.5">
@@ -2882,7 +2882,7 @@ function MilestoneRail() {
         return (
           <div key={milestone.name} className="flex gap-3.5">
             <div className="flex flex-col items-center">
-              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full border-[1.5px] border-[var(--accent-border)] bg-[var(--accent-soft)] text-[11px] font-semibold text-[var(--accent-strong)]">
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full border-[1.5px] border-[var(--border-default)] bg-[var(--surface-hover)] text-[11px] font-semibold text-[var(--accent-strong)]">
                 {index + 1}
               </span>
               {isLast ? null : <span className="w-px flex-1 bg-[var(--border-default)]" />}

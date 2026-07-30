@@ -40,7 +40,7 @@ export function RecordSummary({ currentUser }: { currentUser: string }) {
 
   return (
     <div className="border-b border-[var(--border-hairline)] px-6 pb-5 pt-5">
-      <h2 className="font-display text-[20px] leading-tight text-[var(--text-primary)]">{USE_CASE.name}</h2>
+      <h2 className="font-display text-[28px] leading-tight text-[var(--text-primary)]">{USE_CASE.name}</h2>
 
       <p className="mt-3 max-w-[82ch] text-[14px] leading-6 text-[var(--text-body)]">{stageValue("Ideation", "Problem statement")}</p>
 

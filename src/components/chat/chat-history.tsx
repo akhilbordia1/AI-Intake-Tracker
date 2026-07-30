@@ -152,7 +152,7 @@ function MenuRow({ label, meta, selected, onClick }: { label: string; meta: stri
       onClick={onClick}
       className={cn(
         "flex h-7 w-full items-center gap-2 rounded-[6px] px-2 text-left transition",
-        selected ? "bg-[var(--accent-soft)]" : "hover:bg-[var(--surface-hover)]",
+        selected ? "bg-[var(--surface-strong)]" : "hover:bg-[var(--surface-hover)]",
       )}
     >
       <span className={cn("min-w-0 flex-1 truncate text-[12px]", selected ? "font-semibold text-[var(--accent-strong)]" : "text-[var(--text-body)]")}>

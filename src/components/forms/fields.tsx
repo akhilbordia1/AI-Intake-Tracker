@@ -11,7 +11,7 @@ import { useClickOutside } from "@/lib/use-click-outside";
 // inline validation (error ring + message), an optional "why this matters"
 // tooltip, and an optional AI "Suggest" button that fills a context draft.
 
-const FOCUS_RING = "focus:border-[var(--accent-ring)] focus:ring-2 focus:ring-[var(--accent-soft)]";
+const FOCUS_RING = "focus:border-[var(--border-input)] focus:ring-2 focus:ring-[var(--accent-soft)]";
 const BASE_INPUT = cn(
   "h-9 w-full rounded-[8px] border bg-white px-3 text-[14px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)]",
   FOCUS_RING,
@@ -52,7 +52,7 @@ function SuggestButton({ onClick, className }: { onClick: () => void; className?
       data-tip="Suggest a draft"
       aria-label="Suggest a draft"
       className={cn(
-        "absolute inline-flex h-6 w-6 items-center justify-center rounded-full text-[var(--text-muted)] transition hover:bg-[var(--accent-soft)] hover:text-[var(--accent-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-soft)]",
+        "absolute inline-flex h-6 w-6 items-center justify-center rounded-full text-[var(--text-muted)] transition hover:bg-[var(--surface-hover)] hover:text-[var(--accent-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-soft)]",
         className,
       )}
     >
@@ -233,7 +233,7 @@ export function SearchableSelect({
                     className={cn(
                       "flex h-8 w-full items-center justify-between gap-2 rounded-[6px] px-2.5 text-left text-[12px] font-medium transition",
                       value === option
-                        ? "bg-[var(--accent-soft)] text-[var(--accent-strong)]"
+                        ? "bg-[var(--surface-hover)] text-[var(--accent-strong)]"
                         : "text-[var(--text-body)] hover:bg-[var(--shell-canvas)] hover:text-[var(--text-primary)]",
                     )}
                   >
@@ -283,7 +283,7 @@ export function Segmented({
                 "h-9 rounded-[8px] border px-3 text-[14px] font-normal transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-soft)]",
                 selected
                   ? "border-[var(--accent)] bg-white text-[var(--accent-strong)] shadow-[inset_0_0_0_1px_var(--accent)]"
-                  : "border-[var(--border-default)] bg-white text-[var(--text-primary)] hover:border-[var(--accent-border)] hover:bg-[var(--accent-hover-bg)]",
+                  : "border-[var(--border-default)] bg-white text-[var(--text-primary)] hover:border-[var(--accent-border)] hover:bg-[var(--surface-hover)]",
               )}
             >
               {option}
@@ -382,7 +382,7 @@ export function ChipMultiSelect({
                 "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[12px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-soft)]",
                 selected
                   ? "border-[var(--accent)] bg-[var(--accent)] text-white"
-                  : "border-[var(--border-default)] bg-white text-[var(--text-body)] hover:border-[var(--accent-border)] hover:bg-[var(--accent-hover-bg)]",
+                  : "border-[var(--border-default)] bg-white text-[var(--text-body)] hover:border-[var(--accent-border)] hover:bg-[var(--surface-hover)]",
               )}
             >
               {selected ? <Check size={13} /> : null}
@@ -443,7 +443,7 @@ export function CurrencyField({
       {hideHeader ? null : <FieldHeader label={label} required={required} hint={hint} />}
       <div
         className={cn(
-          "flex h-9 max-w-[360px] items-stretch overflow-hidden rounded-[8px] border bg-white transition focus-within:border-[var(--accent-ring)] focus-within:ring-2 focus-within:ring-[var(--accent-soft)]",
+          "flex h-9 max-w-[360px] items-stretch overflow-hidden rounded-[8px] border bg-white transition focus-within:border-[var(--border-input)] focus-within:ring-2 focus-within:ring-[var(--accent-soft)]",
           borderClass(error),
         )}
       >
@@ -950,8 +950,8 @@ export function CardMultiSelect({
               className={cn(
                 "relative rounded-[10px] border p-3 pr-9 text-left text-[13px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]",
                 on
-                  ? "border-[var(--accent-border)] bg-[var(--accent-soft)] text-[var(--text-primary)]"
-                  : "border-[var(--border-default)] bg-white text-[var(--text-body)] hover:border-[var(--accent-border)] hover:bg-[var(--accent-hover-bg)]",
+                  ? "border-[var(--border-default)] bg-[var(--surface-hover)] text-[var(--text-primary)]"
+                  : "border-[var(--border-default)] bg-white text-[var(--text-body)] hover:border-[var(--accent-border)] hover:bg-[var(--surface-hover)]",
               )}
             >
               {option}
