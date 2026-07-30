@@ -1,13 +1,47 @@
 "use client";
 
 import { USE_CASE } from "@/data/document-workflow-form-schema";
+import {
+  GATE_TONE,
+  GATES,
+  OUTCOME_ROW,
+  RECORD_DETAILS,
+  SHORT_STAGE_LABELS,
+  STAGE_INTROS,
+  STAGES,
+  firstName,
+  gateForStage,
+  phaseForStage,
+  type Gate,
+  type StageItem,
+} from "@/data/lifecycle";
+import { ProgressRing, Tag } from "@/components/ui/kit";
 import { cn } from "@/lib/cn";
-import { ArrowLeft, Ban, Check, ChevronDown, ChevronLeft, ChevronRight, CornerUpLeft, FileText, Info, LoaderCircle, Lock, Mic, Pencil, Plus, RotateCcw, Send, ShieldCheck, Sparkles, X } from "lucide-react";
-import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactElement, type ReactNode, type RefObject } from "react";
+import { ArrowUp, Ban, Check, MessageCircle, ChevronDown, ChevronLeft, ChevronRight, Clock, CornerUpLeft, FileText, Info, LayoutDashboard, LayoutList, Lock, Pencil, RotateCcw, ShieldCheck, Sparkles, X } from "lucide-react";
 import { createPortal } from "react-dom";
 
+import {
+  ChatComposer,
+  ChatDock,
+  ChatLine,
+  ChatStarters,
+  ChatTimeDivider,
+  formatChatTime,
+} from "@/components/chat/chat-ui";
+import { useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from "react";
+
 import { PersonAvatar, ProfileSwitcher, initials } from "@/components/profile";
+import {
+  AppShell,
+  AppTopBar,
+  ContentPanel,
+  PanelBreadcrumb,
+  PanelTabs,
+  RailHeader,
+  TabBarToggle,
+  shellButton,
+  useRailMode,
+} from "@/components/app-shell";
 import { extractStageFields, isFieldEmpty } from "@/lib/stage-chat";
 
 import {
@@ -20,227 +54,12 @@ import {
   SearchableSelect,
 } from "@/components/forms/fields";
 
-const RECORD_THEME = {
-  "--accent": "#0e7090",
-  "--accent-strong": "#0c5f7a",
-  "--accent-soft": "#e8f4f8",
-  "--accent-border": "#c5e2ea",
-  "--accent-ring": "#8fc0cf",
-  "--accent-hover-bg": "#f4fafb",
-  "--stage-past": "#249a57",
-  "--stage-past-hover": "#1f7a46",
-  "--stage-past-active": "#166f3f",
-  "--stage-past-active-hover": "#125b34",
-  "--stage-active": "#1f2937",
-  "--stage-active-hover": "#111827",
-  "--stage-future": "#ecebea",
-  "--stage-future-hover": "#e3e1df",
-  "--stage-future-text": "#3f3f46",
-  "--stage-action": "#249a57",
-  "--stage-action-hover": "#1f7a46",
-  "--stage-rejected": "#c0392b",
-  "--stage-rejected-hover": "#a5311f",
-  "--stage-returned": "#b8791f",
-  "--stage-returned-hover": "#9c6519",
-} as CSSProperties;
-
-type StageItem = {
-  name: string;
-  owner: string;
-  rows: [string, string][];
-};
-
-const STAGES = [
-  {
-    name: "Ideation",
-    owner: "Priya N.",
-    rows: [
-      ["Idea name", "Protocol Digest Assistant"],
-      ["Problem statement", "Medical writers spend days reading 200+ page clinical trial protocols to extract endpoints, dosing, and inclusion/exclusion criteria - slow and inconsistent."],
-      ["Objective", "Reduce protocol review time and improve extraction consistency."],
-      ["Business owner", "Dr. Elena Martins"],
-      ["Business function", "Research & Development"],
-      ["Target users", "~60 - Medical Writing, Clinical Ops, Regulatory Affairs"],
-      ["Geography", "Global (US, EU, APAC)"],
-      ["Data sources", "Veeva Vault RIM - finalized protocols & amendments"],
-      ["Data sensitivity", "Document-level, no patient data"],
-      ["AI capability", "LLM summarization + retrieval Q&A"],
-      ["GxP impact", "Yes - indirectly informs regulatory documentation"],
-      ["Timeline", "4-5 months"],
-      ["Budget", "250K-400K USD"],
-    ],
-  },
-  {
-    name: "Qualification",
-    owner: "Priya N.",
-    rows: [
-      ["Human oversight", "Always"],
-      ["Data sensitivity", "Confidential"],
-      ["Decision impact", "Influences decisions"],
-      ["Duplication check", "Not a duplicate"],
-    ],
-  },
-  {
-    name: "Prioritisation",
-    owner: "Marco B.",
-    rows: [
-      ["Business value", "4/5"],
-      ["Technical feasibility", "4/5"],
-      ["Complexity", "Medium"],
-      ["Cost", "USD 325,000"],
-      ["Strategic alignment", "5/5"],
-      ["Priority score", "78/100 - High priority"],
-    ],
-  },
-  {
-    name: "Triage",
-    owner: "Dana K.",
-    rows: [
-      ["Risk governance tier", "Full"],
-      ["Compliance assessment required", "Yes"],
-      ["Triage notes", "GxP relevance and regulatory-submission proximity confirmed; routed to the full assessment path rather than fast-track."],
-    ],
-  },
-  {
-    name: "Assessment - Risk & Compliance",
-    owner: "Lena Osei",
-    rows: [
-      ["PII", "No"],
-      ["Model risk", "Medium"],
-      ["Ethical risk", "Low"],
-      ["Data hosted risk", "Low"],
-      ["Overall risk", "Medium"],
-      ["Compliance checks", "HIPAA; GDPR; 21 CFR Part 11; Responsible AI; Information Security; Architecture"],
-    ],
-  },
-  {
-    name: "Business Case",
-    owner: "Amara J.",
-    rows: [
-      ["Current annual volume", "~180 protocols/year"],
-      ["Current cost per review", "USD 3,200"],
-      ["Projected time savings", "30%"],
-      ["Projected annual savings", "USD 518,000"],
-      ["Investment", "USD 325,000"],
-      ["Payback period", "9-11 months"],
-      ["3-year net value", "1.15M USD"],
-    ],
-  },
-  {
-    name: "GTAC",
-    owner: "Victor H.",
-    rows: [
-      ["Go / No-Go", "GO"],
-      ["ROI payback", "~10 months"],
-      ["Overall risk", "Medium"],
-      ["Recommendation", "GO - payback well under 5 years and Medium risk with a clear mitigation path."],
-      ["Board notes", "Proceed contingent on CSV and Responsible AI review before build."],
-    ],
-  },
-  {
-    name: "Plan & KPI",
-    owner: "Dana K.",
-    rows: [
-      ["Project plan", "CSV & Responsible AI review (3w) -> Build & configure (8w) -> Pilot 2 sites (4w) -> Global rollout (6w)"],
-      ["KPIs", "Protocol review time -30%; Summary accuracy >=95%; Adoption >=75% of eligible users"],
-      ["Targets locked", "Validation plan approved; pilot sign-off; full go-live in ~21 weeks"],
-    ],
-  },
-  {
-    name: "Solution blue print",
-    owner: "Noah R.",
-    rows: [
-      ["Capability", "LLM summarization + retrieval-based Q&A over Veeva-sourced protocols"],
-      ["Human checkpoint", "Writer review & digital sign-off before a summary is used"],
-      ["Access control", "SSO via existing enterprise identity provider"],
-      ["Audit trail", "All summaries and edits logged for 21 CFR Part 11 compliance"],
-      ["Retraining cadence", "Quarterly performance review; retrain only on detected drift"],
-    ],
-  },
-  {
-    name: "Solutionise and Production",
-    owner: "Noah R.",
-    rows: [
-      ["Build & configure", "Complete"],
-      ["Pilot (US & EU)", "Complete"],
-      ["CSV documentation", "Approved by Quality"],
-      ["Production deployment", "Deployed for global rollout"],
-    ],
-  },
-  {
-    name: "Monitoring and tracking",
-    owner: "Marco B.",
-    rows: [
-      ["Review time reduction", "27% of 30% target"],
-      ["Writer satisfaction (CSAT)", "84% of 80% target"],
-      ["Summary accuracy", "96.5% of 95% target"],
-      ["Adoption rate", "68% of 75% target"],
-    ],
-  },
-  {
-    name: "Adoption",
-    owner: "Marco B.",
-    rows: [
-      ["Training completed", "55 of 60 users"],
-      ["Change management comms", "Sent to all 3 regions"],
-      ["Support model", "Tier-1 helpdesk enabled"],
-      ["Feedback loop", "Monthly office hours scheduled"],
-    ],
-  },
-] satisfies StageItem[];
-
 // Hybrid: most stages use the generic editable form; a few high-value stages
 // get bespoke widgets ported from the reference (squad picker, milestone rail,
 // lockable success metrics). Keyed by stage name.
 const BESPOKE_STAGE_FORMS: Record<string, () => ReactElement> = {
   "Plan & KPI": () => <PlanStageForm />,
 };
-
-type Gate = {
-  id: string;
-  name: string;
-  afterStage: string; // the gate sits at the end of this stage
-  status: "Not started" | "In review" | "Passed" | "Blocked" | "Rejected";
-  approver: string; // distinct from the stage owner (the preparer)
-  decided: string | null;
-  artifacts: string[];
-  conditions: string[];
-};
-
-// Assessment gates are first-class checkpoints, tracked separately from stage
-// progress — each carries its own status, approver, decision, and evidence.
-const GATES: Gate[] = [
-  { id: "R1", name: "Screening gate", afterStage: "Triage", status: "Passed", approver: "Priya N.", decided: "Jun 22, 2026", artifacts: ["Screening record", "Prohibited-use scan"], conditions: [] },
-  { id: "R2", name: "Governance & investment", afterStage: "GTAC", status: "Passed", approver: "Victor H.", decided: "Jun 28, 2026", artifacts: ["Business case", "GTAC minutes", "Risk register"], conditions: ["PII redaction verified before deploy", "Multi-currency re-tested at R4"] },
-  { id: "R3", name: "Build review", afterStage: "Solutionise and Production", status: "In review", approver: "Noah R.", decided: null, artifacts: ["Eval report v3", "Red-team log"], conditions: [] },
-  { id: "R5", name: "Post-deploy review", afterStage: "Monitoring and tracking", status: "Not started", approver: "Marco B.", decided: null, artifacts: [], conditions: [] },
-];
-
-function gateForStage(stageName: string) {
-  return GATES.find((gate) => gate.afterStage === stageName);
-}
-
-const GATE_TONE: Record<Gate["status"], { fg: string; bg: string; border: string }> = {
-  "Not started": { fg: "var(--text-muted)", bg: "var(--surface-muted)", border: "var(--border-default)" },
-  "In review": { fg: "#a15c11", bg: "#f6f0e6", border: "#e6d4b8" },
-  Passed: { fg: "#15803d", bg: "#eef4ee", border: "#bfdcc7" },
-  Blocked: { fg: "#b32020", bg: "#f7eaea", border: "#e6c3c3" },
-  Rejected: { fg: "#b32020", bg: "#f7eaea", border: "#e6c3c3" },
-};
-
-// Record-level metadata shown in the Details modal (opened from the header).
-const RECORD_DETAILS: [string, string][] = [
-  ["Use case ID", USE_CASE.id],
-  ["Created by", "Mira Kapoor"],
-  ["Created on", "Jun 18, 2026"],
-  ["Department", "Support"],
-  ["Function", "Customer Experience"],
-  ["Team", "Tier-1 Operations"],
-  ["Country", "Global / multi-country"],
-  ["Business sponsor", "Nora Singh"],
-  ["Target go-live", "Jun 15, 2026"],
-  ["Model archetype", "Agent"],
-];
 
 const RECORD_COMMENTS: { by: string; when: string; text: string }[] = [
   { by: "Lena Osei", when: "2d ago", text: "Flagged one compliance check (GxP/GCP CSV) — tracking to close before build." },
@@ -270,24 +89,32 @@ type StatusNote =
   | { kind: "returned"; reason: string; fromName: string; by: string }
   | { kind: "rejected"; reason: string; by: string };
 
-export function DetailRecordPage() {
-  const [stageIndex, setStageIndex] = useState(defaultStageIndex);
-  const [completedStageIndexes, setCompletedStageIndexes] = useState<number[]>([]);
+export function DetailRecordPage({ initialStageIndex }: { initialStageIndex?: number }) {
+  // Deep link from the overview (`/detail?stage=n`): land on that stage with
+  // everything before it already recorded. Without it the record starts fresh
+  // at Ideation, which is what the guided flow demos.
+  const deepLink =
+    typeof initialStageIndex === "number" && initialStageIndex > 0 && initialStageIndex < STAGES.length
+      ? initialStageIndex
+      : null;
+  const [stageIndex, setStageIndex] = useState(deepLink ?? defaultStageIndex);
+  const [completedStageIndexes, setCompletedStageIndexes] = useState<number[]>(() =>
+    deepLink === null ? [] : Array.from({ length: deepLink }, (_, index) => index),
+  );
   // Stages that have ever been completed hold recorded data — so reopening one
   // shows its data (editable) rather than a blank form.
-  const [dataStageIndexes, setDataStageIndexes] = useState<number[]>([]);
+  const [dataStageIndexes, setDataStageIndexes] = useState<number[]>(() =>
+    deepLink === null ? [] : Array.from({ length: deepLink }, (_, index) => index),
+  );
   const [currentUser, setCurrentUser] = useState("Priya N.");
   const [rejections, setRejections] = useState<Rejection[]>([]);
   const [kickbacks, setKickbacks] = useState<Kickback[]>([]);
   // Split layout: chat on the left drives the form on the right (always both
   // shown). A horizontal Journey bar up top navigates between stages.
   const [detailsOpen, setDetailsOpen] = useState(false);
-  // The stage path collapses into the header until opened. The chevron strip is
-  // kept as an alternative style, currently off.
-  const [railOpen, setRailOpen] = useState(false);
-  const [railStyle] = useState<RailStyle>("segments");
-  // The record name stays hidden until the user has given some context.
-  const [started, setStarted] = useState(false);
+  // The record name stays hidden until the user has given some context — a
+  // deep-linked stage already has that context.
+  const [started, setStarted] = useState(deepLink !== null);
 
   const currentStage = STAGES[stageIndex] ?? STAGES[0];
   const isCurrentComplete = completedStageIndexes.includes(stageIndex);
@@ -344,52 +171,26 @@ export function DetailRecordPage() {
   }
 
   return (
-    <main className="flex h-screen flex-col overflow-hidden bg-[var(--surface-muted)] text-[var(--text-primary)]" style={RECORD_THEME}>
-      {/* Two-row page header, then the chat + form cards. The Journey stepper
-          lives inside the form card. */}
-      <TopBar
+    <>
+      <SplitStageView
+        key={currentStage.name}
+        stage={currentStage}
         currentUser={currentUser}
         onUserChange={setCurrentUser}
         lockedOwner={lockedOwner}
+        recordName={started ? USE_CASE.name : null}
         detailsOpen={detailsOpen}
         onOpenDetails={() => setDetailsOpen((v) => !v)}
-        recordName={started ? USE_CASE.name : null}
-        activeIndex={stageIndex}
+        stageIndex={stageIndex}
         completedIndexes={completedStageIndexes}
-        railOpen={railOpen}
-        onToggleRail={() => setRailOpen((v) => !v)}
+        onSelectStage={selectStage}
+        prefill={dataStageIndexes.includes(stageIndex)}
+        isComplete={isCurrentComplete}
+        onMarkComplete={toggleCurrentStageComplete}
+        onEditBlocked={showToast}
+        onStarted={() => setStarted(true)}
+        banner={statusNote ? <StageStatusBanner note={statusNote} canClear={canComplete} onClear={clearCurrentStatus} /> : null}
       />
-      {/* Full-width stage path — collapsed into the header until opened. */}
-      {railOpen ? (
-        <StageRail
-          style={railStyle}
-          activeIndex={stageIndex}
-          completedIndexes={completedStageIndexes}
-          onSelect={(index) => selectStage(index)}
-        />
-      ) : null}
-      {statusNote ? <StageStatusBanner note={statusNote} canClear={canComplete} onClear={clearCurrentStatus} /> : null}
-      {/* Chat card + form card; an optional record details sheet card slides in. */}
-      <div
-        className={cn(
-          "grid min-h-0 flex-1 border-t border-[#ecebea]",
-          detailsOpen
-            ? "grid-cols-[minmax(0,3fr)_minmax(0,4fr)_minmax(0,3fr)]"
-            : "grid-cols-[minmax(0,2fr)_minmax(0,3fr)]",
-        )}
-      >
-        <SplitStageView
-          key={currentStage.name}
-          stage={currentStage}
-          currentUser={currentUser}
-          prefill={dataStageIndexes.includes(stageIndex)}
-          isComplete={isCurrentComplete}
-          onMarkComplete={toggleCurrentStageComplete}
-          onEditBlocked={showToast}
-          onStarted={() => setStarted(true)}
-        />
-        {detailsOpen ? <RecordDetailsSheet onClose={() => setDetailsOpen(false)} /> : null}
-      </div>
       {toast ? (
         <div className="pointer-events-none fixed bottom-6 left-1/2 z-[60] -translate-x-1/2">
           <div className="flex items-center gap-2 rounded-[10px] bg-[var(--text-primary)] px-3.5 py-2.5 text-[13px] font-medium text-white shadow-lg">
@@ -398,7 +199,7 @@ export function DetailRecordPage() {
           </div>
         </div>
       ) : null}
-    </main>
+    </>
   );
 }
 
@@ -436,7 +237,7 @@ function StageColumnHeader({ stage, currentUser, action }: { stage: StageItem; c
   const ownership = gate ? (
     <div className="flex flex-wrap items-center gap-3">
       {owner}
-      <span className="h-4 w-px bg-[#e7e5e4]" aria-hidden />
+      <span className="h-4 w-px bg-[var(--border-default)]" aria-hidden />
       <GateBadge gate={gate} />
     </div>
   ) : (
@@ -444,12 +245,12 @@ function StageColumnHeader({ stage, currentUser, action }: { stage: StageItem; c
   );
 
   return (
-    <div className="flex min-h-[52px] shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-[#ecebea] px-7 py-2" aria-label={`${stage.name} stage header`}>
+    <div className="flex min-h-[52px] shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-[var(--border-soft)] px-7 py-2" aria-label={`${stage.name} stage header`}>
       <div className="flex min-w-0 items-center gap-3">
-        <h2 className="font-display min-w-0 truncate text-[19px] leading-7 text-[var(--text-primary)]">{stage.name}</h2>
+        <h2 className="font-display min-w-0 truncate text-[20px] leading-7 text-[var(--text-primary)]">{stage.name}</h2>
         {action ? (
           <>
-            <span className="h-4 w-px bg-[#e7e5e4]" aria-hidden />
+            <span className="h-4 w-px bg-[var(--border-default)]" aria-hidden />
             {ownership}
           </>
         ) : null}
@@ -472,8 +273,8 @@ function StageContent({ isComplete, stage }: { isComplete: boolean; stage: Stage
 function StageStatusBanner({ note, canClear, onClear }: { note: StatusNote; canClear: boolean; onClear: () => void }) {
   const rejected = note.kind === "rejected";
   const palette = rejected
-    ? { fg: "#a5311f", bg: "#fbeeec", border: "#eecbc4", icon: <Ban size={18} /> }
-    : { fg: "#9c6519", bg: "#f8f1e6", border: "#ecd8b6", icon: <CornerUpLeft size={18} /> };
+    ? { fg: "var(--tone-danger-fg)", bg: "var(--tone-danger-bg)", border: "var(--tone-danger-border)", icon: <Ban size={18} /> }
+    : { fg: "var(--tone-warning-fg)", bg: "var(--tone-warning-bg)", border: "var(--tone-warning-border)", icon: <CornerUpLeft size={18} /> };
 
   return (
     <div
@@ -503,7 +304,7 @@ function StageStatusBanner({ note, canClear, onClear }: { note: StatusNote; canC
         <button
           type="button"
           onClick={onClear}
-          className="shrink-0 rounded-[7px] border bg-white/70 px-2.5 py-1 text-[12px] font-medium transition hover:bg-white"
+          className="shrink-0 rounded-[8px] border bg-white/70 px-2.5 py-1 text-[12px] font-medium transition hover:bg-white"
           style={{ color: palette.fg, borderColor: palette.border }}
         >
           {rejected ? "Reopen" : "Dismiss"}
@@ -518,9 +319,9 @@ const STATUS_LABEL_RE = /(decision|outcome|verdict|recommendation|tier|ready|sig
 
 function statusTone(value: string) {
   const v = value.toLowerCase();
-  if (/(block|reject|upheld|no-?go|blocked|fail|high|serious|critical)/.test(v)) return { fg: "#b32020", bg: "#f7eaea", border: "#e6c3c3" };
-  if (/(condition|watch|pending|partial|needs|revise|minor|standard|medium|reindex|re-index)/.test(v)) return { fg: "#a15c11", bg: "#f6f0e6", border: "#e6d4b8" };
-  if (/(go\b|approve|cleared|committed|continue|proceed|recommend|locked|full|resolved|ready|yes|confirmed|complete|low|spawned)/.test(v)) return { fg: "#15803d", bg: "#eef4ee", border: "#bfdcc7" };
+  if (/(block|reject|upheld|no-?go|blocked|fail|high|serious|critical)/.test(v)) return { fg: "var(--tone-danger-fg)", bg: "var(--tone-danger-bg)", border: "var(--tone-danger-border)" };
+  if (/(condition|watch|pending|partial|needs|revise|minor|standard|medium|reindex|re-index)/.test(v)) return { fg: "var(--tone-warning-fg)", bg: "var(--tone-warning-bg)", border: "var(--tone-warning-border)" };
+  if (/(go\b|approve|cleared|committed|continue|proceed|recommend|locked|full|resolved|ready|yes|confirmed|complete|low|spawned)/.test(v)) return { fg: "var(--tone-success-fg)", bg: "var(--tone-success-bg)", border: "var(--tone-success-border)" };
   return { fg: "var(--text-body)", bg: "var(--surface-muted)", border: "var(--border-default)" };
 }
 
@@ -561,8 +362,8 @@ function ReadValue({ label, value }: { label: string; value: string }) {
           <span className="font-semibold text-[var(--text-primary)] tabular-nums">{current}%</span>
           <span className="text-[12px] text-[var(--text-muted)] tabular-nums">target {target}% · {reached}% reached</span>
         </div>
-        <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-[#f0efed]">
-          <div className={cn("h-full rounded-full", hit ? "bg-[#15803d]" : "bg-[var(--accent)]")} style={{ width: `${Math.min(100, reached)}%` }} />
+        <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-[var(--surface-strong)]">
+          <div className={cn("h-full rounded-full", hit ? "bg-[var(--tone-success-fg)]" : "bg-[var(--accent)]")} style={{ width: `${Math.min(100, reached)}%` }} />
         </div>
       </div>
     );
@@ -575,7 +376,7 @@ function ReadValue({ label, value }: { label: string; value: string }) {
         {items.map((item) => (
           <span
             key={item}
-            className="rounded-full border border-[#e7e5e4] bg-[var(--surface-muted)] px-2.5 py-1 text-[12.5px] font-medium text-[var(--text-body)]"
+            className="rounded-full border border-[var(--border-default)] bg-[var(--surface-muted)] px-2.5 py-1 text-[12px] font-medium text-[var(--text-body)]"
           >
             {item}
           </span>
@@ -613,7 +414,7 @@ function ReadValue({ label, value }: { label: string; value: string }) {
     const tone = statusTone(value);
     return (
       <span
-        className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12.5px] font-semibold"
+        className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-semibold"
         style={{ color: tone.fg, background: tone.bg, borderColor: tone.border }}
       >
         <span className="h-1.5 w-1.5 rounded-full" style={{ background: tone.fg }} />
@@ -638,7 +439,7 @@ function ReadValue({ label, value }: { label: string; value: string }) {
 function StageReadOnlyRows({ rows }: { rows: StageItem["rows"] }) {
   return (
     <div>
-      <dl className="divide-y divide-[#f0efed] border-b border-[#f0efed]">
+      <dl className="divide-y divide-[var(--border-hairline)] border-b border-[var(--border-hairline)]">
         {rows.map(([label, value]) => (
           <div key={label} className="grid grid-cols-[190px_minmax(0,1fr)] gap-7 px-7 py-4">
             <dt className="pt-1 text-[14px] font-medium leading-5 text-[var(--text-label)]">{label}</dt>
@@ -733,9 +534,9 @@ function computeRiskTier(values: Record<string, string | string[]>) {
   const dims = ["Overall risk", "Model risk", "Ethical risk", "Data hosted risk"].map((k) => String(values[k] ?? ""));
   const risk = dims.includes("High") ? "High" : dims.includes("Medium") ? "Medium" : dims.includes("Low") ? "Low" : "";
 
-  if (risk === "High") return { tier: "Full", fg: "#b32020", bg: "#f7eaea", border: "#e6c3c3" };
-  if (risk === "Medium") return { tier: "Standard", fg: "#a15c11", bg: "#f6f0e6", border: "#e6d4b8" };
-  if (risk === "Low") return { tier: "Light", fg: "#15803d", bg: "#eef4ee", border: "#bfdcc7" };
+  if (risk === "High") return { tier: "Full", fg: "var(--tone-danger-fg)", bg: "var(--tone-danger-bg)", border: "var(--tone-danger-border)" };
+  if (risk === "Medium") return { tier: "Standard", fg: "var(--tone-warning-fg)", bg: "var(--tone-warning-bg)", border: "var(--tone-warning-border)" };
+  if (risk === "Low") return { tier: "Light", fg: "var(--tone-success-fg)", bg: "var(--tone-success-bg)", border: "var(--tone-success-border)" };
   return null;
 }
 
@@ -882,7 +683,7 @@ function DocumentField({ field, s, readOnly, onBlockedEdit, forceEdit = false }:
       <button
         type="button"
         onClick={onBlockedEdit}
-        className={cn(readBox, "transition hover:border-[#ecebea] hover:bg-[var(--surface-muted)]", empty && "text-[14px] leading-6 text-[var(--text-muted)]/50")}
+        className={cn(readBox, "transition hover:border-[var(--border-soft)] hover:bg-[var(--surface-muted)]", empty && "text-[14px] leading-6 text-[var(--text-muted)]/50")}
       >
         {empty ? "—" : <ReadValue label={field.label} value={text!} />}
       </button>
@@ -895,64 +696,179 @@ function DocumentField({ field, s, readOnly, onBlockedEdit, forceEdit = false }:
   );
 }
 
-function StageFieldsGrid({ stage, s, currentUser, canEdit, isComplete = false, embedded = false, onBlockedEdit, editAll = false }: { stage: StageItem; s: StageFieldsState; currentUser: string; canEdit: boolean; isComplete?: boolean; embedded?: boolean; onBlockedEdit?: () => void; editAll?: boolean }) {
-  // editAll (whole form editable) is controlled by the form card header.
+// One coloured pill for the stage's state, next to its title.
+function StageStatusPill({
+  isComplete,
+  canEdit,
+  owner,
+  blockedReason,
+}: {
+  isComplete: boolean;
+  canEdit: boolean;
+  owner: string;
+  blockedReason: string | null;
+}) {
+  const state = isComplete
+    ? { label: "Complete", icon: <Check size={11} strokeWidth={3} />, tone: "success" as const, title: undefined as string | undefined }
+    : !canEdit
+      ? { label: "Locked", icon: <Lock size={11} />, tone: "warning" as const, title: `${owner} owns this stage — switch profile to edit` }
+      : blockedReason
+        ? { label: "Blocked by gate", icon: <Ban size={11} />, tone: "danger" as const, title: blockedReason }
+        : { label: "Active", icon: <span className="h-1.5 w-1.5 rounded-full bg-current" />, tone: "info" as const, title: undefined };
+
+  return (
+    <Tag tone={state.tone} title={state.title} icon={state.icon}>
+      {state.label}
+    </Tag>
+  );
+}
+
+// Compact capture meter: a ring plus "n/m". Deliberately small — the stage's
+// progress is a glance, not a strip across the form.
+function CaptureProgress({ captured, total, complete }: { captured: number; total: number; complete: boolean }) {
+  const done = complete ? total : captured;
+  return (
+    <span
+      title={`${done} of ${total} details captured`}
+      className="inline-flex items-center gap-1.5 text-[12px] font-medium tabular-nums text-[var(--text-muted)]"
+    >
+      <ProgressRing ratio={total > 0 ? done / total : 0} complete={complete} />
+      {done}/{total}
+      <span className="hidden xl:inline">captured</span>
+    </span>
+  );
+}
+
+// Whose move it is — the one cue that says whether to act or wait.
+function TurnCue({
+  isComplete,
+  canEdit,
+  owner,
+  gate,
+  currentUser,
+}: {
+  isComplete: boolean;
+  canEdit: boolean;
+  owner: string;
+  gate?: Gate;
+  currentUser: string;
+}) {
+  const awaitingGate = gate && (gate.status === "In review" || gate.status === "Not started");
+  let label: string;
+  let mine: boolean;
+  if (!isComplete && canEdit) {
+    label = "Your turn";
+    mine = true;
+  } else if (!isComplete) {
+    label = `Waiting on ${owner}`;
+    mine = false;
+  } else if (awaitingGate && gate.approver === currentUser) {
+    label = `${gate.id} needs your decision`;
+    mine = true;
+  } else if (awaitingGate) {
+    label = `Waiting on ${gate.approver} for ${gate.id}`;
+    mine = false;
+  } else {
+    return null;
+  }
+
+  // A tag, not a call to action — the action bar at the foot of the panel is the
+  // thing you press, so this only has to say whose move it is.
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 text-[12px] font-medium",
+        mine ? "text-[var(--accent-strong)]" : "text-[var(--text-muted)]",
+      )}
+    >
+      {mine ? <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" /> : <Clock size={12} />}
+      {label}
+    </span>
+  );
+}
+
+function StageFieldsGrid({ stage, s, currentUser, canEdit, isComplete = false, embedded = false, onBlockedEdit, editAll = false, heading }: { stage: StageItem; s: StageFieldsState; currentUser: string; canEdit: boolean; isComplete?: boolean; embedded?: boolean; onBlockedEdit?: () => void; editAll?: boolean; heading?: ReactNode }) {
+  // editAll (whole form editable) is controlled by the action bar.
   const stageNo = STAGES.findIndex((item) => item.name === stage.name) + 1;
   const readOnly = !canEdit;
   const ownedByMe = stage.owner === currentUser;
   const riskTier = canEdit && stage.name === "Assessment - Risk & Compliance" ? computeRiskTier(s.values) : null;
   const gate = gateForStage(stage.name);
   const gateTone = gate ? GATE_TONE[gate.status] : null;
-  const statusBadge = isComplete ? (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-[#bfdcc7] bg-[#eef4ee] px-2.5 py-1 text-[11px] font-semibold text-[#15803d]">
-      <Check size={11} />
-      Complete
-    </span>
-  ) : !canEdit ? (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-[#e6d4b8] bg-[#f6f0e6] px-2.5 py-1 text-[11px] font-semibold text-[#a15c11]">
-      <Lock size={11} />
-      Locked
-    </span>
-  ) : riskTier ? (
-    <span
-      className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold"
-      style={{ color: riskTier.fg, background: riskTier.bg, borderColor: riskTier.border }}
-    >
-      <ShieldCheck size={11} />
-      {riskTier.tier} tier
-    </span>
-  ) : null;
+  // A stage you own can still be held back by its own checklist (compliance
+  // checks, production readiness) — that reads as blocked, not simply active.
+  const blockedReason = canEdit ? stageGateReason(stage.name, s.values) : null;
+  const captured = s.fields.filter((field) => !isFieldEmpty(s.values[field.label])).length;
 
   return (
     // embedded → a plain block inside a shared scroll (stacked stages); otherwise
     // its own scroll container.
-    <section className={cn(embedded ? "px-6 pb-10 pt-3" : "no-scrollbar min-h-0 flex-1 overflow-y-auto px-8 pb-12 pt-6")} aria-label={`${stage.name} stage`}>
-      {/* Body header: short description + a compact meta line (owner / gate /
-          status). The title + Edit/Submit live in the form card header. */}
+    <section className={cn(embedded ? "px-6 pb-10 pt-6 xl:px-12" : "no-scrollbar min-h-0 flex-1 overflow-y-auto px-8 pb-12 pt-6")} aria-label={`${stage.name} stage`}>
+      {/* Stage header. Line 1 is the state sentence: the stage name (which opens
+          the stage path), where it sits, and how much of it is captured. Line 2
+          says what the stage is for. Line 3 is who it needs. */}
       <div className="min-w-0">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
+          {heading ?? <h2 className="font-display text-[18px] leading-tight text-[var(--text-primary)]">{stage.name}</h2>}
+          <StageStatusPill isComplete={isComplete} canEdit={canEdit} owner={stage.owner} blockedReason={blockedReason} />
+          <span className="ml-auto shrink-0">
+            <CaptureProgress captured={captured} total={s.fields.length} complete={isComplete} />
+          </span>
+        </div>
         {STAGE_INTROS[stage.name] ? (
-          <p className={cn("leading-6 text-[var(--text-muted)]", embedded ? "text-[14px]" : "max-w-[60ch] text-[15px]")}>{STAGE_INTROS[stage.name]}</p>
+          <p className={cn("mt-2.5 max-w-[68ch] leading-6 text-[var(--text-muted)]", embedded ? "text-[14px]" : "text-[15px]")}>{STAGE_INTROS[stage.name]}</p>
         ) : null}
-        <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[13px] text-[var(--text-muted)]">
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] text-[var(--text-muted)]">
           <span className="inline-flex items-center gap-1.5">
-            {gate ? "Prepared by" : "Owner"}
-            <PersonAvatar name={stage.owner} size={18} highlight={ownedByMe} />
+            <LayoutList size={12} />
+            {phaseForStage(stage.name)}
+          </span>
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border-default)] bg-white py-1 pl-1 pr-2.5">
+            <PersonAvatar name={stage.owner} size={20} highlight={ownedByMe} />
             <span className={cn("text-[var(--text-primary)]", ownedByMe && "font-semibold")}>{stage.owner}</span>
+            <span className="text-[var(--text-muted)]">{gate ? "prepares" : "owns"}</span>
           </span>
           {gate && gateTone ? (
             <>
-              <span className="inline-flex items-center gap-1.5">
-                Gate
-                <span className="font-medium" style={{ color: gateTone.fg }}>{gate.id} · {gate.status}</span>
+              <span
+                title={`${gate.id} · ${gate.name}`}
+                className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-semibold"
+                style={{ color: gateTone.fg, background: gateTone.bg, borderColor: gateTone.border }}
+              >
+                <ShieldCheck size={12} />
+                {gate.id} · {gate.status}
               </span>
               <span className="inline-flex items-center gap-1.5">
                 Approver
-                <PersonAvatar name={gate.approver} size={18} />
-                <span className="text-[var(--text-primary)]">{gate.approver}</span>
+                <PersonAvatar name={gate.approver} size={18} highlight={gate.approver === currentUser} />
+                <span className={cn("text-[var(--text-primary)]", gate.approver === currentUser && "font-semibold")}>{gate.approver}</span>
               </span>
             </>
           ) : null}
-          {statusBadge}
+          {riskTier ? (
+            <span
+              className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-semibold"
+              style={{ color: riskTier.fg, background: riskTier.bg, borderColor: riskTier.border }}
+            >
+              <ShieldCheck size={12} />
+              {riskTier.tier} tier
+            </span>
+          ) : null}
+          {/* What the stage still needs, named — the ring gives the count, this
+              says which details it is waiting on. */}
+          {!isComplete && captured < s.fields.length ? (
+            <span className="inline-flex min-w-0 items-center gap-1.5">
+              <Pencil size={12} />
+              <span className="min-w-0 truncate">
+                Left to capture · {listWithMore(s.fields.filter((field) => isFieldEmpty(s.values[field.label])).map((field) => humanizeLabel(field.label)), 3)}
+              </span>
+            </span>
+          ) : null}
+          <span className="inline-flex items-center gap-1.5">
+            <Clock size={12} />
+            Updated {RECORD_ACTIVITY[0].when.split(",").slice(0, 2).join(",")}
+          </span>
+          <TurnCue isComplete={isComplete} canEdit={canEdit} owner={stage.owner} gate={gate} currentUser={currentUser} />
         </div>
       </div>
 
@@ -967,7 +883,7 @@ function StageFieldsGrid({ stage, s, currentUser, canEdit, isComplete = false, e
           const reserve = wide ? undefined : field.kind === "level" ? 50 : 40;
           return (
             <div key={field.label} className={cn("min-w-0", wide && "sm:col-span-2")}>
-              <label className="flex items-baseline gap-2 text-[13.5px] font-semibold text-[var(--text-primary)]">
+              <label className="flex items-baseline gap-2 text-[13px] font-semibold text-[var(--text-primary)]">
                 <span className="text-[var(--text-muted)]">{stageNo}.{index + 1}</span>
                 {field.label}
               </label>
@@ -1001,8 +917,8 @@ function RecordDetailsSheet({ onClose }: { onClose: () => void }) {
     { key: "activity", label: "Activity", count: RECORD_ACTIVITY.length },
   ];
   return (
-    <aside className="sheet-in-right flex min-h-0 flex-col overflow-hidden border-l border-[#ecebea] bg-white">
-        <div className="flex shrink-0 items-center gap-2 border-b border-[#ecebea] pl-4 pr-2 pt-2.5">
+    <aside className="sheet-in-right flex min-h-0 flex-col overflow-hidden rounded-t-[10px] border border-b-0 border-[var(--border-default)] bg-white shadow-[var(--shadow-card)]">
+        <div className="flex shrink-0 items-center gap-2 border-b border-[var(--border-soft)] pl-4 pr-2 pt-2.5">
           <div className="no-scrollbar flex min-w-0 flex-1 items-center gap-4 overflow-x-auto">
             {tabs.map((t) => (
               <button
@@ -1034,7 +950,7 @@ function RecordDetailsSheet({ onClose }: { onClose: () => void }) {
         </div>
         <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto">
           {tab === "details" ? (
-            <dl className="divide-y divide-[#f0efed]">
+            <dl className="divide-y divide-[var(--border-hairline)]">
               {RECORD_DETAILS.map(([label, value]) => (
                 <div key={label} className="flex items-center justify-between gap-6 px-5 py-3">
                   <dt className="text-[13px] text-[var(--text-muted)]">{label}</dt>
@@ -1044,7 +960,7 @@ function RecordDetailsSheet({ onClose }: { onClose: () => void }) {
             </dl>
           ) : null}
           {tab === "gates" ? (
-            <div className="divide-y divide-[#f0efed]">
+            <div className="divide-y divide-[var(--border-hairline)]">
               {GATES.map((gate) => {
                 const tone = GATE_TONE[gate.status];
                 return (
@@ -1070,7 +986,7 @@ function RecordDetailsSheet({ onClose }: { onClose: () => void }) {
           ) : null}
           {tab === "comments" ? (
             <div className="flex min-h-full flex-col">
-              <div className="flex-1 divide-y divide-[#f0efed]">
+              <div className="flex-1 divide-y divide-[var(--border-hairline)]">
                 {comments.map((c, i) => (
                   <div key={i} className="flex gap-3 px-5 py-3">
                     <PersonAvatar name={c.by} size={26} />
@@ -1081,7 +997,7 @@ function RecordDetailsSheet({ onClose }: { onClose: () => void }) {
                   </div>
                 ))}
               </div>
-              <div className="sticky bottom-0 flex min-h-[64px] items-center gap-2 border-t border-[#ecebea] bg-white px-4 py-3">
+              <div className="sticky bottom-0 flex min-h-[64px] items-center gap-2 border-t border-[var(--border-soft)] bg-white px-4 py-3">
                 <textarea
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
@@ -1093,25 +1009,25 @@ function RecordDetailsSheet({ onClose }: { onClose: () => void }) {
                   }}
                   rows={1}
                   placeholder="Add a comment…"
-                  className="no-scrollbar max-h-24 min-h-9 flex-1 resize-none rounded-[10px] border border-[#ecebea] bg-[var(--surface-muted)] px-3 py-2 text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]"
+                  className="no-scrollbar max-h-24 min-h-9 flex-1 resize-none rounded-[10px] border border-[var(--border-soft)] bg-[var(--surface-muted)] px-3 py-2 text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]"
                 />
                 <button
                   type="button"
                   onClick={addComment}
                   disabled={!draft.trim()}
-                  className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-[var(--accent)] text-white transition disabled:opacity-40"
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[var(--accent)] text-white transition hover:bg-[var(--accent-strong)] disabled:bg-[var(--surface-strong)] disabled:text-[var(--text-muted)]"
                   aria-label="Post comment"
                 >
-                  <Send size={15} />
+                  <ArrowUp size={16} strokeWidth={2.5} />
                 </button>
               </div>
             </div>
           ) : null}
           {tab === "activity" ? (
-            <div className="divide-y divide-[#f0efed]">
+            <div className="divide-y divide-[var(--border-hairline)]">
               {RECORD_ACTIVITY.map((a, i) => (
                 <div key={i} className="flex gap-3 px-5 py-3.5">
-                  <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full border border-[#ecebea] text-[var(--text-muted)]">
+                  <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full border border-[var(--border-soft)] text-[var(--text-muted)]">
                     {ACTIVITY_ICON[a.icon]}
                   </span>
                   <div className="min-w-0">
@@ -1127,316 +1043,179 @@ function RecordDetailsSheet({ onClose }: { onClose: () => void }) {
   );
 }
 
-// Two-row page header: back link + profile (top), then the use-case title with
-// its ID + owner meta and a details toggle (bottom).
-function TopBar({
-  currentUser,
-  onUserChange,
-  lockedOwner,
-  onOpenDetails,
-  detailsOpen,
-  recordName,
+// The stage path, as a dropdown off the "Stage n/12" pill: one row per stage —
+// done (green tick), active (accent), upcoming (hollow) — with its owner. Click a
+// row to jump there.
+function StagePathMenu({
   activeIndex,
   completedIndexes,
-  railOpen,
-  onToggleRail,
+  onSelect,
 }: {
-  currentUser: string;
-  onUserChange: (user: string) => void;
-  detailsOpen?: boolean;
-  lockedOwner: string | null;
-  onOpenDetails: () => void;
-  recordName: string | null;
   activeIndex: number;
   completedIndexes: number[];
-  railOpen: boolean;
-  onToggleRail: () => void;
+  onSelect: (index: number) => void;
 }) {
+  // Anchored to the trigger and portaled to the body: the form panel scrolls and
+  // clips, so an absolutely-positioned menu inside it gets cut off.
+  const [anchor, setAnchor] = useState<{ left: number; top: number; maxHeight: number } | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const open = anchor !== null;
+
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setAnchor(null);
+    function onPointerDown(event: PointerEvent) {
+      const target = event.target as Node;
+      if (triggerRef.current?.contains(target) || menuRef.current?.contains(target)) return;
+      close();
+    }
+    function onKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape") close();
+    }
+    function onScroll(event: Event) {
+      // Scrolling the menu's own list must not dismiss it.
+      if (menuRef.current?.contains(event.target as Node)) return;
+      close();
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    window.addEventListener("resize", close);
+    // Capture phase so scrolling the form panel closes it too.
+    window.addEventListener("scroll", onScroll, true);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", onScroll, true);
+    };
+  }, [open]);
+
+  function toggle() {
+    if (open) {
+      setAnchor(null);
+      return;
+    }
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const top = rect.bottom + 6;
+    setAnchor({
+      left: Math.min(rect.left, window.innerWidth - 332),
+      top,
+      // Fit the list to whatever room is left below the trigger, so the tail of
+      // the stage path is always reachable by scrolling instead of clipped.
+      maxHeight: Math.max(220, window.innerHeight - top - 16),
+    });
+  }
+
   return (
-    <header className="flex shrink-0 items-center gap-4 px-5 py-3">
-      <Link
-        href="/"
-        aria-label="Back to home"
-        title="Back to home"
-        className="grid h-9 w-9 shrink-0 place-items-center rounded-[8px] text-[var(--text-label)] transition hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)]"
+    <>
+      {/* The stage name IS the path trigger — one unit, no separate pill. */}
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={toggle}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title={`Stage ${activeIndex + 1} of ${STAGES.length} · ${completedIndexes.length} complete — switch stage`}
+        className={cn(
+          "-mx-2 -my-1 inline-flex max-w-full items-center gap-2 rounded-[10px] px-2 py-1 text-left transition",
+          open ? "bg-[var(--accent-soft)]" : "hover:bg-[var(--surface-muted)]",
+        )}
       >
-        <ArrowLeft size={17} />
-      </Link>
-      <div className="flex min-w-0 flex-1 items-center gap-3">
-        <h1 className={cn("font-display min-w-0 truncate text-[22px] leading-tight", recordName ? "text-[var(--text-primary)]" : "text-[var(--text-muted)]")}>
-          {recordName ?? "Untitled use case"}
-        </h1>
-        <span
-          title="Use case ID"
-          className="shrink-0 rounded-[6px] bg-[var(--accent-soft)] px-2 py-0.5 text-[12px] font-semibold text-[var(--accent-strong)]"
-        >
-          {USE_CASE.id}
+        <span className={cn("font-display min-w-0 truncate text-[18px] leading-tight", open ? "text-[var(--accent-strong)]" : "text-[var(--text-primary)]")}>
+          {STAGES[activeIndex].name}
         </span>
-      </div>
-      <div className="flex shrink-0 items-center gap-3">
-        <ProfileSwitcher currentUser={currentUser} onUserChange={onUserChange} lockedBy={lockedOwner ?? undefined} compact />
-        <StagePathToggle activeIndex={activeIndex} completedIndexes={completedIndexes} open={railOpen} onToggle={onToggleRail} />
-        <button
-          type="button"
-          onClick={onOpenDetails}
-          aria-pressed={detailsOpen}
-          className={cn(
-            "inline-flex shrink-0 items-center gap-1.5 rounded-[9px] border px-3 py-1.5 text-[13px] font-medium transition",
-            detailsOpen
-              ? "border-[var(--accent-border)] bg-[var(--accent-soft)] text-[var(--accent-strong)]"
-              : "border-[var(--border-default)] bg-white text-[var(--text-body)] hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)]",
-          )}
-        >
-          <Info size={15} />
-          Details
-        </button>
-      </div>
-    </header>
-  );
-}
+        <span className="shrink-0 whitespace-nowrap text-[11px] font-medium tabular-nums text-[var(--text-muted)]">
+          Stage {activeIndex + 1} of {STAGES.length}
+        </span>
+        <ChevronDown size={14} className={cn("shrink-0 text-[var(--text-muted)] transition", open && "rotate-180")} />
+      </button>
 
-// Short chevron labels for the stage path (index-aligned with STAGES).
-const SHORT_STAGE_LABELS = [
-  "Ideation",
-  "Qualify",
-  "Prioritize",
-  "Triage",
-  "Assess",
-  "Business case",
-  "GTAC",
-  "Plan",
-  "Design",
-  "Build",
-  "Monitor",
-  "Adopt",
-];
-
-type RailStyle = "chevron" | "segments";
-
-// Horizontal stage path: a chevron/arrow strip, one segment per stage. Completed
-// = green (with a check), current = dark, upcoming = light grey. Click to jump.
-// Scrolls horizontally inside the form card when it overflows.
-function JourneyBar({
-  activeIndex,
-  completedIndexes,
-  onSelect,
-}: {
-  activeIndex: number;
-  completedIndexes: number[];
-  onSelect: (index: number) => void;
-}) {
-  const notch = 14; // arrow depth in px
-  // Tooltip is portaled to the body so it isn't clipped by (or scroll-forced on)
-  // the horizontally-scrolling strip.
-  const [tip, setTip] = useState<{ text: string; x: number; y: number } | null>(null);
-  return (
-    <div className="min-w-0 flex-1 overflow-hidden">
-      <div className="flex items-stretch">
-        {STAGES.map((stage, i) => {
-          const complete = completedIndexes.includes(i);
-          const current = i === activeIndex;
-          const first = i === 0;
-          const last = i === STAGES.length - 1;
-          const leftNotch = first ? 0 : notch;
-          const clipPath = last
-            ? `polygon(0 0, 100% 0, 100% 100%, 0 100%, ${leftNotch}px 50%)`
-            : `polygon(0 0, calc(100% - ${notch}px) 0, 100% 50%, calc(100% - ${notch}px) 100%, 0 100%, ${leftNotch}px 50%)`;
-          const background = complete ? "#1f9d57" : current ? "var(--text-primary)" : "#edefed";
-          const color = complete || current ? "#ffffff" : "var(--text-muted)";
-          const state = complete ? "Completed" : current ? "Active" : "Upcoming";
-          return (
-            <button
-              key={i}
-              type="button"
-              onClick={() => onSelect(i)}
-              onMouseEnter={(e) => {
-                const r = e.currentTarget.getBoundingClientRect();
-                setTip({ text: `${stage.name} · ${state} · ${stage.owner}`, x: Math.max(12, r.left), y: r.bottom });
-              }}
-              onMouseLeave={() => setTip(null)}
-              aria-current={current}
-              aria-label={`${stage.name} · ${state} · ${stage.owner}`}
-              className={cn(
-                "flex h-10 items-center gap-1.5 overflow-hidden whitespace-nowrap text-[13px] font-semibold transition hover:brightness-[0.97]",
-                "justify-center",
-                complete ? "shrink-0 pr-4" : "min-w-0 flex-1 pr-7",
-                first ? "rounded-l-[20px] pl-5" : "-ml-[11px] pl-7",
-                last && "rounded-r-[20px]",
-              )}
-              style={{ clipPath, background, color }}
-            >
-              {complete ? <Check size={15} strokeWidth={2.5} /> : (SHORT_STAGE_LABELS[i] ?? stage.name)}
-            </button>
-          );
-        })}
-        <span aria-hidden className="w-2 shrink-0" />
-      </div>
-      {tip
+      {anchor
         ? createPortal(
-            <span
-              className="pointer-events-none fixed z-[80] whitespace-nowrap rounded-[8px] bg-[var(--text-primary)] px-3 py-1.5 text-[12px] font-medium text-white shadow-md"
-              style={{ left: tip.x, top: tip.y + 8 }}
+            <div
+              ref={menuRef}
+              role="menu"
+              aria-label="Stage path"
+              style={{ left: anchor.left, top: anchor.top, maxHeight: anchor.maxHeight }}
+              className="fixed z-[80] flex w-[318px] flex-col overflow-hidden rounded-[14px] border border-[var(--border-default)] bg-white shadow-[var(--shadow-menu)]"
             >
-              {tip.text}
-            </span>,
+              <div className="shrink-0 border-b border-[var(--border-hairline)] px-3.5 pb-2.5 pt-3">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-label)]">Stage path</span>
+                  <span className="text-[11px] font-medium tabular-nums text-[var(--text-muted)]">
+                    {completedIndexes.length}/{STAGES.length} complete
+                  </span>
+                </div>
+                <div className="mt-2 h-[3px] overflow-hidden rounded-full bg-[var(--surface-strong)]">
+                  <div
+                    className="h-full rounded-full bg-[var(--accent)] transition-[width] duration-300"
+                    style={{ width: `${Math.round((completedIndexes.length / STAGES.length) * 100)}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain p-1.5">
+                {STAGES.map((stage, index) => {
+                  const complete = completedIndexes.includes(index);
+                  const current = index === activeIndex;
+                  const last = index === STAGES.length - 1;
+                  return (
+                    <button
+                      key={stage.name}
+                      type="button"
+                      role="menuitem"
+                      aria-current={current ? "step" : undefined}
+                      onClick={() => {
+                        onSelect(index);
+                        setAnchor(null);
+                      }}
+                      className={cn(
+                        "relative flex w-full items-center gap-2.5 rounded-[10px] py-1.5 pl-2 pr-2.5 text-left transition",
+                        current ? "bg-[var(--accent-soft)]" : "hover:bg-[var(--surface-hover)]",
+                      )}
+                    >
+                      {/* Connector: turns the list into a path rather than 12 loose rows. */}
+                      {last ? null : (
+                        <span
+                          aria-hidden
+                          className={cn(
+                            "absolute left-[17px] top-[26px] bottom-[-4px] w-px",
+                            complete ? "bg-[var(--tone-success-border)]" : "bg-[#e9e6e2]",
+                          )}
+                        />
+                      )}
+                      <span
+                        className={cn(
+                          "relative grid h-[20px] w-[20px] shrink-0 place-items-center rounded-full text-[11px] font-semibold tabular-nums ring-2 ring-white",
+                          complete
+                            ? "bg-[var(--status-success)] text-white"
+                            : current
+                              ? "bg-[var(--accent)] text-white"
+                              : "border border-[var(--border-input)] bg-white text-[var(--text-muted)]",
+                        )}
+                      >
+                        {complete ? <Check size={11} strokeWidth={3.25} /> : index + 1}
+                      </span>
+                      <span
+                        className={cn(
+                          "min-w-0 flex-1 truncate text-[13px]",
+                          current ? "font-semibold text-[var(--accent-strong)]" : "font-medium text-[var(--text-body)]",
+                        )}
+                      >
+                        {stage.name}
+                      </span>
+                      <span className="shrink-0 text-[11px] text-[var(--text-muted)]">{firstName(stage.owner)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>,
             document.body,
           )
         : null}
-    </div>
-  );
-}
-
-
-// The second stage path: a node-and-connector stepper. Completed nodes are green
-// with a tick, the active node is dark with an accent halo, upcoming ones are
-// hollow and numbered — each labelled underneath, owner on hover.
-function SegmentRail({
-  activeIndex,
-  completedIndexes,
-  onSelect,
-}: {
-  activeIndex: number;
-  completedIndexes: number[];
-  onSelect: (index: number) => void;
-}) {
-  const [tip, setTip] = useState<{ text: string; x: number; y: number } | null>(null);
-  return (
-    <div className="min-w-0 flex-1">
-      <div className="flex items-start">
-        {STAGES.map((stage, i) => {
-          const complete = completedIndexes.includes(i);
-          const current = i === activeIndex;
-          const state = complete ? "Completed" : current ? "Active" : "Upcoming";
-          return (
-            <button
-              key={i}
-              type="button"
-              onClick={() => onSelect(i)}
-              onMouseEnter={(event) => {
-                const rect = event.currentTarget.getBoundingClientRect();
-                setTip({ text: `${stage.name} · ${state} · ${stage.owner}`, x: Math.max(12, rect.left), y: rect.bottom });
-              }}
-              onMouseLeave={() => setTip(null)}
-              aria-current={current}
-              aria-label={`${stage.name} · ${state} · ${stage.owner}`}
-              className="group relative min-w-0 flex-1 px-1"
-            >
-              {/* Connector to the next node — green once this stage is done. */}
-              {i < STAGES.length - 1 ? (
-                <span
-                  aria-hidden
-                  className="absolute left-1/2 top-[15px] h-[2px] w-full"
-                  style={{ background: complete ? "#1f9d57" : "#dedad5" }}
-                />
-              ) : null}
-              <span className="relative z-[1] grid h-8 place-items-center">
-                <span
-                  className={cn(
-                    "grid place-items-center rounded-full transition",
-                    complete
-                      ? "h-[22px] w-[22px] bg-[#1f9d57] text-white shadow-[0_1px_2px_rgba(16,24,40,0.14)]"
-                      : current
-                        ? "h-7 w-7 bg-[var(--accent)] text-white ring-4 ring-[var(--accent-soft)]"
-                        : "h-[22px] w-[22px] border border-[#dcd9d5] bg-white text-[var(--text-muted)] group-hover:border-[var(--accent-ring)] group-hover:text-[var(--accent-strong)]",
-                  )}
-                >
-                  {complete ? <Check size={13} strokeWidth={3} /> : <span className="text-[11px] font-semibold tabular-nums">{i + 1}</span>}
-                </span>
-              </span>
-              <span
-                className={cn(
-                  "mt-1.5 block truncate text-[11.5px] leading-4 transition",
-                  current
-                    ? "font-semibold text-[var(--accent-strong)]"
-                    : complete
-                      ? "font-medium text-[var(--text-label)]"
-                      : "text-[var(--text-muted)] group-hover:text-[var(--text-body)]",
-                )}
-              >
-                {SHORT_STAGE_LABELS[i] ?? stage.name}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-      {tip
-        ? createPortal(
-            <span
-              className="pointer-events-none fixed z-[80] whitespace-nowrap rounded-[8px] bg-[var(--text-primary)] px-3 py-1.5 text-[12px] font-medium text-white shadow-md"
-              style={{ left: tip.x, top: tip.y + 8 }}
-            >
-              {tip.text}
-            </span>,
-            document.body,
-          )
-        : null}
-    </div>
-  );
-}
-
-// Whichever path style is on, laid out bare on the page (no card).
-function StageRail({
-  style,
-  ...rail
-}: {
-  style: RailStyle;
-  activeIndex: number;
-  completedIndexes: number[];
-  onSelect: (index: number) => void;
-}) {
-  return (
-    <div className="shrink-0 px-6 pb-3 pt-1">
-      {style === "chevron" ? <JourneyBar {...rail} /> : <SegmentRail {...rail} />}
-    </div>
-  );
-}
-
-// The rail collapsed into the header: a dot per stage plus the active stage's
-// name. Click to open the full path below.
-function StagePathToggle({
-  activeIndex,
-  completedIndexes,
-  open,
-  onToggle,
-}: {
-  activeIndex: number;
-  completedIndexes: number[];
-  open: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      aria-expanded={open}
-      title={`Stage ${activeIndex + 1} of ${STAGES.length} · ${completedIndexes.length} complete — ${open ? "hide" : "show"} the stage path`}
-      className={cn(
-        "inline-flex h-9 shrink-0 items-center gap-2 rounded-full border pl-2.5 pr-2 text-[13px] font-medium transition",
-        open
-          ? "border-[var(--accent-border)] bg-[var(--accent-soft)] text-[var(--accent-strong)]"
-          : "border-[var(--border-default)] bg-white text-[var(--text-body)] hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)]",
-      )}
-    >
-      {/* Progress ring: stages banked, plus a sliver for the one in flight. */}
-      <svg aria-hidden viewBox="0 0 36 36" className="h-[17px] w-[17px] -rotate-90">
-        <circle cx="18" cy="18" r="15" fill="none" stroke="#e0ddd9" strokeWidth="6" />
-        <circle
-          cx="18"
-          cy="18"
-          r="15"
-          fill="none"
-          stroke="var(--accent)"
-          strokeWidth="6"
-          strokeLinecap="round"
-          strokeDasharray={`${(((completedIndexes.length + 0.5) / STAGES.length) * 94.25).toFixed(1)} 94.25`}
-        />
-      </svg>
-      <span className="whitespace-nowrap">{SHORT_STAGE_LABELS[activeIndex] ?? STAGES[activeIndex].name}</span>
-      <span className="text-[12px] tabular-nums text-[var(--text-muted)]">
-        {activeIndex + 1}/{STAGES.length}
-      </span>
-      <ChevronDown size={14} className={cn("text-[var(--text-muted)] transition", open && "rotate-180")} />
-    </button>
+    </>
   );
 }
 
@@ -1456,30 +1235,54 @@ function readOnlyStageState(stage: StageItem): StageFieldsState {
 function SplitStageView({
   stage,
   currentUser,
+  onUserChange,
+  lockedOwner,
+  recordName,
+  detailsOpen,
+  onOpenDetails,
+  stageIndex,
+  completedIndexes,
+  onSelectStage,
   prefill,
   isComplete,
   onMarkComplete,
   onEditBlocked,
   onStarted,
+  banner,
 }: {
   stage: StageItem;
   currentUser: string;
+  onUserChange: (user: string) => void;
+  lockedOwner: string | null;
+  recordName: string | null;
+  detailsOpen: boolean;
+  onOpenDetails: () => void;
+  stageIndex: number;
+  completedIndexes: number[];
+  onSelectStage: (index: number) => void;
   prefill: boolean;
   isComplete: boolean;
   onMarkComplete: () => void;
   onEditBlocked: (message: string) => void;
   onStarted?: () => void;
+  // Full-width notice under the top bar (a returned / rejected stage).
+  banner?: ReactNode;
 }) {
   const s = useStageFields(stage, prefill);
   const owned = stage.owner === currentUser;
   const bespoke = stage.name in BESPOKE_STAGE_FORMS;
   // Conversational fill runs only on an open stage you own that isn't bespoke.
   const guided = !isComplete && owned && !bespoke;
-  // Whole-form edit mode, toggled from the form card header.
+  // Whole-form edit mode, toggled from the action bar.
   const [editAll, setEditAll] = useState(false);
-  // The stage title sits above the description at the top; it collapses into the
-  // form header once the form is scrolled.
-  const [scrolled, setScrolled] = useState(false);
+  // Chat header shows a divider once the conversation scrolls beneath it. The
+  // conversation's scroll container lives inside the chat components, so we grab
+  // it off the captured scroll event rather than duplicating a container here —
+  // that's what "jump to first message" scrolls.
+  const [chatScrolled, setChatScrolled] = useState(false);
+  const chatScrollElement = useRef<HTMLElement | null>(null);
+  // Put away / full width — one mode, so the two can't both be on.
+  const railMode = useRailMode();
   // Form panel shows a loading bar while the guided Ideation flow is seeding.
   const [formBusy, setFormBusy] = useState(false);
 
@@ -1487,7 +1290,7 @@ function SplitStageView({
   const capturedDone = s.fields.filter((field) => !isFieldEmpty(s.values[field.label])).length;
   const capturedTotal = s.fields.length;
 
-  // ---- LEFT: the conversation. Guided stages run the fill flow; the rest keep
+  // ---- The conversation. Guided stages run the fill flow; the rest keep
   // an open, ask-anything composer (locked / bespoke / completed). ----
   let chat: ReactNode;
   if (guided) {
@@ -1498,19 +1301,19 @@ function SplitStageView({
     let intro: string;
     let editNote: string | undefined;
     if (!isComplete && !owned) {
-      intro = `Hi — I can walk you through the ${stage.name} stage. It's owned by ${stage.owner}, so recording changes needs their profile, but ask me anything about it.`;
+      intro = `${STAGE_BRIEFS[stage.name] ?? ""} ${stage.owner} owns this one, so recording changes needs their profile — but ask me anything about it.`.trim();
       editNote = `Switch to ${stage.owner} up top to edit.`;
     } else if (!isComplete) {
       intro = `Here's the ${stage.name} so far — set the details on the form to the right, then submit.`;
       editNote = "Fill it in on the form panel.";
     } else {
-      intro = `The ${stage.name} stage is complete — here's what was captured. Ask me anything about it.`;
+      intro = `${stage.name} is complete. ${STAGE_BRIEFS[stage.name] ?? ""} Ask me anything about what was captured.`.trim();
       editNote = owned ? "Reopen it on the form panel to make changes." : `${stage.owner} can reopen it to make changes.`;
     }
     chat = <AsideChat stage={stage} intro={intro} editNote={editNote} complete={isComplete} />;
   }
 
-  // ---- RIGHT: the form/document, filling live. Completed stages show the
+  // ---- The form/document, filling live. Completed stages show the
   // summary card; owned bespoke stages their custom widgets; else the field grid. ----
   let form: ReactNode;
   if (bespoke && owned && !isComplete) {
@@ -1532,6 +1335,7 @@ function SplitStageView({
         isComplete={isComplete}
         embedded
         editAll={editAll}
+        heading={<StagePathMenu activeIndex={stageIndex} completedIndexes={completedIndexes} onSelect={onSelectStage} />}
         onBlockedEdit={
           guided
             ? undefined
@@ -1557,39 +1361,77 @@ function SplitStageView({
     submitReady = allFilled && !gate;
     submitHint = gate ?? (allFilled ? undefined : `${capturedTotal - capturedDone} of ${capturedTotal} details still to capture.`);
   }
-  const stageNo = STAGES.findIndex((item) => item.name === stage.name) + 1;
 
   return (
-    <>
-      {/* Chat panel — divided from the form by a border, not a card gap. */}
-      <section className="flex min-h-0 flex-col overflow-hidden border-r border-[#ecebea] bg-white">
-        <div className="flex min-h-[53px] shrink-0 items-center gap-2 border-b border-[#ecebea] px-4 py-2">
-          <Sparkles size={15} className="text-[var(--accent)]" />
-          <span className="text-[14px] font-semibold text-[var(--text-primary)]">Assistant</span>
-        </div>
-        <div className="mx-auto flex min-h-0 w-full max-w-[720px] flex-1 flex-col overflow-hidden">
+    <AppShell
+      banner={banner}
+      topBar={
+        // Row 1 owns the record's identity: its name and nothing else — the
+        // stage, its status and its people all live further down.
+        <AppTopBar
+          title={recordName ?? "Untitled use case"}
+          titleHref="/overview"
+          profile={<ProfileSwitcher currentUser={currentUser} onUserChange={onUserChange} lockedBy={lockedOwner ?? undefined} compact />}
+        />
+      }
+      railExpanded={railMode.expanded}
+      railCollapsed={railMode.collapsed}
+      railHeader={
+        <RailHeader
+          scrolled={chatScrolled}
+          canJumpToTop={chatScrolled}
+          onJumpToTop={() => chatScrollElement.current?.scrollTo({ top: 0, behavior: "smooth" })}
+          expanded={railMode.expanded}
+          onToggleExpand={railMode.toggleExpand}
+          collapsed={railMode.collapsed}
+          onToggleCollapse={railMode.toggleCollapse}
+        />
+      }
+      tabs={
+        <PanelTabs
+          activeId="workflow"
+          tabs={[
+            { id: "overview", label: "Overview", href: "/overview", icon: <LayoutDashboard size={14} /> },
+            { id: "workflow", label: "Workflow", icon: <LayoutList size={14} /> },
+          ]}
+          right={
+            // The record's details, gates, comments and activity — one toggle,
+            // sitting with the other view controls.
+            <TabBarToggle label="Details" icon={<MessageCircle size={15} />} active={detailsOpen} onClick={onOpenDetails} />
+          }
+        />
+      }
+      rail={
+        // Capture phase: scroll doesn't bubble, so listen on the way down.
+        <div
+          onScrollCapture={(event) => {
+            const element = event.target as HTMLElement;
+            chatScrollElement.current = element;
+            setChatScrolled(element.scrollTop > 4);
+          }}
+          className="mx-auto flex min-h-0 w-full max-w-[720px] flex-1 flex-col overflow-hidden"
+        >
           {chat}
         </div>
-      </section>
-      {/* Form panel — header carries the stage title + Edit / Submit actions. */}
-      <aside className="flex min-h-0 flex-col overflow-hidden bg-white">
-        <div className="flex min-h-[53px] shrink-0 items-center gap-2 border-b border-[#ecebea] px-6 py-2">
-          <FileText size={15} className="shrink-0 text-[var(--accent)]" />
-          <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--text-primary)]">
-            <span className="text-[var(--accent-strong)]">Stage {String(stageNo).padStart(2, "0")}</span>
-            {scrolled ? (
-              <>
-                <span className="mx-1.5 text-[var(--text-muted)]">·</span>
-                {stage.name}
-              </>
-            ) : null}
-          </span>
-          <div className="flex shrink-0 items-center gap-2">
+      }
+      aside={detailsOpen ? <RecordDetailsSheet onClose={onOpenDetails} /> : undefined}
+    >
+      {/* Row 3 names the view and where in the lifecycle it sits; the stage's own
+          title, status, progress, owner and gate live in the stage header below. */}
+      <ContentPanel
+        icon={<LayoutList size={17} />}
+        title="Workflow"
+        breadcrumb={<PanelBreadcrumb source={USE_CASE.id} item={phaseForStage(stage.name)} icon={<FileText size={13} />} />}
+        scroll={false}
+        footer={
+          <>
+            {submitHint ? <span className="min-w-0 truncate text-[12px] text-[var(--text-muted)]">{submitHint}</span> : null}
+            <span className="ml-auto flex shrink-0 items-center gap-2">
             {isComplete && owned ? (
               <button
                 type="button"
                 onClick={onMarkComplete}
-                className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[var(--border-default)] bg-white px-3.5 text-[12px] font-semibold text-[var(--text-body)] transition hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)]"
+                className={shellButton()}
               >
                 <RotateCcw size={13} />
                 Reopen
@@ -1598,12 +1440,7 @@ function SplitStageView({
               <button
                 type="button"
                 onClick={() => setEditAll((v) => !v)}
-                className={cn(
-                  "inline-flex h-9 items-center gap-1.5 rounded-[8px] border px-3.5 text-[12px] font-semibold transition",
-                  editAll
-                    ? "border-[var(--accent-border)] bg-[var(--accent-soft)] text-[var(--accent-strong)]"
-                    : "border-[var(--border-default)] bg-white text-[var(--text-body)] hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)]",
-                )}
+                className={cn(shellButton(), editAll && "border-[var(--accent-border)] bg-[var(--accent-soft)] text-[var(--accent-strong)]")}
               >
                 {editAll ? <Check size={13} /> : <Pencil size={13} />}
                 {editAll ? "Save" : "Edit"}
@@ -1615,28 +1452,24 @@ function SplitStageView({
                 onClick={onMarkComplete}
                 disabled={!submitReady}
                 title={submitReady ? undefined : submitHint}
-                className="inline-flex h-9 items-center gap-1.5 rounded-[8px] bg-[var(--accent)] px-3.5 text-[12px] font-semibold text-white transition hover:opacity-90 disabled:opacity-40"
+                className={shellButton("primary")}
               >
                 <Check size={13} />
                 Submit {stage.name === "GTAC" ? "decision" : "stage"}
               </button>
             ) : null}
-          </div>
-        </div>
+            </span>
+          </>
+        }
+      >
         {formBusy ? (
           <div className="h-[3px] w-full shrink-0 overflow-hidden bg-[var(--surface-muted)]">
             <div className="loadbar h-full w-1/3 rounded-full bg-[var(--accent)]" />
           </div>
         ) : null}
-        <div
-          className="no-scrollbar min-h-0 flex-1 overflow-y-auto"
-          onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 12)}
-        >
-          <h2 className="px-6 pt-6 font-display text-[24px] leading-tight text-[var(--text-primary)]">{stage.name}</h2>
-          {form}
-        </div>
-      </aside>
-    </>
+        <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto">{form}</div>
+      </ContentPanel>
+    </AppShell>
   );
 }
 
@@ -1644,20 +1477,34 @@ function suggestionText(suggestion: string | string[]): string {
   return Array.isArray(suggestion) ? suggestion.join(", ") : suggestion;
 }
 
-// One-line explainer per stage, shown as the chat's opening message.
-const STAGE_INTROS: Record<string, string> = {
-  Ideation: "Ideation captures the core idea — the problem, the outcome you want, and who it's for.",
-  Qualification: "Qualification does a quick scan for prohibited uses and sets a provisional risk tier.",
-  Prioritisation: "Prioritisation weighs value against readiness to decide whether this moves forward now.",
-  Triage: "Triage resolves any flags and routes the use case onto the right assessment path.",
-  "Assessment - Risk & Compliance": "This assessment reviews data, privacy, and model risks, and sets the conditions to proceed.",
-  "Business Case": "The business case lays out cost, benefit, and the recommendation for the GTAC board.",
-  GTAC: "GTAC records the board's funding decision and any binding conditions.",
-  "Plan & KPI": "Plan & KPI lines up the delivery squad, milestones, and the success metrics to lock.",
-  "Solution blue print": "The solution blueprint defines the architecture, guardrails, and integrations.",
-  "Solutionise and Production": "Solutionise & Production captures the build evidence and readiness for review.",
-  "Monitoring and tracking": "Monitoring & tracking follows drift, value variance, and the post-deploy review.",
-  Adoption: "Adoption drives the rollout waves and tracks how uptake is going.",
+// Fuller, conversational version of each stage's purpose — what it decides and
+// what it feeds. The form shows the one-line STAGE_INTROS; the chat opens with
+// this so the two panels don't read as the same sentence twice.
+const STAGE_BRIEFS: Record<string, string> = {
+  Ideation:
+    "Let's shape the idea properly: the problem worth solving, the outcome you want, who'd use it, and the data it would touch. Everything downstream — risk tier, business case, funding — reads from what we capture here.",
+  Qualification:
+    "This is the screening pass. I'll check the idea against the prohibited-use list, confirm a human stays in the loop on every output, and set a provisional risk tier. That tier decides how much assessment comes later — it doesn't commit any budget yet.",
+  Prioritisation:
+    "Here the idea competes for attention. We score business value against how feasible it is to build, factor in cost and strategic fit, and that produces the priority score the portfolio uses to sequence work.",
+  Triage:
+    "Triage turns the risk signals from Qualification into a route. I'll confirm the governance tier, decide whether a full risk and compliance assessment is required, and note anything the assessors should look at first.",
+  "Assessment - Risk & Compliance":
+    "The deep review. We work through what data the model touches, where it's hosted, how it could fail, and the ethical exposure — then land an overall risk rating and the conditions that have to hold before anything gets built.",
+  "Business Case":
+    "Time for the numbers. We take today's review volume and cost, project what the assistant saves, and set that against the investment. Payback and three-year value are what the GTAC board will actually debate.",
+  GTAC:
+    "The board decision. I'll record the go/no-go, the recommendation it rests on, and any conditions attached to the funding. This is the gate that releases delivery.",
+  "Plan & KPI":
+    "Funding's approved, so now we line up delivery: the squad, the milestones, and the KPIs we'll be held to. Locking targets here is what monitoring measures against once it's live.",
+  "Solution blue print":
+    "The technical shape. We define the capability, where a human checks the output, how access is controlled and audited, and how often the model is retrained — these are the guardrails auditors ask about.",
+  "Solutionise and Production":
+    "Build evidence. I'll capture how it was configured, how the US and EU pilot went, whether validation documentation is complete, and where production deployment stands.",
+  "Monitoring and tracking":
+    "The post-launch reality check. We track review-time reduction against the locked target, summary accuracy, and how users rate it. Variance here is what triggers the post-deploy review.",
+  Adoption:
+    "Rollout and uptake. We follow training completion, the comms going out to each wave, the support model behind it, and the feedback loop that feeds improvements back into the backlog.",
 };
 
 // Fields grouped into themes so the chat asks them in batches with a short
@@ -1685,10 +1532,11 @@ function joinList(items: string[]): string {
   return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
 }
 
-// Prose list that stays short — names a few, counts the rest.
+// Prose list that stays short — names a few and trails off. Deliberately no
+// count: "and 7 more" reads like a chore list in conversation.
 function listWithMore(items: string[], max: number): string {
   if (items.length <= max) return joinList(items);
-  return `${items.slice(0, max).join(", ")} and ${items.length - max} more`;
+  return `${items.slice(0, max).join(", ")} and a few others`;
 }
 
 // Same, but with "or" — for offering choices in prose.
@@ -1744,32 +1592,7 @@ function ghostFor(labels: string[], fieldByLabel: Map<string, FieldSpec>): strin
     .join("; ");
 }
 
-type ChatMessage = { id: number; role: "assistant" | "user"; text: string; recap?: boolean };
-
-// A chat bubble — assistant (plain text, left), user (accent bubble, right), or a
-// recap (a neutral grey block spanning the width, for a Q&A summary).
-function MessageBubble({ role, text, recap = false }: { role: "assistant" | "user"; text: string; recap?: boolean }) {
-  if (recap) {
-    return (
-      <div className="bubble-in-left max-w-[85%] whitespace-pre-line py-1 text-[14px] leading-[1.7] text-[var(--text-body)]">
-        {text}
-      </div>
-    );
-  }
-  return (
-    <div className={cn("flex", role === "user" ? "justify-end" : "justify-start")}>
-      {role === "user" ? (
-        <div className="bubble-in-right max-w-[82%] whitespace-pre-line rounded-[14px] bg-[#f1efec] px-4 py-2.5 text-[14.5px] leading-[1.65] text-[var(--text-primary)]">
-          {text}
-        </div>
-      ) : (
-        <div className="bubble-in-left max-w-[88%] whitespace-pre-line py-0.5 text-[14.5px] leading-[1.7] text-[var(--text-body)]">
-          {text}
-        </div>
-      )}
-    </div>
-  );
-}
+type ChatMessage = { id: number; role: "assistant" | "user"; text: string; recap?: boolean; time?: string; notice?: boolean; activity?: string; running?: boolean };
 
 // Keeps a scroll container pinned to the bottom as its content grows (new
 // messages, or the tall prior-stage history laying out over several frames), so
@@ -1804,78 +1627,6 @@ function useBottomPinnedScroll() {
   return { scrollRef, contentRef };
 }
 
-// The docked chat input: textarea + attach / voice / send. Presentational, so
-// the live chat and the locked (read-only) view share one look.
-function ChatComposer({
-  inputRef,
-  value,
-  onChange,
-  onKeyDown,
-  onSend,
-  placeholder,
-  disabled = false,
-  sendDisabled = false,
-}: {
-  inputRef?: RefObject<HTMLTextAreaElement | null>;
-  value: string;
-  onChange: (value: string) => void;
-  onKeyDown?: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
-  onSend: () => void;
-  placeholder: string;
-  disabled?: boolean;
-  sendDisabled?: boolean;
-}) {
-  return (
-    <div className="shrink-0 px-6 pb-5 pt-2">
-      <div className="rounded-[12px] border border-[#e7e5e4] bg-white px-3 pb-2 pt-2.5 focus-within:border-[var(--accent-ring)]">
-        <textarea
-          ref={inputRef}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          onKeyDown={onKeyDown}
-          rows={2}
-          disabled={disabled}
-          placeholder={placeholder}
-          className="no-scrollbar block max-h-32 min-h-[40px] w-full resize-none bg-transparent text-[14.5px] leading-6 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] disabled:opacity-60"
-        />
-        <div className="mt-1 flex items-center justify-between">
-          <button
-            type="button"
-            disabled={disabled}
-            aria-label="Add documents (coming soon)"
-            title="Add documents — coming soon"
-            className="grid h-8 w-8 cursor-not-allowed place-items-center rounded-full text-[var(--text-muted)] transition hover:bg-[var(--surface-muted)] disabled:opacity-40"
-          >
-            <Plus size={18} />
-          </button>
-          {/* One trailing control: mic when empty (coming soon), send once typed. */}
-          {value.trim() ? (
-            <button
-              type="button"
-              onClick={onSend}
-              disabled={sendDisabled}
-              aria-label="Send"
-              className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[var(--accent)] text-white transition hover:bg-[var(--accent-strong)] disabled:opacity-40"
-            >
-              <Send size={15} />
-            </button>
-          ) : (
-            <button
-              type="button"
-              disabled={disabled}
-              aria-label="Voice input (coming soon)"
-              title="Voice input — coming soon"
-              className="grid h-8 w-8 shrink-0 cursor-not-allowed place-items-center rounded-full text-[var(--text-muted)] transition hover:bg-[var(--surface-muted)] disabled:opacity-40"
-            >
-              <Mic size={17} />
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // A non-guided stage chat (locked / bespoke / completed): the chat stays open so
 // every stage keeps its composer. It opens with `intro`, shows an optional
 // `footer` (summary / actions), and answers any message with a canned `reply`.
@@ -1890,7 +1641,7 @@ function AsideChat({ stage, intro, editNote, footer, complete = false }: { stage
   useEffect(() => () => timers.current.forEach((timer) => clearTimeout(timer)), []);
 
   const pushAssistant = (text: string) => setMessages((current) => [...current, { id: bump(), role: "assistant", text }]);
-  const pushUser = (text: string) => setMessages((current) => [...current, { id: bump(), role: "user", text }]);
+  const pushUser = (text: string) => setMessages((current) => [...current, { id: bump(), role: "user", text, time: formatChatTime() }]);
   const sayLines = (lines: string[]) =>
     lines.forEach((line, index) => timers.current.push(window.setTimeout(() => pushAssistant(line), 250 + index * 650)));
 
@@ -1960,7 +1711,7 @@ function AsideChat({ stage, intro, editNote, footer, complete = false }: { stage
       return;
     }
     if (item.id === "why") {
-      sayLines([`${STAGE_INTROS[stage.name] ?? `${stage.name} is the first step in the lifecycle.`} ${stage.owner} owns it.${editNote ? ` ${editNote}` : ""}`]);
+      sayLines([`${STAGE_BRIEFS[stage.name] ?? STAGE_INTROS[stage.name] ?? `${stage.name} is the first step in the lifecycle.`} ${stage.owner} owns it.${editNote ? ` ${editNote}` : ""}`]);
       return;
     }
     if (item.id === "signoff") {
@@ -1977,32 +1728,34 @@ function AsideChat({ stage, intro, editNote, footer, complete = false }: { stage
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-transparent">
-      <div ref={scrollRef} className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-6 pb-8 pt-6">
-        <div ref={contentRef} className="space-y-5" role="log" aria-live="polite" aria-label={`${stage.name} conversation`}>
+    <div className="relative flex h-full min-h-0 flex-col bg-transparent">
+      <div ref={scrollRef} className="no-scrollbar min-h-0 flex-1 overflow-y-auto pb-40 pt-2">
+        <div ref={contentRef} className="space-y-4" role="log" aria-live="polite" aria-label={`${stage.name} conversation`}>
+          <ChatTimeDivider />
           {/* Summary / recap sits on top; the conversation flows below it. */}
           {footer ? <div className="pb-1">{footer}</div> : null}
           {messages.map((message) => (
-            <MessageBubble key={message.id} role={message.role} text={message.text} />
+            <ChatLine key={message.id} {...message} />
           ))}
         </div>
       </div>
-      {showStarters ? <ChatStarters items={starters} onPick={pickStarter} /> : null}
-
-      <ChatComposer
-        inputRef={inputRef}
-        value={input}
-        onChange={setInput}
-        onSend={() => send()}
-        sendDisabled={!input.trim()}
-        placeholder={`Ask about the ${stage.name} stage…`}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" && !event.shiftKey) {
-            event.preventDefault();
-            send();
-          }
-        }}
-      />
+      <ChatDock>
+        {showStarters ? <ChatStarters items={starters} onPick={pickStarter} /> : null}
+        <ChatComposer
+          inputRef={inputRef}
+          value={input}
+          onChange={setInput}
+          onSend={() => send()}
+          sendDisabled={!input.trim()}
+          placeholder={`Ask about the ${stage.name} stage…`}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              send();
+            }
+          }}
+        />
+      </ChatDock>
     </div>
   );
 }
@@ -2083,11 +1836,11 @@ function QuestionCard({
   onClose: () => void;
 }) {
   return (
-    <div className="shrink-0 px-6 pb-5 pt-2">
-      <div className="rounded-[14px] border border-[#e7e5e4] bg-white p-4">
+    <div className="shrink-0 px-3 pb-3 pt-1.5">
+      <div className="rounded-[14px] border border-[var(--border-default)] bg-white p-4">
         <div className="flex items-start justify-between gap-3">
-          <p className="text-[15px] font-semibold leading-6 text-[var(--text-primary)]">{question}</p>
-          <div className="flex shrink-0 items-center gap-1 text-[13px] font-medium tabular-nums text-[var(--text-muted)]">
+          <p className="text-[14px] font-semibold leading-[1.5] text-[var(--text-primary)]">{question}</p>
+          <div className="flex shrink-0 items-center gap-1 text-[12px] font-medium tabular-nums text-[var(--text-muted)]">
             <button type="button" onClick={onPrev} disabled={index === 0} aria-label="Previous question" className="grid h-6 w-6 place-items-center rounded-[6px] transition hover:bg-[var(--surface-muted)] disabled:opacity-30">
               <ChevronLeft size={16} />
             </button>
@@ -2112,14 +1865,14 @@ function QuestionCard({
               }
             }}
             placeholder="Write answer here"
-            className="min-w-0 flex-1 bg-transparent text-[14px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
+            className="min-w-0 flex-1 bg-transparent text-[13px] leading-[20px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
           />
           {value.trim() ? (
-            <button type="button" onClick={onSubmit} className="shrink-0 rounded-[8px] bg-[var(--accent)] px-3 py-1.5 text-[13px] font-semibold text-white transition hover:bg-[var(--accent-strong)]">
+            <button type="button" onClick={onSubmit} className="shrink-0 rounded-[8px] bg-[var(--accent)] px-3 py-1.5 text-[12px] font-semibold text-white transition hover:bg-[var(--accent-strong)]">
               Save
             </button>
           ) : (
-            <button type="button" onClick={onSkip} className="shrink-0 rounded-[8px] border border-[var(--border-default)] bg-white px-3 py-1.5 text-[13px] font-medium text-[var(--text-body)] transition hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)]">
+            <button type="button" onClick={onSkip} className="shrink-0 rounded-[8px] border border-[var(--border-default)] bg-white px-3 py-1.5 text-[12px] font-medium text-[var(--text-body)] transition hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)]">
               Skip
             </button>
           )}
@@ -2152,7 +1905,9 @@ function GuidedQuestions({ stage, s, onStarted, onBusyChange }: { stage: StageIt
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const pushAssistant = (text: string) => setMessages((m) => [...m, { id: bump(), role: "assistant", text }]);
-  const pushUser = (text: string) => setMessages((m) => [...m, { id: bump(), role: "user", text }]);
+  const pushUser = (text: string) => setMessages((m) => [...m, { id: bump(), role: "user", text, time: formatChatTime() }]);
+  const pushActivity = (activity: string, text: string) => setMessages((m) => [...m, { id: bump(), role: "assistant", text, activity }]);
+  const pushNotice = (text: string) => setMessages((m) => [...m, { id: bump(), role: "assistant", text, notice: true }]);
 
   // The agent "thinks" between the user's idea and its bridge reply.
   const [thinking, setThinking] = useState(false);
@@ -2173,7 +1928,7 @@ function GuidedQuestions({ stage, s, onStarted, onBusyChange }: { stage: StageIt
   useEffect(() => () => timers.current.forEach((t) => clearTimeout(t)), []);
   useEffect(() => {
     // 1. the idea the user described (from Create) appears first.
-    timers.current.push(window.setTimeout(() => setMessages((cur) => [...cur, { id: bump(), role: "user", text: IDEATION_SEED[0].text }]), 300));
+    timers.current.push(window.setTimeout(() => setMessages((cur) => [...cur, { id: bump(), role: "user", text: IDEATION_SEED[0].text, time: formatChatTime() }]), 300));
     // 2. the agent thinks…
     timers.current.push(window.setTimeout(() => setThinking(true), 600));
     // 3. …then recaps what it extracted and asks to confirm.
@@ -2206,7 +1961,7 @@ function GuidedQuestions({ stage, s, onStarted, onBusyChange }: { stage: StageIt
       .join("\n\n");
     const answered = questions.filter((_, i) => !nextSkipped[i] && (nextAnswers[i] ?? "").trim());
     const transcript: ChatMessage[] = [];
-    if (recap) transcript.push({ id: bump(), role: "user", text: recap });
+    if (recap) transcript.push({ id: bump(), role: "user", text: recap, time: formatChatTime() });
     transcript.push({
       id: bump(),
       role: "assistant",
@@ -2247,6 +2002,7 @@ function GuidedQuestions({ stage, s, onStarted, onBusyChange }: { stage: StageIt
       if (f) s.fillNow(label, f.suggestion, 300 + d++ * 200);
     });
     timers.current.push(window.setTimeout(() => onBusyChange?.(false), 300 + d * 200 + 400));
+    pushActivity("Adding", `${IDEATION_SEED_FIELDS.length} details to the form`);
     pushAssistant(IDEATION_SEED[1].text);
     setPhase("questions");
   }
@@ -2262,7 +2018,14 @@ function GuidedQuestions({ stage, s, onStarted, onBusyChange }: { stage: StageIt
       if (a && fieldByLabel.has(q.field)) s.fillNow(q.field, a, 300 + d++ * 200);
     });
     timers.current.push(window.setTimeout(() => onBusyChange?.(false), 300 + d * 200 + 400));
-    pushAssistant("Done — I've filled the form on the right. Review it and hit Submit when it's ready.");
+    const filled = new Set([...IDEATION_SEED_FIELDS, ...questions.filter((_, i) => !resultRef.current.skipped[i] && (resultRef.current.answers[i] ?? "").trim()).map((q) => q.field)]);
+    const stillOpen = s.fields.filter((f) => isFieldEmpty(s.values[f.label]) && !filled.has(f.label));
+    pushActivity("Adding", "your answers to the form");
+    if (stillOpen.length) {
+      pushAssistant(`Done — it's on the form now. Still to capture: ${listWithMore(stillOpen.map((f) => humanizeLabel(f.label)), 4)}. Tell me and I'll add them.`);
+    } else {
+      pushNotice("Every detail is captured — submit the stage when it looks right.");
+    }
     setPhase("done");
   }
 
@@ -2292,24 +2055,19 @@ function GuidedQuestions({ stage, s, onStarted, onBusyChange }: { stage: StageIt
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-transparent">
-      <div ref={scrollRef} className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-6 pb-8 pt-6">
-        <div ref={contentRef} className="space-y-5" role="log" aria-live="polite" aria-label={`${stage.name} conversation`}>
+    <div className="relative flex h-full min-h-0 flex-col bg-transparent">
+      <div ref={scrollRef} className="no-scrollbar min-h-0 flex-1 overflow-y-auto pb-40 pt-2">
+        <div ref={contentRef} className="space-y-4" role="log" aria-live="polite" aria-label={`${stage.name} conversation`}>
+          <ChatTimeDivider />
           {messages.map((message) => (
-            <MessageBubble key={message.id} role={message.role} text={message.text} recap={message.recap} />
+            <ChatLine key={message.id} {...message} />
           ))}
-          {thinking ? (
-            <div className="bubble-in-left flex items-center gap-2 py-1">
-              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[var(--accent-soft)]">
-                <LoaderCircle size={14} className="animate-spin text-[var(--accent)]" />
-              </span>
-              <span className="text-[14px] font-medium text-[var(--text-muted)]">Thinking…</span>
-            </div>
-          ) : null}
+          {thinking ? <ChatLine activity="Reading" text="your description for the details it already covers" running /> : null}
         </div>
       </div>
-      {phase === "questions" ? (
-        <QuestionCard
+      <ChatDock>
+        {phase === "questions" ? (
+          <QuestionCard
           question={questions[idx].text}
           index={idx}
           total={questions.length}
@@ -2319,13 +2077,13 @@ function GuidedQuestions({ stage, s, onStarted, onBusyChange }: { stage: StageIt
           onSkip={skipCurrent}
           onPrev={() => setIdx((i) => Math.max(0, i - 1))}
           onNext={() => setIdx((i) => Math.min(questions.length - 1, i + 1))}
-          onClose={() => {
-            setPhase("done");
-            pushAssistant("No problem — fill in whatever's left on the form and submit when ready.");
-          }}
-        />
-      ) : (
-        <ChatComposer
+            onClose={() => {
+              setPhase("done");
+              pushAssistant("No problem — fill in whatever's left on the form and submit when ready.");
+            }}
+          />
+        ) : (
+          <ChatComposer
           inputRef={inputRef}
           value={input}
           onChange={setInput}
@@ -2333,26 +2091,26 @@ function GuidedQuestions({ stage, s, onStarted, onBusyChange }: { stage: StageIt
           sendDisabled={!input.trim()}
           placeholder={
             phase === "confirmSeed" || phase === "confirm"
-              ? "Reply “yes” to confirm, or tell me what to change…"
+              ? "“Yes” to confirm, or say what to change…"
               : done
                 ? "Ask me to change any detail, or submit on the form…"
                 : "Type a message…"
           }
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              handleSend();
-            }
-          }}
-        />
-      )}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                handleSend();
+              }
+            }}
+          />
+        )}
+      </ChatDock>
     </div>
   );
 }
 
 // Rows that read as an earlier stage's outcome — used for the catch-up recap and
 // to pick the field a stage is best known by.
-const OUTCOME_ROW = /decision|outcome|recommend|status|tier|verdict|score|priority|approv|result/i;
 
 // ── Per-stage conversation starters ──
 // Each stage gets its own openers, because the work differs: Triage sets a tier,
@@ -2497,7 +2255,6 @@ const previousStageName = (name: string) => {
   const index = STAGES.findIndex((item) => item.name === name);
   return index > 0 ? shortStageName(STAGES[index - 1].name) : "";
 };
-const firstName = (name: string) => name.split(" ")[0];
 // The field a stage reads as being *about* — its outcome row, else its first.
 const signatureField = (fields: FieldSpec[]) => fields.find((f) => OUTCOME_ROW.test(f.label)) ?? fields[0];
 
@@ -2531,24 +2288,6 @@ function capturedAnswer(labels: string[], values: Record<string, string | string
       return isFieldEmpty(value) ? `• ${label} — not recorded yet` : `• ${label} — ${suggestionText(value)}`;
     })
     .join("\n");
-}
-
-function ChatStarters({ items, onPick }: { items: Starter[]; onPick: (item: Starter) => void }) {
-  return (
-    <div className="flex shrink-0 flex-wrap gap-1.5 px-6 pb-2">
-      {items.map((item) => (
-        <button
-          key={item.id}
-          type="button"
-          onClick={() => onPick(item)}
-          className="inline-flex items-center gap-1.5 rounded-full border border-[#e7e5e4] bg-white py-1.5 pl-2.5 pr-3 text-[12.5px] font-medium text-[var(--text-body)] transition hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)] hover:text-[var(--text-primary)]"
-        >
-          <span className="shrink-0 text-[var(--accent)]">{item.icon}</span>
-          {item.label}
-        </button>
-      ))}
-    </div>
-  );
 }
 
 // Conversational assistant: asks a stage's fields in themed batches (one framing
@@ -2608,7 +2347,7 @@ function ChatPanel({ stage, s }: { stage: StageItem; s: StageFieldsState }) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const pushAssistant = (text: string) => setMessages((current) => [...current, { id: bump(), role: "assistant", text }]);
-  const pushUser = (text: string) => setMessages((current) => [...current, { id: bump(), role: "user", text }]);
+  const pushUser = (text: string) => setMessages((current) => [...current, { id: bump(), role: "user", text, time: formatChatTime() }]);
 
   // Emit assistant lines one after another (not all in one instant), so a reply
   // reads like a person typing successive messages. onDone fires after the last.
@@ -2643,7 +2382,7 @@ function ChatPanel({ stage, s }: { stage: StageItem; s: StageFieldsState }) {
   useEffect(() => {
     const first = firstOpenGroup(initialHandled);
     const needs = openLabels();
-    const brief = [STAGE_INTROS[stage.name], needs.length ? `For this stage I need the ${listWithMore(needs.map(humanizeLabel), 4)}.` : ""]
+    const brief = [STAGE_BRIEFS[stage.name] ?? STAGE_INTROS[stage.name], needs.length ? `To get through it I need the ${listWithMore(needs.map(humanizeLabel), 4)}.` : ""]
       .filter(Boolean)
       .join(" ");
     sayLines([brief, first ? groupQuestion(first, groupRemaining(first, initialHandled), false) : "Everything's already filled — review the form and submit when it looks right."].filter(Boolean));
@@ -2676,7 +2415,7 @@ function ChatPanel({ stage, s }: { stage: StageItem; s: StageFieldsState }) {
     : done
       ? [{ id: "captured", icon: <FileText size={13} />, label: `What's in ${short}?` }, recapStarter]
       : [
-          { id: "draft", icon: <Sparkles size={13} />, label: `Draft all ${openLabels().length} details` },
+          { id: "draft", icon: <Sparkles size={13} />, label: "Draft it from what we know" },
           { id: "needs", icon: <Info size={13} />, label: `What does ${short} need?` },
           recapStarter,
         ];
@@ -2732,7 +2471,7 @@ function ChatPanel({ stage, s }: { stage: StageItem; s: StageFieldsState }) {
       return;
     }
     if (item.id === "why") {
-      sayLines([`${STAGE_INTROS[stage.name] ?? `${stage.name} is the first step in the lifecycle.`} You own it, so it's yours to record.`]);
+      sayLines([`${STAGE_BRIEFS[stage.name] ?? STAGE_INTROS[stage.name] ?? `${stage.name} is the first step in the lifecycle.`} You own it, so it's yours to record.`]);
       return;
     }
     if (item.id === "needs") {
@@ -2841,37 +2580,39 @@ function ChatPanel({ stage, s }: { stage: StageItem; s: StageFieldsState }) {
   const ghost = !gating && activeGroup ? ghostReply(groupRemaining(activeGroup, handled)) : "";
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-transparent">
-      <div ref={scrollRef} className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-6 pb-8 pt-6">
-        <div ref={contentRef} className="space-y-5" role="log" aria-live="polite" aria-label={`${stage.name} conversation`}>
+    <div className="relative flex h-full min-h-0 flex-col bg-transparent">
+      <div ref={scrollRef} className="no-scrollbar min-h-0 flex-1 overflow-y-auto pb-40 pt-2">
+        <div ref={contentRef} className="space-y-4" role="log" aria-live="polite" aria-label={`${stage.name} conversation`}>
+          <ChatTimeDivider />
           {messages.map((message) => (
-            <MessageBubble key={message.id} role={message.role} text={message.text} />
+            <ChatLine key={message.id} {...message} />
           ))}
         </div>
       </div>
 
-      {showStarters ? <ChatStarters items={starters} onPick={pickStarter} /> : null}
-
-      <ChatComposer
-        inputRef={inputRef}
-        value={input}
-        onChange={setInput}
-        onSend={() => send()}
-        sendDisabled={!input.trim()}
-        placeholder={done ? "Ask me to change any detail, or submit on the form…" : gating ? "Reply to clear the remaining checks…" : ghost || "Describe it in your own words…"}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" && !event.shiftKey) {
-            event.preventDefault();
-            send();
-            return;
-          }
-          // Accept the prefilled suggestion → send it straight away.
-          if ((event.key === "Tab" || event.key === "ArrowRight") && input === "" && ghost && !done) {
-            event.preventDefault();
-            send(ghost);
-          }
-        }}
-      />
+      <ChatDock>
+        {showStarters ? <ChatStarters items={starters} onPick={pickStarter} /> : null}
+        <ChatComposer
+          inputRef={inputRef}
+          value={input}
+          onChange={setInput}
+          onSend={() => send()}
+          sendDisabled={!input.trim()}
+          placeholder={done ? "Ask me to change any detail, or submit on the form…" : gating ? "Reply to clear the remaining checks…" : ghost || "Describe it in your own words…"}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              send();
+              return;
+            }
+            // Accept the prefilled suggestion → send it straight away.
+            if ((event.key === "Tab" || event.key === "ArrowRight") && input === "" && ghost && !done) {
+              event.preventDefault();
+              send(ghost);
+            }
+          }}
+        />
+      </ChatDock>
     </div>
   );
 }
@@ -2997,7 +2738,7 @@ function GrowText({ value, onChange, onSuggest, label }: { value: string; onChan
         onClick={onSuggest}
         aria-label={`Suggest ${label}`}
         title="Suggest"
-        className="absolute right-1 top-1 grid h-7 w-7 place-items-center rounded-[7px] text-[var(--text-muted)] transition hover:bg-[var(--accent-soft)] hover:text-[var(--accent-strong)]"
+        className="absolute right-1 top-1 grid h-7 w-7 place-items-center rounded-[8px] text-[var(--text-muted)] transition hover:bg-[var(--accent-soft)] hover:text-[var(--accent-strong)]"
       >
         <Sparkles size={14} />
       </button>
@@ -3034,7 +2775,7 @@ function PlanStageForm() {
       <div className="px-7 pt-1">
         <MandateBanner />
       </div>
-      <div className="mt-5 divide-y divide-[#f0efed] border-t border-[#f0efed]">
+      <div className="mt-5 divide-y divide-[var(--border-hairline)] border-t border-[var(--border-hairline)]">
         <PlanRow label="Squad" hint="AI-suggested trio · ≥ 3 required">
           <SquadPicker />
         </PlanRow>
@@ -3049,7 +2790,7 @@ function PlanStageForm() {
             aria-label="Delivery notes"
             rows={3}
             placeholder="Optional…"
-            className="block w-full resize-none rounded-[8px] border border-[#e7e5e4] bg-white px-3 py-2.5 text-[13px] leading-5 text-[var(--text-primary)] outline-none transition focus:border-[#8fc0cf] focus:ring-2 focus:ring-[var(--accent-soft)]"
+            className="block w-full resize-none rounded-[8px] border border-[var(--border-default)] bg-white px-3 py-2.5 text-[13px] leading-5 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent-ring)] focus:ring-2 focus:ring-[var(--accent-soft)]"
           />
         </PlanRow>
       </div>
@@ -3061,8 +2802,8 @@ function PlanRow({ label, hint, children }: { label: string; hint?: string; chil
   return (
     <div className="px-7 py-4">
       <div className="mb-3 flex flex-wrap items-baseline gap-x-2">
-        <span className="text-[13.5px] font-semibold leading-5 text-[var(--text-primary)]">{label}</span>
-        {hint ? <span className="text-[11.5px] leading-4 text-[var(--text-muted)]">{hint}</span> : null}
+        <span className="text-[13px] font-semibold leading-5 text-[var(--text-primary)]">{label}</span>
+        {hint ? <span className="text-[11px] leading-4 text-[var(--text-muted)]">{hint}</span> : null}
       </div>
       <div className="min-w-0">{children}</div>
     </div>
@@ -3071,21 +2812,21 @@ function PlanRow({ label, hint, children }: { label: string; hint?: string; chil
 
 function MandateBanner() {
   return (
-    <div className="rounded-[10px] border border-[#cfe6d8] bg-gradient-to-r from-[#eef6f0] to-[#f6faf7] px-4 py-3">
+    <div className="rounded-[10px] border border-[var(--tone-success-border)] bg-gradient-to-r from-[#eef6f0] to-[#f6faf7] px-4 py-3">
       <div className="flex items-center gap-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#15803d] text-white">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[var(--tone-success-fg)] text-white">
           <Check size={19} strokeWidth={2.5} />
         </span>
         <div className="min-w-0">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#15803d]">Funded · GTAC approved</div>
-          <div className="font-display text-[21px] leading-6 text-[var(--text-primary)]">GBP 180k approved</div>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--tone-success-fg)]">Funded · GTAC approved</div>
+          <div className="font-display text-[20px] leading-6 text-[var(--text-primary)]">GBP 180k approved</div>
         </div>
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
         {["2 binding conditions", "Go-live Q3 2026", "Standard tier"].map((chip) => (
           <span
             key={chip}
-            className="whitespace-nowrap rounded-full border border-[#cfe6d8] bg-white/80 px-2.5 py-1 text-[12px] font-medium text-[#25603f]"
+            className="whitespace-nowrap rounded-full border border-[var(--tone-success-border)] bg-white/80 px-2.5 py-1 text-[12px] font-medium text-[#25603f]"
           >
             {chip}
           </span>
@@ -3118,7 +2859,7 @@ function SquadPicker() {
                 "relative flex flex-col items-start gap-2.5 rounded-[10px] border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]",
                 on
                   ? "border-[var(--accent-border)] bg-[var(--accent-soft)]"
-                  : "border-[#e7e5e4] bg-white hover:border-[var(--accent-border)] hover:bg-[var(--accent-hover-bg)]",
+                  : "border-[var(--border-default)] bg-white hover:border-[var(--accent-border)] hover:bg-[var(--accent-hover-bg)]",
               )}
             >
               <span className="absolute right-2.5 top-2.5">
@@ -3133,14 +2874,14 @@ function SquadPicker() {
               <span
                 className={cn(
                   "grid h-9 w-9 shrink-0 place-items-center rounded-full text-[12px] font-semibold",
-                  on ? "bg-[var(--accent)] text-white" : "bg-[#f0efed] text-[var(--text-label)]",
+                  on ? "bg-[var(--accent)] text-white" : "bg-[var(--surface-strong)] text-[var(--text-label)]",
                 )}
               >
                 {initials(member.name)}
               </span>
               <span className="min-w-0">
-                <span className="block truncate text-[13.5px] font-semibold leading-5 text-[var(--text-primary)]">{member.name}</span>
-                <span className="block truncate text-[11.5px] leading-4 text-[var(--text-muted)]">{member.role}</span>
+                <span className="block truncate text-[13px] font-semibold leading-5 text-[var(--text-primary)]">{member.name}</span>
+                <span className="block truncate text-[11px] leading-4 text-[var(--text-muted)]">{member.role}</span>
               </span>
             </button>
           );
@@ -3201,19 +2942,19 @@ function LockableMetrics() {
               key={metric}
               className={cn(
                 "flex flex-col justify-between gap-3 rounded-[10px] border p-3.5 transition",
-                isLocked ? "border-[#a9d9bc] bg-[#f2f8f4]" : "border-[#e7e5e4] bg-white",
+                isLocked ? "border-[var(--tone-success-border)] bg-[var(--tone-success-bg)]" : "border-[var(--border-default)] bg-white",
               )}
             >
               <span className="text-[13px] font-medium leading-5 text-[var(--text-primary)]">{metric}</span>
               {isLocked ? (
-                <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-[#a9d9bc] bg-white px-2.5 py-1 text-[12px] font-semibold text-[#15803d]">
+                <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-[#a9d9bc] bg-white px-2.5 py-1 text-[12px] font-semibold text-[var(--tone-success-fg)]">
                   <Lock size={12} /> Locked
                 </span>
               ) : (
                 <button
                   type="button"
                   onClick={() => setLocked((current) => current.map((value, j) => (j === index ? true : value)))}
-                  className="inline-flex w-fit items-center gap-1.5 rounded-full border border-[#e7e5e4] bg-white px-2.5 py-1 text-[12px] font-medium text-[var(--text-body)] transition hover:border-[var(--accent-border)] hover:text-[var(--accent-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
+                  className="inline-flex w-fit items-center gap-1.5 rounded-full border border-[var(--border-default)] bg-white px-2.5 py-1 text-[12px] font-medium text-[var(--text-body)] transition hover:border-[var(--accent-border)] hover:text-[var(--accent-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
                 >
                   <Lock size={12} /> Lock
                 </button>

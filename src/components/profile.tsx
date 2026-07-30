@@ -48,7 +48,7 @@ export function PersonAvatar({
           ? "bg-[var(--accent)] text-white"
           : highlight
             ? "bg-[var(--accent-soft)] text-[var(--accent-strong)] ring-1 ring-[var(--accent-border)]"
-            : "bg-[#e7e5e4] text-[var(--text-label)]",
+            : "bg-[var(--border-default)] text-[var(--text-label)]",
       )}
     >
       {initials(name)}
@@ -87,7 +87,7 @@ export function ProfileSwitcher({
         <span className="relative inline-flex">
           <PersonAvatar name={currentUser} size={28} active />
           {lockedBy ? (
-            <span className="absolute -bottom-0.5 -right-0.5 grid h-3.5 w-3.5 place-items-center rounded-full border-2 border-white bg-[#a15c11] text-white">
+            <span className="absolute -bottom-0.5 -right-0.5 grid h-3.5 w-3.5 place-items-center rounded-full border-2 border-white bg-[var(--tone-warning-fg)] text-white">
               <Lock size={7} strokeWidth={2.5} />
             </span>
           ) : null}
@@ -112,7 +112,7 @@ export function ProfileSwitcher({
                   setOpen(false);
                 }}
                 className={cn(
-                  "flex w-full items-center gap-2.5 rounded-[7px] px-2 py-2 text-left transition",
+                  "flex w-full items-center gap-2.5 rounded-[8px] px-2 py-2 text-left transition",
                   isCurrent ? "bg-[var(--accent-soft)]" : "hover:bg-[var(--surface-hover)]",
                 )}
               >

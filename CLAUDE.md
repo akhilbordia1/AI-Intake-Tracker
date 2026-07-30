@@ -16,15 +16,18 @@ No test framework is set up. Verify changes with `npx tsc --noEmit`, `npm run li
 A **prototype/demo** UI (no backend, no persistence) for an enterprise AI use-case governance lifecycle. All data is hardcoded; "AI suggest", "save", and submit are mocked client-side. Three routes:
 
 - `/` (`src/app/page.tsx`) — intake tracker: kanban board + table views of use-case cards, grouped by stage/owner/priority/due, with scope + search filters.
-- `/intake` (`src/app/intake/page.tsx`) — new use-case submission form (AI-draft mode + manual mode).
-- `/detail` (`src/components/document-record/detail-record.tsx`) — the workflow record: a 14-stage lifecycle (Intake → Improve) with a chevron stage path, per-stage forms, and a Details/Comments/Activity side panel.
+- `/intake` (`src/app/intake/page.tsx`) — new use-case submission form (AI-draft mode + manual mode). The only route that doesn't use the app shell.
+- `/overview` (`src/app/overview/page.tsx`) — a record's landing page: a compact state block, a role-aware "what you need to do" list (ordered yours-first, tagged with whose turn it is), and a lifecycle track — the four phases with per-phase progress, expanding one phase at a time into its stages (each linking to `/detail?stage=n`). Cards on `/` link here.
+- `/detail` (`src/components/document-record/detail-record.tsx`) — the workflow record: the 12-stage lifecycle with a stage-path dropdown, per-stage forms, a guided chat, and a Details/Gates/Comments/Activity side sheet. `?stage=n` deep-links a stage (and treats everything before it as complete).
+
+**Shell — `src/components/app-shell.tsx`.** Three rows of chrome every route composes: `AppTopBar` (product mark, title, centred search, profile), `RailHeader` + `PanelTabs` (chat rail header with jump-to-top / expand, and the panel's view tabs), and `ContentPanel` (rounded floating panel with icon + title + `PanelBreadcrumb` + controls, and an optional footer/status bar). `AppShell` lays out the rail (fixed 300px), the panel, and an optional third column. The chat rail sits directly on `--shell-canvas`; whitespace, not borders, divides it from the panel.
 
 ## Architecture
 
 **Two parallel data models for the workflow — know which one you're editing:**
 
 1. `src/data/document-workflow-form-schema.ts` (`WORKFLOW_STAGES`) — a rich, typed field schema (sections, field types, options, hints, defaults). Drives the intake schema. **NOT** what the `/detail` page renders its stage forms from.
-2. `src/components/document-record/detail-record.tsx` (`STAGES`) — the array the `/detail` page actually renders: 14 stages, each `rows: [label, value][]`. This mirrors the original reference prototype (`AI Governance Platform.html`, a bundled demo kept outside the repo). When editing `/detail` stage content, edit `STAGES`.
+2. `src/data/lifecycle.ts` (`STAGES`) — the array `/detail` and `/overview` both render: 12 stages, each `rows: [label, value][]`, plus `GATES`, `STAGE_INTROS`, `STAGE_GROUPS` (the 4 phases), `RECORD_DETAILS`, and where the record currently sits (`ACTIVE_STAGE_INDEX` / `COMPLETED_STAGE_INDEXES`). This mirrors the original reference prototype (`AI Governance Platform.html`, a bundled demo kept outside the repo). When editing stage content, edit `STAGES` here — nothing should keep a second copy.
 
 **`/detail` form rendering is heuristic, driven off `STAGES` `[label, value]` rows:**
 - `buildFieldSpec(label, value)` inspects the label/value and picks a `FieldKind`: `currency` (value starts GBP/USD/EUR/£/$/€) → `CurrencyField`; `scale` (`n/m`) → `RatingStepper`; `level` (ordinal sets in `ORDINAL_SETS`, e.g. Low/Medium/High) → `LevelSlider`; `select` (>5 options) → dropdown; short enums → `Segmented`, longer → `RadioGroup`; multi-select → `CardMultiSelect` if label in `CARD_FIELDS` else `ChipMultiSelect`; long text → `SmartTextarea`; else `SmartText`.
@@ -36,6 +39,8 @@ A **prototype/demo** UI (no backend, no persistence) for an enterprise AI use-ca
 **Profiles — `src/components/profile.tsx`.** `PEOPLE`, `PersonAvatar`, `ProfileSwitcher`, `initials`. Names in `PEOPLE` match stage owners so "owned by you" (bold name) lights up on switch. Used by both the home header and the record.
 
 ## Styling conventions
+
+**Read `DESIGN.md` first** — it defines the tokens, the 11/12/13/14/15/18/20/40 type scale, the radius + tone system, and the component kit (`src/components/ui/kit.tsx`). Compose from the kit; no raw hex in components.
 
 - Tailwind v4 (`@import "tailwindcss"` in `src/app/globals.css`); no `tailwind.config`. Design tokens are CSS variables in `:root` (`--accent` teal, `--canvas`/`--surface*` warm cream, `--text-*`, `--border-*`, `--status-*`). **Use the token vars** (e.g. `text-[var(--text-label)]`, `bg-[var(--surface-muted)]`) rather than raw hexes where a token exists.
 - Typography: `.font-display` = **Fraunces** (editorial serif) for headings + hero values; `.font-serif-body` = lighter Fraunces for prose; default body = **Inter**. Pattern: **serif for headings/prose, sans for controls/labels/data.**

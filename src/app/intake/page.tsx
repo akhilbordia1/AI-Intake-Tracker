@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, Mic, Plus, Send } from "lucide-react";
+import { Suspense, useState, type FormEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ArrowLeft, ArrowRight, Sparkles } from "lucide-react";
+
+import { ChatComposer, ChatStarters } from "@/components/chat/chat-ui";
 
 import {
   CompletionMeter,
@@ -102,9 +104,21 @@ const REQUIRED_FIELDS: (keyof IntakeForm)[] = [
 
 type IntakeErrors = Partial<Record<keyof IntakeForm, string>>;
 
+// useSearchParams needs a boundary for the page to stay prerenderable.
 export default function IntakePage() {
+  return (
+    <Suspense fallback={null}>
+      <IntakeFlow />
+    </Suspense>
+  );
+}
+
+function IntakeFlow() {
   const router = useRouter();
-  const [form, setForm] = useState<IntakeForm>(emptyForm);
+  // An idea described in the registry rail arrives here as ?idea= — the user
+  // shouldn't have to type it twice.
+  const carriedIdea = useSearchParams().get("idea");
+  const [form, setForm] = useState<IntakeForm>(() => (carriedIdea ? { ...emptyForm, idea: carriedIdea } : emptyForm));
   const [mode] = useState<"ai" | "manual">("ai");
   const [errors, setErrors] = useState<IntakeErrors>({});
   const saveState = useSaveStatus(JSON.stringify(form));
@@ -142,7 +156,7 @@ export default function IntakePage() {
   }
 
   return (
-    <main className="relative h-screen overflow-hidden bg-[#faf9f6] text-[var(--text-primary)]">
+    <main className="relative h-screen overflow-hidden bg-[var(--shell-canvas)] text-[var(--text-primary)]">
       <div className="flex h-full min-h-0 flex-col">
         <div className="pointer-events-none absolute left-0 top-0 z-20 flex h-14 items-center bg-transparent px-5">
           <Link
@@ -158,74 +172,43 @@ export default function IntakePage() {
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-7 py-16 [scrollbar-gutter:stable]">
           <div className="mx-auto my-auto w-full max-w-[760px]">
             <div className="text-center">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#0e7090]">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
                 Viatris Internal
               </div>
-              <h1 className="mt-3 font-display text-[42px] leading-[1.05] text-[var(--text-primary)]">
+              <h1 className="mt-3 font-display text-[40px] leading-[1.05] text-[var(--text-primary)]">
                 Create New AI Use Case
               </h1>
             </div>
 
             {mode === "ai" ? (
               <>
-                {/* Matches the /detail chat composer: rounded box, + on the left,
-                    mic → send once you've typed. */}
-                <section className="mt-8 rounded-[12px] border border-[#e7e5e4] bg-white px-2.5 pb-2 pt-2 shadow-[0_1px_3px_rgba(15,23,42,0.05)] focus-within:border-[var(--accent-ring)]">
-                  <textarea
+                {/* Same composer as the record's chat — one input shape sitewide. */}
+                <div className="mt-8">
+                  <ChatComposer
                     value={form.idea}
-                    onChange={(event) => updateField("idea", event.target.value)}
-                    rows={2}
+                    onChange={(value) => updateField("idea", value)}
+                    onSend={() => router.push("/detail?from=create")}
                     placeholder="Describe the AI agent you want to create…"
-                    className="no-scrollbar block max-h-40 min-h-[68px] w-full resize-none bg-transparent px-2.5 pt-1.5 text-[15px] leading-6 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
+                    size="lg"
+                    padded={false}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && !event.shiftKey && form.idea.trim()) {
+                        event.preventDefault();
+                        router.push("/detail?from=create");
+                      }
+                    }}
                   />
-                  <div className="mt-1 flex items-center justify-between px-0.5">
-                    <button
-                      type="button"
-                      disabled
-                      aria-label="Add documents (coming soon)"
-                      title="Add documents — coming soon"
-                      className="grid h-8 w-8 cursor-not-allowed place-items-center rounded-full text-[var(--text-muted)] transition hover:bg-[var(--surface-muted)] disabled:opacity-40"
-                    >
-                      <Plus size={18} />
-                    </button>
-                    {form.idea.trim() ? (
-                      <button
-                        type="button"
-                        onClick={() => router.push("/detail?from=create")}
-                        aria-label="Continue"
-                        className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#0e7090] text-white transition hover:bg-[#0c5f7a]"
-                      >
-                        <Send size={15} />
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        disabled
-                        aria-label="Voice input (coming soon)"
-                        title="Voice input — coming soon"
-                        className="grid h-8 w-8 shrink-0 cursor-not-allowed place-items-center rounded-full text-[var(--text-muted)] transition hover:bg-[var(--surface-muted)] disabled:opacity-40"
-                      >
-                        <Mic size={17} />
-                      </button>
-                    )}
-                  </div>
-                </section>
-
-                <div className="mt-4">
-                  <div className="flex flex-wrap items-center justify-center gap-2">
-                    {templates.map((template) => (
-                      <button
-                        key={template}
-                        type="button"
-                        onClick={() => applyTemplate(template)}
-                        className="inline-flex h-8 shrink-0 items-center justify-center whitespace-nowrap rounded-[8px] border border-[#e7e5e4] bg-white px-3 text-[11px] font-medium text-[var(--text-label)] transition hover:border-[#8fc0cf] hover:text-[#0c5f7a]"
-                      >
-                        {template}
-                      </button>
-                    ))}
-                  </div>
                 </div>
 
+                {/* Templates as chat starters — same chips as the stage openers. */}
+                <div className="mt-4">
+                  <ChatStarters
+                    align="center"
+                    padded={false}
+                    items={templates.map((template) => ({ id: template, label: template, icon: <Sparkles size={13} /> }))}
+                    onPick={(item) => applyTemplate(item.id)}
+                  />
+                </div>
               </>
             ) : null}
 
@@ -233,9 +216,9 @@ export default function IntakePage() {
               <form
                 onSubmit={submitIntake}
                 noValidate
-                className="mt-7 rounded-[10px] border border-[#e7e5e4] bg-white shadow-[0_1px_3px_rgba(15,23,42,0.05)]"
+                className="mt-7 rounded-[10px] border border-[var(--border-default)] bg-white shadow-[0_1px_3px_rgba(15,23,42,0.05)]"
               >
-                <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b border-[#f0efed] px-5 py-4">
+                <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b border-[var(--border-hairline)] px-5 py-4">
                   <div className="text-[13px] font-medium text-[var(--text-primary)]">Initial submission form</div>
                   <div className="flex items-center gap-4">
                     <SaveStatus state={saveState} />
@@ -355,20 +338,20 @@ export default function IntakePage() {
                   />
                 </div>
 
-                <div className="flex items-center justify-between gap-3 border-t border-[#f0efed] px-5 py-4">
-                  <span className="text-[11px] text-[#b4471d]">
+                <div className="flex items-center justify-between gap-3 border-t border-[var(--border-hairline)] px-5 py-4">
+                  <span className="text-[11px] text-[var(--risk-high-fg)]">
                     {hasErrors ? "Fill the required fields to submit." : ""}
                   </span>
                   <div className="flex items-center gap-2">
                     <Link
                       href="/"
-                      className="inline-flex h-9 items-center rounded-[8px] border border-[#e7e5e4] bg-white px-3.5 text-[13px] font-medium text-[var(--text-body)] transition hover:border-[#8fc0cf] hover:bg-[#f4fafb] hover:text-[#0c5f7a]"
+                      className="inline-flex h-9 items-center rounded-[8px] border border-[var(--border-default)] bg-white px-3.5 text-[13px] font-medium text-[var(--text-body)] transition hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)] hover:text-[var(--accent-strong)]"
                     >
                       Cancel
                     </Link>
                     <button
                       type="submit"
-                      className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#0e7090] px-3.5 text-[13px] font-medium text-white shadow-[0_1px_3px_rgba(15,23,42,0.08)] transition hover:bg-[#0c5f7a]"
+                      className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[var(--accent)] px-3.5 text-[13px] font-medium text-white shadow-[0_1px_3px_rgba(15,23,42,0.08)] transition hover:bg-[var(--accent-strong)]"
                     >
                       Submit Use Case
                       <ArrowRight size={14} />

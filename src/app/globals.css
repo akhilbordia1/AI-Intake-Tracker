@@ -9,8 +9,12 @@
   --shell-bg: #fffefd;
   --surface: #ffffff;
   --surface-muted: #fcfbfa;
+  /* App shell canvas — the warm ground the chat rail and content panel sit on */
+  --shell-canvas: #faf9f6;
   --surface-hover: #f5f4f2;
   --surface-strong: #f0efed;
+  /* The user's chat bubble — the one surface that isn't a panel or a field. */
+  --surface-bubble: #f1efec;
   --surface-elevated: #f0efed;
 
   /* Sidebar */
@@ -21,6 +25,7 @@
 
   /* Hairlines */
   --border-hairline: #f0efed;
+  --border-soft: #ecebea;
   --border-default: #e7e5e4;
   --border-input: #d6d3d1;
   --border-table: #f0efed;
@@ -41,6 +46,13 @@
   --accent: var(--ai-accent);
   --accent-hover: var(--ai-accent-hover);
   --accent-muted: #e8f4f8;
+  /* Accent scale — the record view used to define these locally; they're global
+     so the shell, menus and portalled popovers all tint the same way. */
+  --accent-strong: #0c5f7a;
+  --accent-soft: #e8f4f8;
+  --accent-border: #c5e2ea;
+  --accent-ring: #8fc0cf;
+  --accent-hover-bg: #f4fafb;
 
   /* Choice surfaces (radio cards / selectable tiles) */
   --choice-selected-border: #c8c4bf;
@@ -49,11 +61,28 @@
   --choice-hover-border: var(--border-input);
   --choice-hover-bg: var(--surface-hover);
 
-  /* Semantic — used sparingly for status only */
-  --status-success: #16a34a;
+  /* Semantic tones — every status chip, node and badge draws from these triplets
+     (ink / tint / hairline) so there is exactly one green, one amber, one red. */
+  --status-success: #15803d;
   --status-success-strong: #15803d;
   --status-warning: #b45309;
   --status-danger: #dc2626;
+
+  --tone-success-fg: #15803d;
+  --tone-success-bg: #eef4ee;
+  --tone-success-border: #cfe6d8;
+  --tone-warning-fg: #a15c11;
+  --tone-warning-bg: #f6f0e6;
+  --tone-warning-border: #e6d4b8;
+  --tone-danger-fg: #b32020;
+  --tone-danger-bg: #f7eaea;
+  --tone-danger-border: #e6c3c3;
+  --tone-info-fg: var(--accent-strong);
+  --tone-info-bg: var(--accent-soft);
+  --tone-info-border: var(--accent-border);
+  --tone-neutral-fg: var(--text-label);
+  --tone-neutral-bg: var(--surface-strong);
+  --tone-neutral-border: var(--border-default);
 
   /* Risk tiers — saturated ink for text/dot, faint tint for fills */
   --risk-low-fg: #15803d;
@@ -83,7 +112,11 @@
   --sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
 
-  /* Radius — pill CTAs, 8px inputs, 16px cards */
+  /* Type scale — the only sizes in the product. 11 caption · 12 meta ·
+     13 UI/body · 14 form · 15 prose · 18 panel title · 20 page title ·
+     40 hero (Fraunces for 18+). */
+
+  /* Radius — 6 chips, 8 controls, 10 cards, 14 composer/panel, pill for tags */
   --radius-xs: 4px;
   --radius-sm: 6px;
   --radius-md: 8px;

@@ -1,11 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronDown, Columns3, Plus, Search, Table2 } from "lucide-react";
+import { ChevronDown, Columns3, Plus, SlidersHorizontal, Table2 } from "lucide-react";
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
+import {
+  AppShell,
+  AppTopBar,
+  ContentPanel,
+  PanelTabs,
+  RailHeader,
+  shellButton,
+  useRailMode,
+} from "@/components/app-shell";
+import { MiniChatRail } from "@/components/chat/mini-chat-rail";
 import { PersonAvatar, ProfileSwitcher } from "@/components/profile";
+import { SHORT_STAGE_LABELS, STAGE_GROUPS, STAGES, SUBSTAGE_TO_GROUP } from "@/data/lifecycle";
 import { useClickOutside } from "@/lib/use-click-outside";
 
 type ViewKey = "stage" | "people" | "priority" | "due" | "status";
@@ -41,38 +52,77 @@ type UseCaseCard = {
   href: string;
 };
 
+// The tracker rail's responder: answers the starter questions (and anything with
+// the same keywords) straight from the registry rather than a canned line.
+// ai-upgrade: swap the keyword matching for a real model call.
+function answerAboutPortfolio(question: string, person: string): string | undefined {
+  const asked = question.toLowerCase();
+  const list = (cards: UseCaseCard[], describe: (card: UseCaseCard) => string) =>
+    cards.map((card) => `• ${card.id} ${card.title} — ${describe(card)}`).join("\n");
+
+  if (/attention|mine|my |waiting on me|urgent/.test(asked)) {
+    const mine = useCases.filter((card) => card.needsAttention && card.actionOwner === person);
+    const others = useCases.filter((card) => card.needsAttention && card.actionOwner !== person);
+    if (mine.length) {
+      return `${mine.length === 1 ? "One use case needs" : `${mine.length} use cases need`} ${person}:\n\n${list(
+        mine,
+        (card) => `${card.attentionTask ?? "review"}${card.pendingFor ? `, waiting ${card.pendingFor}` : ""}`,
+      )}`;
+    }
+    return others.length
+      ? `Nothing is waiting on ${person}. Elsewhere, ${others.length} use ${others.length === 1 ? "case needs" : "cases need"} attention:\n\n${list(others, (card) => `${card.attentionTask ?? "review"} (${card.actionOwner})`)}`
+      : `Nothing needs attention right now.`;
+  }
+
+  if (/blocked|stuck|on hold|rejected/.test(asked)) {
+    const stalled = useCases.filter(
+      (card) => card.lifecycle === "On hold" || card.lifecycle === "Rejected" || card.gate?.status === "Blocked" || card.gate?.status === "Rejected",
+    );
+    return stalled.length
+      ? `${stalled.length} ${stalled.length === 1 ? "use case is" : "use cases are"} not moving:\n\n${list(
+          stalled,
+          (card) => `${card.lifecycle === "Active" ? `gate ${card.gate?.id} ${card.gate?.status.toLowerCase()}` : card.lifecycle.toLowerCase()} at ${shortStageLabel(card.substage)}`,
+        )}`
+      : "Nothing is blocked — every use case is moving.";
+  }
+
+  if (/gtac|board|funding|invest/.test(asked)) {
+    const atBoard = useCases.filter((card) => card.substage === "GTAC" || card.stage === "GTAC" || card.dueGroup === "Funded");
+    return atBoard.length
+      ? `At or past the GTAC board:\n\n${list(atBoard, (card) => `${shortStageLabel(card.substage)} · ${card.dueGroup === "Funded" ? "funded" : `owner ${card.owner}`}`)}`
+      : "Nothing is at the GTAC board right now.";
+  }
+
+  return undefined;
+}
+
 type BoardColumn = {
   title: string;
   cards: UseCaseCard[];
 };
 
-// The four high-level phases of the AI enablement process; each board column
-// is one phase, condensing the detail-view stages inside it.
-const STAGE_GROUPS: Record<string, string[]> = {
-  "Intake & Prioritization": ["Ideation", "Qualification", "Prioritisation", "Triage"],
-  "Governance & Risk": ["Assessment - Risk & Compliance", "Business Case", "GTAC"],
-  Delivery: ["Plan & KPI", "Solution blue print", "Solutionise and Production"],
-  "Operate & Adopt": ["Monitoring and tracking", "Adoption"],
+// What each lifecycle stage is *for* on the tracker (the record's own one-liners
+// are in STAGE_INTROS); owners come from the lifecycle data, not a second copy.
+const STAGE_DESC: Record<string, string> = {
+  Ideation: "Submit the intake form; the AI registry is updated.",
+  Qualification: "Basic validation to filter non-viable ideas by risk & readiness.",
+  Prioritisation: "Score value & readiness; prioritize within the function.",
+  Triage: "Determine the scope of the detailed assessments.",
+  "Assessment - Risk & Compliance": "Complete the required risk & compliance assessments.",
+  "Business Case": "Review the business case; prioritize it for GTAC.",
+  GTAC: "Approve or reject the business case; allocate investment.",
+  "Plan & KPI": "Confirm delivery model, resourcing, roadmap, and KPIs.",
+  "Solution blue print": "Translate business needs into a solution blueprint.",
+  "Solutionise and Production": "Build, validate, and release the AI solution.",
+  "Monitoring and tracking": "Track business KPIs and risks in production.",
+  Adoption: "Drive adoption through training & change management.",
 };
 
-const SUBSTAGE_TO_GROUP: Record<string, string> = Object.fromEntries(
-  Object.entries(STAGE_GROUPS).flatMap(([group, subs]) => subs.map((sub) => [sub, group])),
-);
+const stageOwner = (stageName: string) => STAGES.find((stage) => stage.name === stageName)?.owner;
 
-// One-liner + assigned person per stage (owners mirror the detail record).
-const STAGE_META: Record<string, { owner: string; desc: string }> = {
-  Ideation: { owner: "Priya N.", desc: "Submit the intake form; the AI registry is updated." },
-  Qualification: { owner: "Priya N.", desc: "Basic validation to filter non-viable ideas by risk & readiness." },
-  Prioritisation: { owner: "Marco B.", desc: "Score value & readiness; prioritize within the function." },
-  Triage: { owner: "Dana K.", desc: "Determine the scope of the detailed assessments." },
-  "Assessment - Risk & Compliance": { owner: "Lena Osei", desc: "Complete the required risk & compliance assessments." },
-  "Business Case": { owner: "Amara J.", desc: "Review the business case; prioritize it for GTAC." },
-  GTAC: { owner: "Victor H.", desc: "Approve or reject the business case; allocate investment." },
-  "Plan & KPI": { owner: "Dana K.", desc: "Confirm delivery model, resourcing, roadmap, and KPIs." },
-  "Solution blue print": { owner: "Noah R.", desc: "Translate business needs into a solution blueprint." },
-  "Solutionise and Production": { owner: "Noah R.", desc: "Build, validate, and release the AI solution." },
-  "Monitoring and tracking": { owner: "Marco B.", desc: "Track business KPIs and risks in production." },
-  Adoption: { owner: "Marco B.", desc: "Drive adoption through training & change management." },
+const shortStageLabel = (stageName: string) => {
+  const index = STAGES.findIndex((stage) => stage.name === stageName);
+  return index >= 0 ? SHORT_STAGE_LABELS[index] : stageName;
 };
 
 const useCases: UseCaseCard[] = [
@@ -91,7 +141,7 @@ const useCases: UseCaseCard[] = [
     attentionTask: "Review intake submission",
     pendingFor: "3 days",
     lifecycle: "Active",
-    href: "/detail",
+    href: "/overview",
   },
   {
     id: "UC-141",
@@ -106,7 +156,7 @@ const useCases: UseCaseCard[] = [
     actionOwner: "Mira Kapoor",
     needsAttention: false,
     lifecycle: "Active",
-    href: "/detail",
+    href: "/overview",
   },
   {
     id: "UC-142",
@@ -124,7 +174,7 @@ const useCases: UseCaseCard[] = [
     pendingFor: "2 days",
     gate: { id: "R1", status: "In review" },
     lifecycle: "Active",
-    href: "/detail",
+    href: "/overview",
   },
   {
     id: "UC-146",
@@ -140,7 +190,7 @@ const useCases: UseCaseCard[] = [
     needsAttention: false,
     gate: { id: "R1", status: "Pending" },
     lifecycle: "Active",
-    href: "/detail",
+    href: "/overview",
   },
   {
     id: "UC-147",
@@ -155,7 +205,7 @@ const useCases: UseCaseCard[] = [
     actionOwner: "Nisha Patel",
     needsAttention: false,
     lifecycle: "Active",
-    href: "/detail",
+    href: "/overview",
   },
   {
     id: "UC-128",
@@ -172,7 +222,7 @@ const useCases: UseCaseCard[] = [
     needsAttention: false,
     gate: { id: "R2", status: "In review" },
     lifecycle: "Active",
-    href: "/detail",
+    href: "/overview",
   },
   {
     id: "UC-132",
@@ -189,7 +239,7 @@ const useCases: UseCaseCard[] = [
     needsAttention: false,
     gate: { id: "R2", status: "Blocked" },
     lifecycle: "On hold",
-    href: "/detail",
+    href: "/overview",
   },
   {
     id: "UC-119",
@@ -206,7 +256,7 @@ const useCases: UseCaseCard[] = [
     needsAttention: false,
     gate: { id: "R2", status: "Passed" },
     lifecycle: "Active",
-    href: "/detail",
+    href: "/overview",
   },
   {
     id: "UC-125",
@@ -223,7 +273,7 @@ const useCases: UseCaseCard[] = [
     needsAttention: false,
     gate: { id: "R2", status: "Passed" },
     lifecycle: "Active",
-    href: "/detail",
+    href: "/overview",
   },
   {
     id: "UC-103",
@@ -241,7 +291,7 @@ const useCases: UseCaseCard[] = [
     needsAttention: false,
     gate: { id: "R4", status: "Passed" },
     lifecycle: "Live",
-    href: "/detail",
+    href: "/overview",
   },
   {
     id: "UC-097",
@@ -258,7 +308,7 @@ const useCases: UseCaseCard[] = [
     needsAttention: false,
     gate: { id: "R2", status: "Rejected" },
     lifecycle: "Rejected",
-    href: "/detail",
+    href: "/overview",
   },
 ];
 
@@ -326,6 +376,10 @@ export default function HomePage() {
   const [attentionOnly, setAttentionOnly] = useState(false);
   const [search, setSearch] = useState("");
   const [activeProfile, setActiveProfile] = useState(currentUser);
+  const [viewMenuOpen, setViewMenuOpen] = useState(false);
+  const [railScrolled, setRailScrolled] = useState(false);
+  const railScrollRef = useRef<HTMLDivElement>(null);
+  const railMode = useRailMode();
   const scopedUseCases = useMemo(() => filterUseCasesByScope(useCases, scopeFilter), [scopeFilter]);
   const attentionCount = useMemo(
     () => scopedUseCases.filter((card) => card.needsAttention).length,
@@ -363,51 +417,106 @@ export default function HomePage() {
   const columns = useMemo(() => buildColumns(activeView, filteredUseCases), [activeView, filteredUseCases]);
 
   return (
-    <main className="h-screen overflow-hidden bg-[#faf9f6] text-[var(--text-primary)]">
-      <div className="flex h-full min-h-0 w-full flex-col px-7 pt-6">
-        <header className="-mx-7 flex flex-col gap-5 px-7 pb-6 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#0e7090]">
-              Viatris Internal
-            </div>
-            <h1 className="mt-2 font-display text-[38px] leading-[1.05] text-[var(--text-primary)]">
-              AI Intake Tracker
-            </h1>
-          </div>
-
-          <div className="flex w-fit items-center gap-3">
-            <ProfileSwitcher currentUser={activeProfile} onUserChange={setActiveProfile} />
-            <Link
-              href="/intake"
-              className="inline-flex h-9 w-fit items-center gap-2 rounded-[8px] bg-[#0e7090] px-3.5 text-[13px] font-medium text-white shadow-[0_1px_3px_rgba(15,23,42,0.08)] transition hover:bg-[#0c5f7a]"
-            >
-              <Plus size={15} />
-              New Use Case
-            </Link>
-          </div>
-        </header>
-
-        <Toolbar
-          activeView={activeView}
-          attentionCount={attentionCount}
-          attentionOnly={attentionOnly}
-          displayMode={displayMode}
-          scopeFilter={scopeFilter}
-          search={search}
-          onAttentionOnlyChange={setAttentionOnly}
-          onDisplayModeChange={setDisplayMode}
-          onScopeFilterChange={setScopeFilter}
-          onSearchChange={setSearch}
-          onViewChange={setActiveView}
+    <AppShell
+      topBar={
+        <AppTopBar
+          title="AI Intake Tracker"
+          search={{ value: search, onChange: setSearch, placeholder: "Search use cases…" }}
+          profile={<ProfileSwitcher currentUser={activeProfile} onUserChange={setActiveProfile} compact />}
         />
-
+      }
+      railExpanded={railMode.expanded}
+      railCollapsed={railMode.collapsed}
+      railHeader={
+        <RailHeader
+          scrolled={railScrolled}
+          canJumpToTop={railScrolled}
+          onJumpToTop={() => railScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" })}
+          expanded={railMode.expanded}
+          onToggleExpand={railMode.toggleExpand}
+          collapsed={railMode.collapsed}
+          onToggleCollapse={railMode.toggleCollapse}
+        />
+      }
+      tabs={
+        <PanelTabs
+          activeId={displayMode}
+          onSelect={(id) => setDisplayMode(id as DisplayMode)}
+          tabs={[
+            { id: "board", label: "Board", icon: <Columns3 size={14} /> },
+            { id: "table", label: "Table", icon: <Table2 size={14} /> },
+          ]}
+          right={
+            <Link href="/intake" className={shellButton("primary")}>
+              <Plus size={14} />
+              New use case
+            </Link>
+          }
+        />
+      }
+      rail={
+        <MiniChatRail
+          scrollRef={railScrollRef}
+          onScrolledChange={setRailScrolled}
+          emptyTitle={`Hello, ${activeProfile.split(" ")[0]}`}
+          intro={`${useCases.length} use cases are in the registry and ${attentionCount} need attention. Describe an idea and I'll start a new one, or ask me about what's already here.`}
+          starterGroups={[
+            { label: "Start something", items: ["I want to build an AI assistant for…", "Raise a new use case"] },
+            { label: "About the registry", items: ["What needs my attention?", "Which use cases are blocked?", "What's waiting on GTAC?"] },
+          ]}
+          starters={["What needs my attention?", "Which use cases are blocked?", "What's waiting on GTAC?"]}
+          answer={(question) => answerAboutPortfolio(question, activeProfile)}
+          newIdeaHref="/intake"
+          placeholder="Describe an idea, or ask about the registry"
+          reply="I can answer on what needs attention, what's blocked, and what's at the GTAC board — or describe an idea and I'll start a new use case."
+        />
+      }
+    >
+      <ContentPanel
+        icon={displayMode === "board" ? <Columns3 size={17} /> : <Table2 size={17} />}
+        title="Use case pipeline"
+        controls={
+          <>
+            <SlidersHorizontal size={14} className="mr-0.5 hidden text-[var(--text-muted)] lg:block" />
+            <ViewDropdown
+              activeView={activeView}
+              open={viewMenuOpen}
+              onOpenChange={setViewMenuOpen}
+              onChange={setActiveView}
+            />
+            <ScopeFilterControl activeScope={scopeFilter} onChange={setScopeFilter} />
+            <button
+              type="button"
+              onClick={() => setAttentionOnly(!attentionOnly)}
+              aria-pressed={attentionOnly}
+              className={[
+                "inline-flex h-8 items-center gap-2 rounded-[8px] border px-2.5 text-[12px] transition",
+                attentionOnly
+                  ? "border-[var(--accent-ring)] bg-[var(--accent-soft)] text-[var(--accent-strong)]"
+                  : "border-[var(--border-default)] bg-white text-[var(--text-body)] hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)] hover:text-[var(--accent-strong)]",
+              ].join(" ")}
+            >
+              Needs my attention
+              <span className="rounded-full bg-[var(--accent-soft)] px-1.5 py-0.5 text-[11px] font-semibold leading-none text-[var(--accent-strong)]">
+                {attentionCount}
+              </span>
+            </button>
+          </>
+        }
+        scroll={false}
+        footer={
+          <span className="ml-auto text-[12px] tabular-nums text-[var(--text-muted)]">
+            {filteredUseCases.length} {filteredUseCases.length === 1 ? "result" : "results"}
+          </span>
+        }
+      >
         {displayMode === "board" ? (
           <section className="flex min-h-0 flex-1 flex-col">
-            <div className="-mx-7 min-h-0 flex-1 overflow-x-auto px-7">
+            <div className="min-h-0 flex-1 overflow-x-auto px-4">
               <div
-                className="grid h-full min-h-[540px] gap-0"
+                className="grid h-full min-h-[540px] gap-5 pr-1"
                 style={{
-                  gridTemplateColumns: `repeat(${columns.length}, minmax(300px, 1fr))`,
+                  gridTemplateColumns: `repeat(${columns.length}, minmax(330px, 1fr))`,
                 }}
               >
                 {columns.map((column) => (
@@ -419,84 +528,8 @@ export default function HomePage() {
         ) : (
           <UseCaseTableView columns={columns} totalRows={filteredUseCases.length} />
         )}
-      </div>
-    </main>
-  );
-}
-
-function Toolbar({
-  activeView,
-  attentionCount,
-  attentionOnly,
-  displayMode,
-  scopeFilter,
-  search,
-  onAttentionOnlyChange,
-  onDisplayModeChange,
-  onScopeFilterChange,
-  onSearchChange,
-  onViewChange,
-}: {
-  activeView: ViewKey;
-  attentionCount: number;
-  attentionOnly: boolean;
-  displayMode: DisplayMode;
-  scopeFilter: ScopeFilter;
-  search: string;
-  onAttentionOnlyChange: (active: boolean) => void;
-  onDisplayModeChange: (mode: DisplayMode) => void;
-  onScopeFilterChange: (scope: ScopeFilter) => void;
-  onSearchChange: (value: string) => void;
-  onViewChange: (view: ViewKey) => void;
-}) {
-  const [viewMenuOpen, setViewMenuOpen] = useState(false);
-
-  return (
-    <div className="-mx-7 flex min-h-[50px] items-center justify-between gap-4 border-y border-[#f0efed] px-7 py-2.5">
-      <div className="flex items-center gap-2">
-        <DisplayModeToggle activeMode={displayMode} onChange={onDisplayModeChange} />
-        <ScopeFilterControl activeScope={scopeFilter} onChange={onScopeFilterChange} />
-        <ViewDropdown
-          activeView={activeView}
-          open={viewMenuOpen}
-          onOpenChange={setViewMenuOpen}
-          onChange={onViewChange}
-        />
-        <button
-          type="button"
-          onClick={() => onAttentionOnlyChange(!attentionOnly)}
-          className={[
-            "inline-flex h-8 items-center gap-2 rounded-[8px] border px-3 text-[12px] font-medium transition",
-            attentionOnly
-              ? "border-[#8fc0cf] bg-[#e8f4f8] text-[#0c5f7a]"
-              : "border-[#e7e5e4] bg-white text-[var(--text-body)] hover:border-[#8fc0cf] hover:bg-[#f4fafb] hover:text-[#0c5f7a]",
-          ].join(" ")}
-        >
-          Needs my attention
-          <span
-            className={[
-              "rounded-full bg-[#e8f4f8] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-[#0c5f7a]",
-            ].join(" ")}
-          >
-            {attentionCount}
-          </span>
-        </button>
-      </div>
-
-      <label className="relative block w-full max-w-[320px]">
-        <Search
-          aria-hidden
-          size={14}
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]"
-        />
-        <input
-          value={search}
-          onChange={(event) => onSearchChange(event.target.value)}
-          placeholder="Search use cases"
-          className="h-8 w-full rounded-[8px] border border-[#e7e5e4] bg-white pl-8 pr-3 text-[12px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[#8fc0cf] focus:ring-2 focus:ring-[#e8f4f8]"
-        />
-      </label>
-    </div>
+      </ContentPanel>
+    </AppShell>
   );
 }
 
@@ -514,23 +547,10 @@ function ScopeFilterControl({
 
   return (
     <div ref={menuRef} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="inline-flex h-8 w-fit items-center justify-between gap-2 rounded-[8px] border border-[#e7e5e4] bg-white px-3 text-[12px] font-medium text-[var(--text-primary)] transition hover:border-[#8fc0cf] hover:bg-[#f4fafb]"
-      >
-        <span className="whitespace-nowrap">{activeLabel}</span>
-        <ChevronDown
-          size={14}
-          className={[
-            "text-[var(--text-muted)] transition",
-            open ? "rotate-180" : "",
-          ].join(" ")}
-        />
-      </button>
+      <FilterTrigger label="Scope" value={activeLabel} open={open} onClick={() => setOpen(!open)} />
 
       {open ? (
-        <div className="absolute left-0 top-9 z-20 w-max min-w-full rounded-[8px] border border-[#e7e5e4] bg-white p-1 shadow-[0_8px_28px_rgba(15,23,42,0.08)]">
+        <div className="absolute right-0 top-9 z-30 w-max min-w-full rounded-[8px] border border-[var(--border-default)] bg-white p-1 shadow-[var(--shadow-menu)]">
           {scopeOptions.map((option) => (
             <button
               key={option.key}
@@ -542,8 +562,8 @@ function ScopeFilterControl({
               className={[
                 "block h-8 w-full rounded-[6px] px-2.5 text-left text-[12px] font-medium transition",
                 activeScope === option.key
-                  ? "bg-[#e8f4f8] text-[#0c5f7a]"
-                  : "text-[var(--text-body)] hover:bg-[#faf9f6] hover:text-[var(--text-primary)]",
+                  ? "bg-[var(--accent-soft)] text-[var(--accent-strong)]"
+                  : "text-[var(--text-body)] hover:bg-[var(--shell-canvas)] hover:text-[var(--text-primary)]",
               ].join(" ")}
             >
               {option.label}
@@ -555,42 +575,34 @@ function ScopeFilterControl({
   );
 }
 
-function DisplayModeToggle({
-  activeMode,
-  onChange,
+// One shape for both filter controls: a muted label, the current value, and a
+// chevron — so grouping and scope read as filters rather than as a breadcrumb.
+function FilterTrigger({
+  label,
+  value,
+  open,
+  onClick,
 }: {
-  activeMode: DisplayMode;
-  onChange: (mode: DisplayMode) => void;
+  label: string;
+  value: string;
+  open: boolean;
+  onClick: () => void;
 }) {
   return (
-    <div className="flex items-center gap-1 rounded-[8px] border border-[#e7e5e4] bg-white p-1">
-      <button
-        type="button"
-        aria-label="Board view"
-        onClick={() => onChange("board")}
-        className={[
-          "grid h-6 w-7 place-items-center rounded-[6px] transition",
-          activeMode === "board"
-            ? "bg-[#e8f4f8] text-[#0c5f7a]"
-            : "text-[var(--text-label)] hover:bg-[#faf9f6] hover:text-[var(--text-primary)]",
-        ].join(" ")}
-      >
-        <Columns3 size={14} />
-      </button>
-      <button
-        type="button"
-        aria-label="Table view"
-        onClick={() => onChange("table")}
-        className={[
-          "grid h-6 w-7 place-items-center rounded-[6px] transition",
-          activeMode === "table"
-            ? "bg-[#e8f4f8] text-[#0c5f7a]"
-            : "text-[var(--text-label)] hover:bg-[#faf9f6] hover:text-[var(--text-primary)]",
-        ].join(" ")}
-      >
-        <Table2 size={14} />
-      </button>
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-haspopup="menu"
+      aria-expanded={open}
+      className={[
+        "inline-flex h-8 w-fit items-center gap-1.5 rounded-[8px] border bg-white px-2.5 text-[12px] transition",
+        open ? "border-[var(--accent-ring)] bg-[var(--accent-hover-bg)]" : "border-[var(--border-default)] hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)]",
+      ].join(" ")}
+    >
+      <span className="whitespace-nowrap text-[var(--text-muted)]">{label}</span>
+      <span className="whitespace-nowrap font-medium text-[var(--text-primary)]">{value}</span>
+      <ChevronDown size={13} className={["text-[var(--text-muted)] transition", open ? "rotate-180" : ""].join(" ")} />
+    </button>
   );
 }
 
@@ -611,23 +623,10 @@ function ViewDropdown({
 
   return (
     <div ref={menuRef} className="relative">
-      <button
-        type="button"
-        onClick={() => onOpenChange(!open)}
-        className="inline-flex h-8 w-fit items-center justify-between gap-2 rounded-[8px] border border-[#e7e5e4] bg-white px-3 text-[12px] font-medium text-[var(--text-primary)] transition hover:border-[#8fc0cf] hover:bg-[#f4fafb]"
-      >
-        <span className="whitespace-nowrap">{activeLabel}</span>
-        <ChevronDown
-          size={14}
-          className={[
-            "text-[var(--text-muted)] transition",
-            open ? "rotate-180" : "",
-          ].join(" ")}
-        />
-      </button>
+      <FilterTrigger label="Group" value={activeLabel} open={open} onClick={() => onOpenChange(!open)} />
 
       {open ? (
-        <div className="absolute left-0 top-9 z-20 w-max min-w-full rounded-[8px] border border-[#e7e5e4] bg-white p-1 shadow-[0_8px_28px_rgba(15,23,42,0.08)]">
+        <div className="absolute right-0 top-9 z-30 w-max min-w-[170px] rounded-[8px] border border-[var(--border-default)] bg-white p-1 shadow-[var(--shadow-menu)]">
           {viewOptions.map((option) => (
             <button
               key={option.key}
@@ -639,8 +638,8 @@ function ViewDropdown({
               className={[
                 "block h-8 w-full rounded-[6px] px-2.5 text-left text-[12px] font-medium transition",
                 activeView === option.key
-                  ? "bg-[#e8f4f8] text-[#0c5f7a]"
-                  : "text-[var(--text-body)] hover:bg-[#faf9f6] hover:text-[var(--text-primary)]",
+                  ? "bg-[var(--accent-soft)] text-[var(--accent-strong)]"
+                  : "text-[var(--text-body)] hover:bg-[var(--shell-canvas)] hover:text-[var(--text-primary)]",
               ].join(" ")}
             >
               {option.label}
@@ -656,9 +655,9 @@ function UseCaseTableView({ columns, totalRows }: { columns: BoardColumn[]; tota
   const visibleColumns = columns.filter((column) => column.cards.length > 0);
 
   return (
-    <section className="min-h-0 flex-1 overflow-y-auto py-5 pr-2 [scrollbar-gutter:stable]">
+    <section className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-5">
       {totalRows === 0 ? (
-        <div className="grid h-[260px] place-items-center rounded-[8px] border border-[#e7e5e4] bg-white text-[13px] text-[var(--text-label)] shadow-[0_1px_3px_rgba(15,23,42,0.05)]">
+        <div className="grid h-[260px] place-items-center rounded-[8px] border border-[var(--border-default)] bg-white text-[13px] text-[var(--text-label)] shadow-[0_1px_3px_rgba(15,23,42,0.05)]">
           No use cases match the current search.
         </div>
       ) : (
@@ -678,7 +677,7 @@ function TableGroupCard({ column }: { column: BoardColumn }) {
 
   return (
     <section>
-      <div className="flex items-baseline gap-2 px-[18px] pb-3 pt-1">
+      <div className="flex items-baseline gap-2 px-1 pb-3 pt-1">
         <h2
           title={groupHint}
           className={["text-[15px] font-medium text-[var(--text-primary)]", groupHint ? "cursor-help" : ""].join(" ")}
@@ -694,25 +693,27 @@ function TableGroupCard({ column }: { column: BoardColumn }) {
           {column.cards.length}
         </span>
       </div>
-      <div className="overflow-hidden rounded-[10px] border border-[#e7e5e4] bg-white shadow-[0_1px_3px_rgba(15,23,42,0.05)]">
+      <div className="overflow-hidden rounded-[10px] border border-[var(--border-default)] bg-white shadow-[0_1px_3px_rgba(15,23,42,0.05)]">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1080px] table-fixed border-collapse">
+          <table className="w-full min-w-[1000px] table-fixed border-collapse">
             <colgroup>
-              <col className="w-[9%]" />
-              <col className="w-[35%]" />
-              <col className="w-[16%]" />
-              <col className="w-[17%]" />
+              <col className="w-[8%]" />
+              <col className="w-[30%]" />
               <col className="w-[11%]" />
-              <col className="w-[12%]" />
+              <col className="w-[14%]" />
+              <col className="w-[19%]" />
+              <col className="w-[9%]" />
+              <col className="w-[9%]" />
             </colgroup>
             <thead className="bg-white">
-              <tr className="border-b border-[#f0efed] text-left">
+              <tr className="border-b border-[var(--border-hairline)] text-left">
                 <TableHeader>ID</TableHeader>
                 <TableHeader>Use case</TableHeader>
                 <TableHeader>Stage</TableHeader>
                 <TableHeader>Stage owner</TableHeader>
-                <TableHeader>Priority</TableHeader>
-                <TableHeader>Due</TableHeader>
+                <TableHeader>Status</TableHeader>
+                <TableHeader align="right">Priority</TableHeader>
+                <TableHeader align="right">Due</TableHeader>
               </tr>
             </thead>
             <tbody>
@@ -727,40 +728,40 @@ function TableGroupCard({ column }: { column: BoardColumn }) {
   );
 }
 
+// The `due` field mixes dates with lifecycle words ("Submitted", "Funded",
+// "Rejected 12 Jun 2026"). The Due column shows only the date; the words belong
+// to the status column, which already carries the gate and the lifecycle tag.
+const DATE_IN_DUE = /(\d{1,2} \w{3} \d{4})/;
+const dueDate = (due: string) => DATE_IN_DUE.exec(due)?.[1] ?? null;
+
 function UseCaseTableRow({ row }: { row: UseCaseCard }) {
+  const lifecycleTag = LIFECYCLE_TAG[row.lifecycle];
+  const due = dueDate(row.due);
+
   return (
-    <tr className="group border-b border-[#f0efed] transition last:border-b-0 hover:bg-[#f4fafb]">
+    <tr className="group border-b border-[var(--border-hairline)] transition last:border-b-0 hover:bg-[var(--accent-hover-bg)]">
       <td className="align-middle">
         <TableLink href={row.href} className="pl-5 pr-3">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#0e7090]">
-            {row.id}
-          </span>
+          <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">{row.id}</span>
         </TableLink>
       </td>
       <td className="align-middle">
         <TableLink href={row.href} className="px-3">
-          <span className="truncate text-[15px] font-semibold leading-5 text-[var(--text-primary)] transition group-hover:text-[#0c5f7a]">
+          <span
+            title={row.title}
+            className="truncate text-[14px] font-semibold leading-5 text-[var(--text-primary)] transition group-hover:text-[var(--accent-strong)]"
+          >
             {row.title}
           </span>
-          <span className="mt-1 flex max-w-[430px] min-w-0 items-center gap-2">
-            {row.gate ? <GateChip gate={row.gate} /> : null}
-            {row.needsAttention ? (
-              <span className="inline-flex w-fit shrink-0 items-center rounded-[6px] bg-[#e8f4f8] px-2 py-1 text-[11px] font-semibold leading-none text-[#0c5f7a]">
-                {getAttentionMessage(row)}
-              </span>
-            ) : null}
-            <span className="min-w-0 truncate text-[12px] leading-5 text-[var(--text-body)]">
-              {row.description}
-            </span>
-          </span>
+          <span className="mt-1 truncate text-[12px] leading-5 text-[var(--text-body)]">{row.description}</span>
         </TableLink>
       </td>
       <td className="align-middle">
         <TableLink href={row.href} className="px-3">
-          <span className="truncate text-[14px] font-normal leading-5 text-[var(--text-body)]">{row.stage}</span>
-          {row.substage !== row.stage ? (
-            <span className="mt-0.5 truncate text-[12px] leading-4 text-[var(--text-muted)]">{row.substage}</span>
-          ) : null}
+          {/* One line — the group header above already names the phase. */}
+          <span title={row.substage} className="truncate text-[13px] leading-5 text-[var(--text-body)]">
+            {shortStageLabel(row.substage)}
+          </span>
         </TableLink>
       </td>
       <td className="align-middle">
@@ -774,7 +775,7 @@ function UseCaseTableRow({ row }: { row: UseCaseCard }) {
                 </span>
               ) : null}
             </span>
-            <span className="truncate text-[14px] font-normal leading-5 text-[var(--text-body)]">
+            <span className="min-w-0 truncate text-[13px] leading-5 text-[var(--text-body)]">
               {row.coOwner ? `${formatStageOwner(row)} +1` : formatStageOwner(row)}
             </span>
           </span>
@@ -782,19 +783,44 @@ function UseCaseTableRow({ row }: { row: UseCaseCard }) {
       </td>
       <td className="align-middle">
         <TableLink href={row.href} className="px-3">
+          <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+            {lifecycleTag ? (
+              <span className={["rounded-full px-2 py-0.5 text-[11px] font-semibold", lifecycleTag].join(" ")}>{row.lifecycle}</span>
+            ) : null}
+            {row.gate ? <GateChip gate={row.gate} /> : null}
+            {row.needsAttention ? (
+              <span className="inline-flex w-fit items-center rounded-[6px] bg-[var(--accent-soft)] px-2 py-1 text-[11px] font-semibold leading-none text-[var(--accent-strong)]">
+                {getAttentionMessage(row)}
+              </span>
+            ) : null}
+            {!lifecycleTag && !row.gate && !row.needsAttention ? (
+              <span className="text-[13px] text-[var(--text-muted)]">—</span>
+            ) : null}
+          </span>
+        </TableLink>
+      </td>
+      <td className="align-middle">
+        <TableLink href={row.href} className="px-3" align="right">
           <PriorityCell card={row} />
         </TableLink>
       </td>
-      <TableCell href={row.href} className="pr-5">
-        {row.due}
-      </TableCell>
+      <td className="align-middle">
+        <TableLink href={row.href} className="pl-3 pr-5" align="right">
+          <span className="truncate text-[13px] leading-5 tabular-nums text-[var(--text-body)]">{due ?? "—"}</span>
+        </TableLink>
+      </td>
     </tr>
   );
 }
 
-function TableHeader({ children }: { children: ReactNode }) {
+function TableHeader({ children, align = "left" }: { children: ReactNode; align?: "left" | "right" }) {
   return (
-    <th className="h-10 px-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)] first:pl-5 last:pr-5">
+    <th
+      className={[
+        "h-10 px-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)] first:pl-5 last:pr-5",
+        align === "right" ? "text-right" : "text-left",
+      ].join(" ")}
+    >
       {children}
     </th>
   );
@@ -804,57 +830,46 @@ function TableLink({
   children,
   className = "",
   href,
+  align = "left",
 }: {
   children: ReactNode;
   className?: string;
   href: string;
+  align?: "left" | "right";
 }) {
   return (
     <Link
       href={href}
-      className={["flex min-h-[76px] min-w-0 flex-col justify-center py-3.5 outline-none", className].join(" ")}
+      // One height for every row, whether or not it carries status chips.
+      className={["flex min-h-[64px] min-w-0 flex-col justify-center py-3 outline-none", align === "right" ? "items-end text-right" : "", className].join(" ")}
     >
       {children}
     </Link>
   );
 }
 
-function TableCell({
-  children,
-  className = "",
-  href,
-}: {
-  children: ReactNode;
-  className?: string;
-  href: string;
-}) {
-  return (
-    <td className="align-middle">
-      <TableLink href={href} className={["px-3", className].join(" ")}>
-        <span className="truncate text-[14px] font-normal leading-5 text-[var(--text-body)]">{children}</span>
-      </TableLink>
-    </td>
-  );
-}
-
 const PRIORITY_DOT: Record<Priority, string> = {
-  High: "bg-[#dc2626]",
-  Medium: "bg-[#d97706]",
-  Low: "bg-[#16a34a]",
+  High: "bg-[var(--status-danger)]",
+  Medium: "bg-[var(--tone-warning-fg)]",
+  Low: "bg-[var(--status-success)]",
 };
 
 function PriorityCell({ card }: { card: UseCaseCard }) {
   const effective = card.orgPriority ?? card.priority;
   if (!effective) {
-    return <span className="text-[13px] font-normal leading-5 text-[var(--text-muted)]">Not prioritized</span>;
+    return <span className="text-[13px] leading-5 text-[var(--text-muted)]">Not set</span>;
   }
   const showFunctional = card.orgPriority && card.priority && card.orgPriority !== card.priority;
 
   return (
-    <span className="inline-flex items-center gap-2 text-[14px] font-normal leading-5 text-[var(--text-body)]">
-      <span className={["h-1.5 w-1.5 rounded-full", PRIORITY_DOT[effective]].join(" ")} />
-      {effective}
-      {showFunctional ? <span className="text-[12px] text-[var(--text-muted)]">(fn {card.priority})</span> : null}
+    <span className="min-w-0">
+      <span className="flex items-center justify-end gap-1.5 text-[13px] leading-5 text-[var(--text-body)]">
+        <span className={["h-1.5 w-1.5 shrink-0 rounded-full", PRIORITY_DOT[effective]].join(" ")} />
+        {effective}
+      </span>
+      {showFunctional ? (
+        <span className="mt-0.5 block truncate text-[11px] text-[var(--text-muted)]">fn {card.priority}</span>
+      ) : null}
     </span>
   );
 }
@@ -890,28 +905,29 @@ function PhaseStagesHint({ members }: { members: string[] }) {
         ? createPortal(
             <div
               style={{ position: "fixed", left: coords.x, top: coords.y, width: coords.w }}
-              className="pointer-events-none z-[80] rounded-[14px] border border-[#d6d3d1] bg-[#eceae7] p-3 shadow-[0_10px_28px_rgba(12,10,9,0.14)]"
+              className="pointer-events-none z-[80] rounded-[14px] border border-[var(--border-input)] bg-[var(--surface-strong)] p-3 shadow-[0_10px_28px_rgba(12,10,9,0.14)]"
             >
               {members.map((member, index) => {
-                const meta = STAGE_META[member];
+                const owner = stageOwner(member);
+                const desc = STAGE_DESC[member];
                 const last = index === members.length - 1;
                 return (
                   <div key={member} className="flex gap-3">
                     <div className="flex flex-col items-center pt-[7px]">
-                      <span className="h-2 w-2 shrink-0 rounded-full bg-[var(--accent)] ring-4 ring-[#eceae7]" />
-                      {last ? null : <span className="mt-1 w-px flex-1 bg-[#cbc7c0]" />}
+                      <span className="h-2 w-2 shrink-0 rounded-full bg-[var(--accent)] ring-4 ring-[var(--surface-strong)]" />
+                      {last ? null : <span className="mt-1 w-px flex-1 bg-[var(--border-input)]" />}
                     </div>
                     <div className="min-w-0 flex-1" style={{ paddingBottom: last ? 0 : 14 }}>
                       <div className="flex items-center justify-between gap-3">
                         <span className="text-[13px] font-semibold leading-4 text-[var(--text-primary)]">{member}</span>
-                        {meta ? (
+                        {owner ? (
                           <span className="flex shrink-0 items-center gap-1.5">
-                            <PersonAvatar name={meta.owner} size={18} />
-                            <span className="text-[11.5px] font-medium text-[var(--text-body)]">{meta.owner}</span>
+                            <PersonAvatar name={owner} size={18} />
+                            <span className="text-[11px] font-medium text-[var(--text-body)]">{owner}</span>
                           </span>
                         ) : null}
                       </div>
-                      {meta ? <p className="mt-1 text-[11.5px] leading-[1.35] text-[var(--text-label)]">{meta.desc}</p> : null}
+                      {desc ? <p className="mt-1 text-[11px] leading-[1.35] text-[var(--text-label)]">{desc}</p> : null}
                     </div>
                   </div>
                 );
@@ -929,14 +945,14 @@ function KanbanColumn({ column }: { column: BoardColumn }) {
   const members = STAGE_GROUPS[column.title];
 
   return (
-    <section className="flex h-full min-h-0 flex-col border-l border-[#f0efed] pl-3 pr-3 first:border-l-0 first:pl-0">
+    <section className="relative flex h-full min-h-0 flex-col">
       <div
         className={[
-          "-mx-3 sticky top-0 z-10 bg-[#faf9f6] transition-shadow",
+          "sticky top-0 z-10 bg-white transition-shadow",
           hasScrolled ? "shadow-[0_6px_10px_-10px_rgba(15,23,42,0.18)]" : "shadow-none",
         ].join(" ")}
       >
-        <div className="flex items-baseline justify-between pb-3 pl-[18px] pr-[18px] pt-6">
+        <div className="flex items-baseline justify-between gap-2 px-1 pb-3 pt-5">
           <div className="flex items-baseline gap-1.5">
             <h2 className="text-[15px] font-medium text-[var(--text-primary)]">{column.title}</h2>
             {members && members.length > 1 ? <PhaseStagesHint members={members} /> : null}
@@ -948,37 +964,40 @@ function KanbanColumn({ column }: { column: BoardColumn }) {
       </div>
 
       <div
-        className="no-scrollbar flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto pb-10"
+        className="no-scrollbar flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-1 pb-14"
         onScroll={(event) => setHasScrolled(event.currentTarget.scrollTop > 0)}
       >
         {column.cards.map((card) => (
           <UseCaseBoardCard key={card.id} card={card} />
         ))}
       </div>
+      {/* A card that runs past the bottom of the column dissolves rather than
+          being cut in half at rest. */}
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-b from-transparent to-white" />
     </section>
   );
 }
 
 // Passed = green, in-review = amber, blocked/rejected = red, pending = neutral.
 const GATE_BADGE: Record<GateStatus, string> = {
-  Pending: "bg-[#f0efed] text-[var(--text-muted)]",
-  "In review": "bg-[#f6f0e6] text-[#a15c11]",
-  Passed: "bg-[#eef4ee] text-[#15803d]",
-  Blocked: "bg-[#f7eaea] text-[#b32020]",
-  Rejected: "bg-[#f7eaea] text-[#b32020]",
+  Pending: "bg-[var(--surface-strong)] text-[var(--text-muted)]",
+  "In review": "bg-[var(--tone-warning-bg)] text-[var(--tone-warning-fg)]",
+  Passed: "bg-[var(--tone-success-bg)] text-[var(--tone-success-fg)]",
+  Blocked: "bg-[var(--tone-danger-bg)] text-[var(--tone-danger-fg)]",
+  Rejected: "bg-[var(--tone-danger-bg)] text-[var(--tone-danger-fg)]",
 };
 
 // Only surface a lifecycle tag for states a gate chip doesn't already convey.
 const LIFECYCLE_TAG: Record<Lifecycle, string | null> = {
   Active: null,
-  "On hold": "bg-[#f6f0e6] text-[#a15c11]",
+  "On hold": "bg-[var(--tone-warning-bg)] text-[var(--tone-warning-fg)]",
   Rejected: null,
-  Live: "bg-[#eef4ee] text-[#15803d]",
+  Live: "bg-[var(--tone-success-bg)] text-[var(--tone-success-fg)]",
 };
 
 function GateChip({ gate }: { gate: { id: string; status: GateStatus } }) {
   return (
-    <span className={["inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold", GATE_BADGE[gate.status]].join(" ")}>
+    <span className={["inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", GATE_BADGE[gate.status]].join(" ")}>
       {gate.id} · {gate.status}
     </span>
   );
@@ -987,7 +1006,7 @@ function GateChip({ gate }: { gate: { id: string; status: GateStatus } }) {
 function MetaCell({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="min-w-0">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.07em] text-[var(--text-muted)]">{label}</div>
+      <div className="text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--text-muted)]">{label}</div>
       <div className="mt-1">{children}</div>
     </div>
   );
@@ -995,14 +1014,18 @@ function MetaCell({ label, children }: { label: string; children: ReactNode }) {
 
 function PriorityInline({ card }: { card: UseCaseCard }) {
   const effective = card.orgPriority ?? card.priority;
-  if (!effective) return <span className="text-[12px] font-medium text-[var(--text-muted)]">Not prioritized</span>;
+  if (!effective) return <span className="block text-[12px] font-medium text-[var(--text-muted)]">Not prioritized</span>;
   const showFunctional = card.orgPriority && card.priority && card.orgPriority !== card.priority;
 
   return (
-    <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-[var(--text-primary)]">
-      <span className={["h-1.5 w-1.5 rounded-full", PRIORITY_DOT[effective]].join(" ")} />
-      {effective}
-      {showFunctional ? <span className="text-[11px] font-normal text-[var(--text-muted)]">· fn {card.priority}</span> : null}
+    <span className="block min-w-0">
+      <span className="flex items-center gap-1.5 text-[12px] font-medium text-[var(--text-primary)]">
+        <span className={["h-1.5 w-1.5 shrink-0 rounded-full", PRIORITY_DOT[effective]].join(" ")} />
+        {effective}
+      </span>
+      {showFunctional ? (
+        <span className="mt-0.5 block truncate text-[11px] text-[var(--text-muted)]">functional: {card.priority}</span>
+      ) : null}
     </span>
   );
 }
@@ -1018,7 +1041,7 @@ function OwnerInline({ card }: { card: UseCaseCard }) {
           </span>
         ) : null}
       </div>
-      <span className="truncate text-[12px] font-medium text-[var(--text-primary)]">
+      <span className="min-w-0 truncate text-[12px] font-medium text-[var(--text-primary)]">
         {card.coOwner ? `${formatStageOwner(card)} +1` : formatStageOwner(card)}
       </span>
     </div>
@@ -1030,25 +1053,28 @@ function UseCaseBoardCard({ card }: { card: UseCaseCard }) {
 
   return (
     <Link href={card.href} className="group block">
-      <div className="relative z-10 rounded-[10px] border border-[#e7e5e4] bg-white shadow-[0_1px_3px_rgba(15,23,42,0.05)] transition group-hover:border-[#8fc0cf] group-hover:bg-[#f4fafb]">
-        <div className="px-4 pb-3.5 pt-3.5">
+      <div className="relative z-10 rounded-[10px] border border-[var(--border-default)] bg-white shadow-[0_1px_3px_rgba(15,23,42,0.05)] transition group-hover:border-[var(--accent-ring)] group-hover:bg-[var(--accent-hover-bg)]">
+        <div className="px-5 pb-4 pt-4">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#0e7090]">{card.id}</span>
+            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">{card.id}</span>
             <div className="flex shrink-0 items-center gap-1.5">
               {lifecycleTag ? (
-                <span className={["rounded-full px-2 py-0.5 text-[10px] font-semibold", lifecycleTag].join(" ")}>
+                <span className={["rounded-full px-2 py-0.5 text-[11px] font-semibold", lifecycleTag].join(" ")}>
                   {card.lifecycle}
                 </span>
               ) : null}
               {card.gate ? <GateChip gate={card.gate} /> : null}
             </div>
           </div>
-          <h3 className="mt-2 text-[15px] font-semibold leading-5 text-[var(--text-primary)]">{card.title}</h3>
-          <p className="mt-1.5 line-clamp-2 text-[12px] leading-5 text-[var(--text-body)]">{card.description}</p>
+          <h3 className="mt-2.5 text-[15px] font-semibold leading-[1.35] text-[var(--text-primary)]">{card.title}</h3>
+          <p className="mt-2 line-clamp-2 text-[12px] leading-[1.5] text-[var(--text-body)]">{card.description}</p>
         </div>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-3.5 border-t border-[#f0efed] px-4 py-3.5">
+        <div className="grid grid-cols-2 gap-x-5 gap-y-4 border-t border-[var(--border-hairline)] px-5 py-4">
           <MetaCell label="Stage">
-            <span className="block truncate text-[12px] font-medium text-[var(--text-primary)]">{card.substage}</span>
+            {/* The short lifecycle label — the full name doesn't fit a card column. */}
+            <span title={card.substage} className="block truncate text-[12px] font-medium text-[var(--text-primary)]">
+              {shortStageLabel(card.substage)}
+            </span>
           </MetaCell>
           <MetaCell label="Priority">
             <PriorityInline card={card} />
@@ -1062,7 +1088,7 @@ function UseCaseBoardCard({ card }: { card: UseCaseCard }) {
         </div>
       </div>
       {card.needsAttention ? (
-        <div className="-mt-2 rounded-b-[10px] bg-[#e8f4f8] px-4 pb-2.5 pt-4 text-[12px] font-semibold leading-5 text-[#0c5f7a] shadow-[0_1px_3px_rgba(15,23,42,0.05)] transition group-hover:bg-[#d3e9f0]">
+        <div className="-mt-2 rounded-b-[10px] bg-[var(--accent-soft)] px-5 pb-2.5 pt-4 text-[12px] font-semibold leading-5 text-[var(--accent-strong)] shadow-[0_1px_3px_rgba(15,23,42,0.05)] transition group-hover:bg-[#d3e9f0]">
           {getAttentionMessage(card)}
         </div>
       ) : null}

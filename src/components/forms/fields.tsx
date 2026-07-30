@@ -11,14 +11,14 @@ import { useClickOutside } from "@/lib/use-click-outside";
 // inline validation (error ring + message), an optional "why this matters"
 // tooltip, and an optional AI "Suggest" button that fills a context draft.
 
-const FOCUS_RING = "focus:border-[#8fc0cf] focus:ring-2 focus:ring-[#e8f4f8]";
+const FOCUS_RING = "focus:border-[var(--accent-ring)] focus:ring-2 focus:ring-[var(--accent-soft)]";
 const BASE_INPUT = cn(
   "h-9 w-full rounded-[8px] border bg-white px-3 text-[14px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)]",
   FOCUS_RING,
 );
 
 function borderClass(error?: string) {
-  return error ? "border-[#e0a892]" : "border-[#e7e5e4]";
+  return error ? "border-[var(--tone-danger-border)]" : "border-[var(--border-default)]";
 }
 
 // ── Field chrome ──────────────────────────────────────────────────────────
@@ -28,7 +28,7 @@ export function FieldHeader({ label, required, hint }: { label: string; required
     <div className="mb-1.5 flex items-center gap-2">
       <span className="text-[12px] font-medium text-[var(--text-primary)]">
         {label}
-        {required ? <span className="ml-0.5 text-[#b4471d]">*</span> : null}
+        {required ? <span className="ml-0.5 text-[var(--risk-high-fg)]">*</span> : null}
       </span>
       {hint ? (
         <span
@@ -52,7 +52,7 @@ function SuggestButton({ onClick, className }: { onClick: () => void; className?
       title="Suggest a draft"
       aria-label="Suggest a draft"
       className={cn(
-        "absolute inline-flex h-6 w-6 items-center justify-center rounded-full text-[var(--text-muted)] transition hover:bg-[#e8f4f8] hover:text-[#0c5f7a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e8f4f8]",
+        "absolute inline-flex h-6 w-6 items-center justify-center rounded-full text-[var(--text-muted)] transition hover:bg-[var(--accent-soft)] hover:text-[var(--accent-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-soft)]",
         className,
       )}
     >
@@ -63,7 +63,7 @@ function SuggestButton({ onClick, className }: { onClick: () => void; className?
 
 export function FieldError({ error }: { error?: string }) {
   if (!error) return null;
-  return <p className="mt-1 text-[11px] leading-4 text-[#b4471d]">{error}</p>;
+  return <p className="mt-1 text-[11px] leading-4 text-[var(--risk-high-fg)]">{error}</p>;
 }
 
 type FieldChrome = {
@@ -207,7 +207,7 @@ export function SearchableSelect({
         </button>
 
         {open ? (
-          <div className="absolute left-0 right-0 top-10 z-30 rounded-[8px] border border-[#e7e5e4] bg-white p-1 shadow-[0_8px_28px_rgba(15,23,42,0.08)]">
+          <div className="absolute left-0 right-0 top-10 z-30 rounded-[8px] border border-[var(--border-default)] bg-white p-1 shadow-[0_8px_28px_rgba(15,23,42,0.08)]">
             <div className="relative mb-1">
               <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
               <input
@@ -215,7 +215,7 @@ export function SearchableSelect({
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search…"
-                className={cn("h-8 w-full rounded-[6px] border border-[#e7e5e4] bg-white pl-8 pr-2 text-[12px] text-[var(--text-primary)] outline-none", FOCUS_RING)}
+                className={cn("h-8 w-full rounded-[6px] border border-[var(--border-default)] bg-white pl-8 pr-2 text-[12px] text-[var(--text-primary)] outline-none", FOCUS_RING)}
               />
             </div>
             <div className="max-h-[200px] overflow-y-auto">
@@ -232,7 +232,7 @@ export function SearchableSelect({
                     }}
                     className={cn(
                       "flex h-8 w-full items-center justify-between gap-2 rounded-[6px] px-2.5 text-left text-[12px] font-medium transition",
-                      value === option ? "bg-[#e8f4f8] text-[#0c5f7a]" : "text-[var(--text-body)] hover:bg-[#faf9f6] hover:text-[var(--text-primary)]",
+                      value === option ? "bg-[var(--accent-soft)] text-[var(--accent-strong)]" : "text-[var(--text-body)] hover:bg-[var(--shell-canvas)] hover:text-[var(--text-primary)]",
                     )}
                   >
                     <span className="truncate">{option}</span>
@@ -278,10 +278,10 @@ export function Segmented({
               aria-pressed={selected}
               onClick={() => onChange(option)}
               className={cn(
-                "h-9 rounded-[8px] border px-3 text-[14px] font-normal transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e8f4f8]",
+                "h-9 rounded-[8px] border px-3 text-[14px] font-normal transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-soft)]",
                 selected
-                  ? "border-[#0e7090] bg-white text-[#0c5f7a] shadow-[inset_0_0_0_1px_#0e7090]"
-                  : "border-[#e7e5e4] bg-white text-[var(--text-primary)] hover:border-[#c5e2ea] hover:bg-[#f4fafb]",
+                  ? "border-[var(--accent)] bg-white text-[var(--accent-strong)] shadow-[inset_0_0_0_1px_var(--accent)]"
+                  : "border-[var(--border-default)] bg-white text-[var(--text-primary)] hover:border-[var(--accent-border)] hover:bg-[var(--accent-hover-bg)]",
               )}
             >
               {option}
@@ -313,7 +313,7 @@ export function SegmentedToggle({
   return (
     <div className="min-w-0">
       {hideHeader ? null : <FieldHeader label={label} required={required} hint={hint} />}
-      <div className="inline-flex flex-wrap gap-1 rounded-[9px] border border-[#e7e5e4] bg-[var(--surface-muted)] p-1" role="radiogroup" aria-label={label}>
+      <div className="inline-flex flex-wrap gap-1 rounded-[10px] border border-[var(--border-default)] bg-[var(--surface-muted)] p-1" role="radiogroup" aria-label={label}>
         {options.map((option) => {
           const selected = value === option;
           return (
@@ -324,7 +324,7 @@ export function SegmentedToggle({
               aria-checked={selected}
               onClick={() => onChange(option)}
               className={cn(
-                "rounded-[6px] px-3 py-1.5 text-[14px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e8f4f8]",
+                "rounded-[6px] px-3 py-1.5 text-[14px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-soft)]",
                 selected
                   ? "bg-white text-[var(--text-primary)] shadow-[0_1px_2px_rgba(12,10,9,0.12)]"
                   : "text-[var(--text-label)] hover:text-[var(--text-primary)]",
@@ -373,10 +373,10 @@ export function ChipMultiSelect({
               aria-pressed={selected}
               onClick={() => toggle(option)}
               className={cn(
-                "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[12px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e8f4f8]",
+                "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[12px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-soft)]",
                 selected
-                  ? "border-[#0e7090] bg-[#0e7090] text-white"
-                  : "border-[#e7e5e4] bg-white text-[var(--text-body)] hover:border-[#c5e2ea] hover:bg-[#f4fafb]",
+                  ? "border-[var(--accent)] bg-[var(--accent)] text-white"
+                  : "border-[var(--border-default)] bg-white text-[var(--text-body)] hover:border-[var(--accent-border)] hover:bg-[var(--accent-hover-bg)]",
               )}
             >
               {selected ? <Check size={13} /> : null}
@@ -435,8 +435,8 @@ export function CurrencyField({
   return (
     <div className="group min-w-0">
       {hideHeader ? null : <FieldHeader label={label} required={required} hint={hint} />}
-      <div className={cn("flex h-9 max-w-[360px] items-stretch overflow-hidden rounded-[8px] border bg-white transition focus-within:border-[#8fc0cf] focus-within:ring-2 focus-within:ring-[#e8f4f8]", borderClass(error))}>
-        <div className="relative shrink-0 border-r border-[#e7e5e4] bg-[#faf9f6]">
+      <div className={cn("flex h-9 max-w-[360px] items-stretch overflow-hidden rounded-[8px] border bg-white transition focus-within:border-[var(--accent-ring)] focus-within:ring-2 focus-within:ring-[var(--accent-soft)]", borderClass(error))}>
+        <div className="relative shrink-0 border-r border-[var(--border-default)] bg-[var(--shell-canvas)]">
           <select
             value={currency}
             onChange={(event) => onCurrency(event.target.value)}
@@ -466,7 +466,7 @@ export function CurrencyField({
               aria-label={`Decrease by ${stepBy.toLocaleString()}`}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => onAmount(stepAmount(amount, -stepBy))}
-              className="flex items-center gap-0.5 border-l border-[#e7e5e4] px-2 text-[11px] font-semibold tabular-nums text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
+              className="flex items-center gap-0.5 border-l border-[var(--border-default)] px-2 text-[11px] font-semibold tabular-nums text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
             >
               <Minus size={11} />
               {stepLabel}
@@ -476,7 +476,7 @@ export function CurrencyField({
               aria-label={`Increase by ${stepBy.toLocaleString()}`}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => onAmount(stepAmount(amount, stepBy))}
-              className="flex items-center gap-0.5 border-l border-[#e7e5e4] px-2 text-[11px] font-semibold tabular-nums text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
+              className="flex items-center gap-0.5 border-l border-[var(--border-default)] px-2 text-[11px] font-semibold tabular-nums text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
             >
               <Plus size={11} />
               {stepLabel}
@@ -929,7 +929,7 @@ export function CardMultiSelect({
                 "relative rounded-[10px] border p-3 pr-9 text-left text-[13px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]",
                 on
                   ? "border-[var(--accent-border)] bg-[var(--accent-soft)] text-[var(--text-primary)]"
-                  : "border-[#e7e5e4] bg-white text-[var(--text-body)] hover:border-[var(--accent-border)] hover:bg-[var(--accent-hover-bg)]",
+                  : "border-[var(--border-default)] bg-white text-[var(--text-body)] hover:border-[var(--accent-border)] hover:bg-[var(--accent-hover-bg)]",
               )}
             >
               {option}
@@ -939,7 +939,7 @@ export function CardMultiSelect({
                     <Check size={11} strokeWidth={3} />
                   </span>
                 ) : (
-                  <span className="block h-[18px] w-[18px] rounded-[5px] border-[1.5px] border-[var(--border-input)]" />
+                  <span className="block h-[18px] w-[18px] rounded-[6px] border-[1.5px] border-[var(--border-input)]" />
                 )}
               </span>
             </button>
@@ -959,9 +959,9 @@ export function CompletionMeter({ done, total, className }: { done: number; tota
 
   return (
     <div className={cn("flex items-center gap-3", className)}>
-      <div className="h-1.5 min-w-[80px] flex-1 overflow-hidden rounded-full bg-[#f0efed]">
+      <div className="h-1.5 min-w-[80px] flex-1 overflow-hidden rounded-full bg-[var(--surface-strong)]">
         <div
-          className={cn("h-full rounded-full transition-all duration-300", complete ? "bg-[#15803d]" : "bg-[#0e7090]")}
+          className={cn("h-full rounded-full transition-all duration-300", complete ? "bg-[var(--tone-success-fg)]" : "bg-[var(--accent)]")}
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -1000,12 +1000,12 @@ export function SaveStatus({ state }: { state: SaveState }) {
     <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[var(--text-muted)]">
       {state === "saving" ? (
         <>
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#0e7090]" />
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--accent)]" />
           Saving…
         </>
       ) : (
         <>
-          <Check size={12} className="text-[#15803d]" />
+          <Check size={12} className="text-[var(--tone-success-fg)]" />
           Saved
         </>
       )}
