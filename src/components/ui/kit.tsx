@@ -3,13 +3,16 @@
 import {
   Activity,
   ArrowUpDown,
+  Check,
   Calculator,
   Filter,
   Gavel,
   Hammer,
+  Inbox,
   Layers,
   Lightbulb,
   PenTool,
+  Rocket,
   ShieldCheck,
   Split,
   Target,
@@ -17,7 +20,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
-import type { ComponentProps, ReactNode } from "react";
+import type { ComponentProps, CSSProperties, ReactNode } from "react";
 
 import { cn } from "@/lib/cn";
 
@@ -114,6 +117,14 @@ export function IconButton({
 // is the same green everywhere.
 
 export type Tone = "neutral" | "info" | "success" | "warning" | "danger";
+
+// Every small tag — priority, gate, lifecycle, stage, the +n overflow — uses this
+// geometry. Mixed radii and paddings made a row of chips look ragged.
+export const CHIP = "inline-flex h-[22px] shrink-0 items-center gap-1 rounded-[6px] px-2 text-[11px] font-medium leading-none";
+
+// The same chip at form scale: a record value reads at the size of the control
+// that edits it, so toggling Edit doesn't resize the text.
+export const VALUE_CHIP = "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-[var(--border-default)] px-3 text-[13px] font-medium";
 
 // Tags read in Title Case ("In Review", "Blocked by Gate") — short prepositions
 // stay lowercase. Prose elsewhere stays sentence case.
@@ -244,6 +255,86 @@ export function ProgressBar({ ratio, complete = false, className }: { ratio: num
   );
 }
 
+// ── Menus ──
+// One shape for every popover list in the product: a rounded surface with a
+// hairline and a soft shadow, an optional muted section label, rows with an icon
+// on the left and meta on the right, and hairline dividers between groups.
+
+export function MenuSurface({ className, children, ...rest }: ComponentProps<"div">) {
+  return (
+    <div
+      {...rest}
+      className={cn("rounded-[12px] border border-[var(--border-default)] bg-[var(--surface)] p-1.5 shadow-[var(--shadow-menu)]", className)}
+    >
+      {children}
+    </div>
+  );
+}
+
+export function MenuLabel({ children }: { children: ReactNode }) {
+  return <div className="px-2 pb-1 pt-1.5 text-[11px] font-medium text-[var(--text-muted)]">{children}</div>;
+}
+
+export function MenuDivider() {
+  return <div className="my-1.5 h-px bg-[var(--border-hairline)]" />;
+}
+
+export function MenuItem({
+  icon,
+  meta,
+  selected = false,
+  className,
+  children,
+  ...rest
+}: {
+  // Leading glyph, muted unless the row is selected.
+  icon?: ReactNode;
+  // Trailing count, shortcut or chevron.
+  meta?: ReactNode;
+  selected?: boolean;
+} & ComponentProps<"button">) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      {...rest}
+      className={cn(
+        "flex h-9 w-full items-center gap-2.5 rounded-[8px] px-2 text-left text-[13px] transition",
+        selected
+          ? "bg-[var(--surface-strong)] font-semibold text-[var(--text-primary)]"
+          : "font-medium text-[var(--text-body)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]",
+        className,
+      )}
+    >
+      {icon ? <span className={cn("shrink-0", selected ? "text-[var(--accent)]" : "text-[var(--text-muted)]")}>{icon}</span> : null}
+      <span className="min-w-0 flex-1 truncate">{children}</span>
+      {meta ? <span className="shrink-0 text-[11px] text-[var(--text-muted)]">{meta}</span> : null}
+    </button>
+  );
+}
+
+// ── Phases ──
+// The four lifecycle phases, with the glyph and the tone each one reads in. Shared
+// by the registry table and the record's overview so the grouping matches.
+export const PHASE_ICONS: Record<string, LucideIcon> = {
+  "Intake & Prioritization": Inbox,
+  "Governance & Risk": ShieldCheck,
+  Delivery: Hammer,
+  "Operate & Adopt": Rocket,
+};
+
+export const PHASE_TONES: Record<string, Tone> = {
+  "Intake & Prioritization": "neutral",
+  "Governance & Risk": "warning",
+  Delivery: "info",
+  "Operate & Adopt": "success",
+};
+
+export function PhaseIcon({ phase, size = 14, className, style }: { phase: string; size?: number; className?: string; style?: CSSProperties }) {
+  const Glyph = PHASE_ICONS[phase] ?? Layers;
+  return <Glyph aria-hidden size={size} className={className} style={style} />;
+}
+
 // ── Stage icons ──
 // One glyph per lifecycle stage, so a stage is recognisable before its name is
 // read — in the stage header, the path menu, the overview table and the board.
@@ -282,37 +373,67 @@ export function StageNode({
   index?: number;
   size?: number;
 }) {
+  // Three distinct shapes, not three colours of the same circle: done is filled
+  // and ticked, current is a ring around a dot (something is inside it), ahead is
+  // a dashed outline holding its number.
+  if (state === "complete") {
+    return (
+      <span style={{ width: size, height: size }} className="grid shrink-0 place-items-center rounded-full bg-[var(--status-success)] text-white">
+        <Check size={size * 0.55} strokeWidth={3.25} aria-hidden />
+      </span>
+    );
+  }
+
+  if (state === "active") {
+    return (
+      <span
+        style={{ width: size, height: size, borderWidth: Math.max(2, size * 0.11) }}
+        className="grid shrink-0 place-items-center rounded-full border-[var(--accent)] bg-[var(--surface)]"
+      >
+        <span style={{ width: size * 0.3, height: size * 0.3 }} className="rounded-full bg-[var(--accent)]" />
+      </span>
+    );
+  }
+
   return (
     <span
       style={{ width: size, height: size }}
-      className={cn(
-        "relative grid shrink-0 place-items-center rounded-full text-[11px] font-semibold tabular-nums ring-2 ring-[var(--surface)]",
-        state === "complete"
-          ? "bg-[var(--status-success)] text-white"
-          : state === "active"
-            ? "bg-[var(--accent)] text-white"
-            : "border border-[var(--border-input)] bg-[var(--surface)] text-[var(--text-muted)]",
-      )}
+      className="font-mono grid shrink-0 place-items-center rounded-full border border-dashed border-[var(--border-input)] bg-[var(--surface)] text-[10px] font-medium text-[var(--text-muted)]"
     >
-      {state === "complete" ? (
-        <svg
-          width={size * 0.55}
-          height={size * 0.55}
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="3.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden
+      {index}
+    </span>
+  );
+}
+
+// ── Overflow ──
+// A run of chips that would wrap gets cut to `max` and followed by a `+n` chip
+// whose tooltip lists the rest — one line, nothing lost.
+export function ChipOverflow({
+  items,
+  max = 2,
+  className,
+}: {
+  items: { key: string; node: ReactNode; label: string }[];
+  max?: number;
+  className?: string;
+}) {
+  const shown = items.slice(0, max);
+  const hidden = items.slice(max);
+  return (
+    <span className={cn("flex min-w-0 items-center gap-1.5", className)}>
+      {shown.map((item) => (
+        <span key={item.key} className="shrink-0">
+          {item.node}
+        </span>
+      ))}
+      {hidden.length ? (
+        <span
+          data-tip={hidden.map((item) => item.label).join("\n")}
+          className={cn(CHIP, "font-mono bg-[var(--surface-strong)] px-1.5 text-[var(--text-label)]")}
         >
-          <path d="M20 6 9 17l-5-5" />
-        </svg>
-      ) : state === "active" ? (
-        <span className="h-1.5 w-1.5 rounded-full bg-white" />
-      ) : (
-        index
-      )}
+          +{hidden.length}
+        </span>
+      ) : null}
     </span>
   );
 }

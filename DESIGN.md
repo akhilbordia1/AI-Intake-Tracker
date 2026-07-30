@@ -70,9 +70,14 @@ Use them via `<Tag tone="success">`, never by hand.
 
 ## Type
 
-Fraunces (`.font-display`) for headings 18px and up, and for hero values. Inter for
-everything else. The scale is **11 · 12 · 13 · 14 · 15 · 18 · 20 · 40** — no other
-sizes.
+Three families. Fraunces (`.font-display`) for headings 18px and up. Inter for
+everything else. Geist Mono (`.font-mono`) for **data**: record ids, dates,
+counts and ratios (`UC-138`, `6 Jul 2026`, `4/4`, `10/12`) — anything that lines up
+in a column or reads as a value rather than a word. Never for prose or labels.
+
+The scale is **11 · 12 · 13 · 14 · 15 · 18 · 20 · 28 · 40** — no other sizes. Mono
+runs a shade larger than Inter at the same size, so drop it one step (12px mono
+next to 13px sans).
 
 | Size | Role |
 | --- | --- |
@@ -85,6 +90,15 @@ sizes.
 | 20 | Section titles (Fraunces) |
 | 28 | Record name (Fraunces) |
 | 40 | Intake hero only (Fraunces) |
+
+**Record values read at the size of the control that edits them** — 15px prose,
+14px mono, 13px in a pill. Toggling Edit is a change of chrome, never of type
+size or of where the text starts.
+
+One caveat, because it bit us twice: element rules written **outside a layer**
+beat Tailwind's layered utilities whatever their specificity. `button, input,
+textarea, select { font: inherit }` therefore has to live in `@layer base`, or
+every control silently inherits the panel's type size instead of its own.
 
 Uppercase micro-labels are for group headers only — never a grid of them as a
 metadata strip. Use `<Fact label="Risk tier">…</Fact>` (`label · value`) instead.
@@ -116,33 +130,52 @@ From `src/components/ui/kit.tsx`:
 - **`cardClass({ selected, interactive })`** — the one card shape.
 - **`SectionHeading`**, **`Fact`** — section title with hint; inline metadata.
 - **`ProgressRing`**, **`ProgressBar`** — "n of m" as a glance, or a thin track.
+- **Form controls** (`src/components/forms/fields.tsx`) — one kind of field is not
+  one control. A two-way choice is a `SegmentedToggle`; a value the record shows
+  as a tag is picked with `ChipSelect`; a short enum is a `Segmented` row; a wordy
+  one a `RadioGroup`; more than five options a `SearchableSelect`; ordinals a
+  `LevelSlider`; `n/m` a `RatingStepper`; money a `CurrencyField` (code selector
+  in the field, never full width). Only prose takes the column's full width.
 - **`StageNode`** — the lifecycle node: tick when complete, filled when current,
   hollow with its number when ahead. Every stage rail uses it.
 
-From `src/components/app-shell.tsx` (layout chrome): `AppTopBar`, `RailHeader`,
-`PanelTabs`, `TabBarToggle`, `PanelBreadcrumb`, `ContentPanel`, `AppShell`,
-`useRailMode`.
+From `src/components/app-shell.tsx` (layout chrome): `RailHeader`, `PanelTabs`,
+`TabBarToggle`, `PanelBreadcrumb`, `ContentPanel`, `AppShell`, `useRailMode`.
 
 From `src/components/chat/chat-ui.tsx` (conversation): `ChatLine`, `ChatComposer`,
-`ChatStarters`, `ChatStartScreen`, `ChatDock`, `ChatTimeDivider`.
+`ChatStarters`, `ChatStartScreen`, `ChatDock`, `ChatTimeDivider`, `JumpToTop`; and
+from `chat-history.tsx`: `useChatSessions`, `ChatHistoryButton`,
+`PastChatTranscript`.
 
 ---
 
 ## Layout
 
-Three rows of chrome on every route:
+One row of chrome, then the panel:
 
-1. **Top bar** (on the canvas) — product mark, title, centred search, avatar.
-2. **Rail + tab bar** — the chat rail's header and its two controls on the left;
-   the panel's view tabs (and any panel toggle) on the right.
-3. **Content panel** — a rounded white panel, fully inside the window, with its
-   own header (icon, title, count, breadcrumb) and, where the view has one, a
-   footer holding that view's actions.
+1. **Rail header + panel header** — the chat rail's label and its controls on the
+   left; on the right, the panel's own header: breadcrumb (or title + count), the
+   view tabs, and that view's real controls pushed to the right edge.
+2. **Content panel** — a rounded white panel, fully inside the window, with a
+   footer where the view has actions of its own.
+
+A record's identity block (name, problem, owner · go-live · status) stays put
+while its content scrolls under it, on both the overview and the stage form. It
+takes a hairline only once something has scrolled behind it — and the border is
+always there, transparent when idle, so the block can't grow as you scroll.
 
 The chat rail is a fixed **364px** side rail, collapsible to a 36px strip and
 expandable to full width (`useRailMode` — the states are mutually exclusive). The
 panel clips its own content: **nothing bleeds past its rounded edge**, and content
 that needs more room scrolls inside it.
+
+**Forms.** A field reads as the control that edits it: read mode renders the same
+control, inert (`fieldset disabled`), and typed fields lose the box's lines and
+fill (`.read-field`) while keeping its metrics. Nothing may change size or move
+between read and edit — no reserved heights on one side only, no negative inset on
+one kind of control. Everything left-aligns on the label's left edge: a box, a pill
+row, a radio's dot, a slider's track. Only prose takes the column's full width;
+short answers, selects and money get a shorter box.
 
 **Panel vs. stage headers:** the panel header carries the *object* (record id,
 phase, view). The stage header inside carries the *stage* (name, status, progress,

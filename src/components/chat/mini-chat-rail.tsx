@@ -28,6 +28,7 @@ export function MiniChatRail({
   placeholder = "Ask about this",
   emptyTitle,
   past,
+  wide = false,
   onTurnsChange,
   newIdeaHref,
 }: {
@@ -43,6 +44,8 @@ export function MiniChatRail({
   // A past conversation to show instead of the live one: read-only, with a way
   // back to the current chat.
   past?: { session: ChatSession; onBack: () => void };
+  // The rail is expanded to the full content width, so the greeting can breathe.
+  wide?: boolean;
   // Lets the surface archive what's on screen when a new chat is started.
   onTurnsChange?: (turns: ChatTurn[]) => void;
   // Anything that reads as "I want to build X" opens the record's guided flow with
@@ -127,14 +130,14 @@ export function MiniChatRail({
 
   // A past conversation reads as a transcript: no composer, and a way back.
   if (past) {
-    return <PastChatTranscript session={past.session} onBack={past.onBack} scrollRef={scrollRef} onScrolledChange={onScrolledChange} />;
+    return <PastChatTranscript session={past.session} scrollRef={scrollRef} onScrolledChange={onScrolledChange} />;
   }
 
   // Nothing asked yet: the rail shows the shared start screen, laid out in normal
   // flow (an overlaying dock would sit on top of the lead line).
   if (empty) {
     return (
-      <ChatStartScreen title={emptyTitle ?? "How can I help?"} lead={intro} starters={suggestions} onPick={pick}>
+      <ChatStartScreen size={wide ? "lg" : "sm"} title={emptyTitle ?? "How can I help?"} lead={intro} starters={suggestions} onPick={pick}>
         {composer}
       </ChatStartScreen>
     );
@@ -147,7 +150,7 @@ export function MiniChatRail({
       <div
         ref={scrollRef}
         onScroll={(event) => onScrolledChange?.(event.currentTarget.scrollTop > 4)}
-        className="no-scrollbar flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto pb-40 pt-1"
+        className="no-scrollbar flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-1.5 pb-40 pt-1"
       >
         <ChatTimeDivider />
         <ChatLine text={intro} />

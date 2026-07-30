@@ -248,7 +248,7 @@ export function ChatStartScreen<T extends { id: string; label: string; icon?: Re
         <p
           className={cn(
             "text-balance text-[var(--text-body)]",
-            large ? "mt-2 max-w-[52ch] text-[15px] leading-6" : "mt-1.5 max-w-[40ch] text-[13px] leading-[1.6]",
+            large ? "mt-2 max-w-[58ch] text-[15px] leading-6" : "mt-1.5 max-w-[46ch] text-[13px] leading-[1.6]",
           )}
         >
           {lead}

@@ -1,12 +1,11 @@
 "use client";
 
-import { CornerUpLeft, History } from "lucide-react";
+import { History, MessageSquare } from "lucide-react";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 
 import { ChatLine, ChatTimeDivider } from "@/components/chat/chat-ui";
-import { IconButton } from "@/components/ui/kit";
-import { cn } from "@/lib/cn";
+import { IconButton, MenuDivider, MenuItem, MenuLabel, MenuSurface } from "@/components/ui/kit";
 
 // ── Chat history ──
 // Past conversations on this surface: the ones seeded with the prototype's data,
@@ -107,36 +106,46 @@ export function ChatHistoryButton({
 
       {open && typeof document !== "undefined"
         ? createPortal(
-            <div
+            <MenuSurface
               ref={menuRef}
               role="menu"
               aria-label="Chat history"
-              style={{ left: anchor.left, top: anchor.top, maxHeight: anchor.maxHeight, width: 236 }}
-              className="no-scrollbar fixed z-[80] overflow-y-auto overscroll-contain rounded-[10px] border border-[var(--border-default)] bg-[var(--surface)] p-1 shadow-[var(--shadow-menu)]"
+              style={{ left: anchor.left, top: anchor.top, maxHeight: anchor.maxHeight, width: 248 }}
+              className="no-scrollbar fixed z-[80] overflow-y-auto overscroll-contain"
             >
-              <MenuRow
-                label="Current chat"
+              <MenuItem
+                icon={<MessageSquare size={14} />}
                 meta="Live"
                 selected={activeId === null}
                 onClick={() => {
                   onOpen(null);
                   setAnchor(null);
                 }}
-              />
-              {sessions.length ? <div className="px-2 pb-0.5 pt-1.5 text-[10px] font-semibold uppercase tracking-[0.07em] text-[var(--text-muted)]">Earlier</div> : null}
-              {sessions.map((session) => (
-                <MenuRow
-                  key={session.id}
-                  label={session.title}
-                  meta={session.when}
-                  selected={activeId === session.id}
-                  onClick={() => {
-                    onOpen(session.id);
-                    setAnchor(null);
-                  }}
-                />
-              ))}
-            </div>,
+              >
+                Current chat
+              </MenuItem>
+
+              {sessions.length ? (
+                <>
+                  <MenuDivider />
+                  <MenuLabel>Earlier</MenuLabel>
+                  {sessions.map((session) => (
+                    <MenuItem
+                      key={session.id}
+                      icon={<History size={14} />}
+                      meta={session.when}
+                      selected={activeId === session.id}
+                      onClick={() => {
+                        onOpen(session.id);
+                        setAnchor(null);
+                      }}
+                    >
+                      {session.title}
+                    </MenuItem>
+                  ))}
+                </>
+              ) : null}
+            </MenuSurface>,
             document.body,
           )
         : null}
@@ -144,54 +153,23 @@ export function ChatHistoryButton({
   );
 }
 
-function MenuRow({ label, meta, selected, onClick }: { label: string; meta: string; selected: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      role="menuitem"
-      onClick={onClick}
-      className={cn(
-        "flex h-7 w-full items-center gap-2 rounded-[6px] px-2 text-left transition",
-        selected ? "bg-[var(--surface-strong)]" : "hover:bg-[var(--surface-hover)]",
-      )}
-    >
-      <span className={cn("min-w-0 flex-1 truncate text-[12px]", selected ? "font-semibold text-[var(--accent-strong)]" : "text-[var(--text-body)]")}>
-        {label}
-      </span>
-      <span className="shrink-0 text-[10px] text-[var(--text-muted)]">{meta}</span>
-    </button>
-  );
-}
-
 // A finished conversation: the transcript, and the way back to the live one.
 export function PastChatTranscript({
   session,
-  onBack,
   scrollRef,
   onScrolledChange,
 }: {
   session: ChatSession;
-  onBack: () => void;
   scrollRef?: RefObject<HTMLDivElement | null>;
   onScrolledChange?: (scrolled: boolean) => void;
 }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="shrink-0 pb-2">
-        <button
-          type="button"
-          onClick={onBack}
-          className="inline-flex items-center gap-1.5 rounded-[7px] bg-[var(--surface-strong)] px-2 py-1 text-[11px] font-medium text-[var(--text-label)] transition hover:text-[var(--text-primary)]"
-        >
-          <CornerUpLeft size={12} />
-          Back to current chat
-        </button>
-      </div>
       <div className="mx-auto flex min-h-0 w-full max-w-[720px] flex-1 flex-col">
         <div
           ref={scrollRef}
           onScroll={(event) => onScrolledChange?.(event.currentTarget.scrollTop > 4)}
-          className="no-scrollbar flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto pb-4 pt-1"
+          className="no-scrollbar flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-1.5 pb-4 pt-1"
         >
           <ChatTimeDivider />
           {session.turns.map((turn, index) => (

@@ -1,8 +1,8 @@
 "use client";
 
-import { FileText, Info } from "lucide-react";
+import { CheckCircle2, Circle, CircleDot, FileText, Flag, Info, Layers, User } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 
 import { AppShell, ContentPanel, PanelBreadcrumb, RailHeader, TabBarToggle, useRailMode } from "@/components/app-shell";
 import { ChatHistoryButton, useChatSessions, type ChatSession, type ChatTurn } from "@/components/chat/chat-history";
@@ -22,7 +22,7 @@ import {
   STAGES,
   firstName,
 } from "@/data/lifecycle";
-import { StageNode } from "@/components/ui/kit";
+import { CHIP, PHASE_TONES, PhaseIcon, Tag, type Tone } from "@/components/ui/kit";
 import { cn } from "@/lib/cn";
 
 // ── The record's landing page ──
@@ -197,6 +197,8 @@ export default function OverviewPage() {
   const liveTurns = useRef<ChatTurn[]>([]);
   const pastSession = history.sessions.find((session) => session.id === history.activeId) ?? null;
   const [detailsOpen, setDetailsOpen] = useState(false);
+  // The record block only takes a rule once the table has scrolled under it.
+  const [tableScrolled, setTableScrolled] = useState(false);
   const actions = useMemo(() => actionsFor(currentUser), [currentUser]);
 
   const activeStage = STAGES[ACTIVE_STAGE_INDEX];
@@ -222,6 +224,7 @@ export default function OverviewPage() {
           <JumpToTop visible={railScrolled} onClick={() => railScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" })} />
           <MiniChatRail
             key={history.liveKey}
+            wide={railMode.expanded}
             past={pastSession ? { session: pastSession, onBack: () => history.open(null) } : undefined}
             onTurnsChange={(turns) => {
               liveTurns.current = turns;
@@ -239,6 +242,9 @@ export default function OverviewPage() {
       }
     >
       <ContentPanel
+        // The record block stays put and the lifecycle scrolls under it, the way the
+        // stage form works — so the name and its status are always on screen.
+        scroll={false}
         breadcrumb={
           <PanelBreadcrumb
             items={[
@@ -249,16 +255,20 @@ export default function OverviewPage() {
         }
         controls={
           <>
-            <TabBarToggle label="Details" icon={<Info size={15} />} active={detailsOpen} onClick={() => setDetailsOpen((open) => !open)} />
             <ProfileSwitcher currentUser={currentUser} onUserChange={setCurrentUser} compact />
+            <TabBarToggle label="Details" icon={<Info size={15} />} active={detailsOpen} onClick={() => setDetailsOpen((open) => !open)} />
           </>
         }
       >
-        <RecordSummary currentUser={currentUser} />
-        {/* Two columns: the work on the left, where it needs the reading width;
- the lifecycle on the right as a vertical rail, which fills the column
- instead of leaving a band of dead space under a thin strip. */}
-        <LifecycleTable currentUser={currentUser} />
+        <RecordSummary currentUser={currentUser} divider={tableScrolled} />
+        {/* The table takes the record block's side padding, so its box lines up with
+            the name above it, and scrolls on its own beneath it. */}
+        <div
+          onScroll={(event) => setTableScrolled(event.currentTarget.scrollTop > 4)}
+          className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-6 pb-10 pt-5"
+        >
+          <LifecycleTable currentUser={currentUser} />
+        </div>
       </ContentPanel>
     </AppShell>
   );
@@ -273,32 +283,44 @@ export default function OverviewPage() {
 // Every stage on one row: where it is, whose it is, what came out of it. The rows
 // link into the workflow at that stage.
 
+const STATE_TONE: Record<StageState, Tone> = { complete: "success", active: "info", upcoming: "neutral" };
+const STATE_LABEL: Record<StageState, string> = { complete: "Complete", active: "In progress", upcoming: "Not started" };
+const STATE_ICON: Record<StageState, ReactNode> = {
+  complete: <CheckCircle2 size={11} />,
+  active: <CircleDot size={11} />,
+  upcoming: <Circle size={11} />,
+};
+
 function LifecycleTable({ currentUser }: { currentUser: string }) {
   return (
-    <div className="no-scrollbar min-w-0 overflow-auto">
-      <table className="w-full min-w-[820px] table-fixed border-collapse">
+    // Grouped by phase, with the columns a stage actually has: its number, its
+    // name, who holds it, the gate that follows it, how much it recorded, and what
+    // came out of it. Numbers and dates are mono, so they line up as data.
+    // The table sits in its own box, so the header band and the rows are held by a
+    // rounded edge rather than running into the page.
+    <div className="no-scrollbar min-w-0 overflow-auto rounded-[10px] border border-[var(--border-default)] bg-[var(--surface)]">
+      <table className="w-full min-w-[880px] table-fixed border-collapse">
         <colgroup>
-          <col className="w-[30%]" />
-          <col className="w-[17%]" />
+          <col className="w-[6%]" />
+          <col className="w-[26%]" />
+          <col className="w-[14%]" />
           <col className="w-[18%]" />
-          <col className="w-[35%]" />
+          <col className="w-[16%]" />
+          <col className="w-[20%]" />
         </colgroup>
         <thead className="sticky top-0 z-10 bg-[var(--surface-muted)]">
           <tr className="border-b border-[var(--border-default)] text-left">
-            <th scope="col" className="px-6 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--text-label)]">
-              Stage
-            </th>
-            <th scope="col" className="px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--text-label)]">
-              Phase
-            </th>
-            <th scope="col" className="px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--text-label)]">
-              Owner
-            </th>
-            <th scope="col" className="px-6 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--text-label)]">
-              Outcome
-            </th>
+            <TableHead className="pl-4">#</TableHead>
+            <TableHead icon={<Flag size={12} />}>Stage</TableHead>
+            <TableHead icon={<CircleDot size={12} />}>Status</TableHead>
+            <TableHead icon={<Layers size={12} />}>Phase</TableHead>
+            <TableHead icon={<User size={12} />}>Owner</TableHead>
+            <TableHead className="pr-4">Outcome</TableHead>
           </tr>
         </thead>
+
+        {/* One flat list: the phase bands were separating twelve rows into four
+            groups of three, which the numbers and the stage names already carry. */}
         <tbody>
           {STAGES.map((stage, index) => {
             const state = stateOf(index);
@@ -312,9 +334,12 @@ function LifecycleTable({ currentUser }: { currentUser: string }) {
                   state === "active" ? "bg-[var(--surface-muted)]" : "hover:bg-[var(--surface-hover)]",
                 )}
               >
-                <th scope="row" className="min-w-0 px-6 text-left align-middle font-normal">
-                  <Link href={`/detail?stage=${index}`} className="flex min-w-0 items-center gap-2.5">
-                    <StageNode state={state} index={index + 1} size={18} />
+                <td className="pl-4 pr-2 align-middle">
+                  <span className="font-mono text-[11px] text-[var(--text-muted)]">{String(index + 1).padStart(2, "0")}</span>
+                </td>
+
+                <th scope="row" className="min-w-0 px-3 text-left align-middle font-normal">
+                  <Link href={`/detail?stage=${index}`} className="block min-w-0">
                     <span
                       className={cn(
                         "min-w-0 truncate text-[13px] transition",
@@ -327,10 +352,28 @@ function LifecycleTable({ currentUser }: { currentUser: string }) {
                     </span>
                   </Link>
                 </th>
-                <td className="px-3 align-middle text-[12px] text-[var(--text-muted)]">{SUBSTAGE_TO_GROUP[stage.name] ?? "—"}</td>
+
+                <td className="px-3 align-middle">
+                  <Tag tone={STATE_TONE[state]} icon={STATE_ICON[state]} className={CHIP}>
+                    {STATE_LABEL[state]}
+                  </Tag>
+                </td>
+
+                <td className="min-w-0 px-3 align-middle">
+                  <span data-tip={`Phase — ${SUBSTAGE_TO_GROUP[stage.name] ?? "—"}`} className="flex min-w-0 items-center gap-1.5">
+                    <PhaseIcon
+                      phase={SUBSTAGE_TO_GROUP[stage.name] ?? ""}
+                      size={12}
+                      className="shrink-0"
+                      style={{ color: `var(--tone-${PHASE_TONES[SUBSTAGE_TO_GROUP[stage.name] ?? ""] ?? "neutral"}-fg)` }}
+                    />
+                    <span className="min-w-0 truncate text-[12px] text-[var(--text-muted)]">{SUBSTAGE_TO_GROUP[stage.name] ?? "—"}</span>
+                  </span>
+                </td>
+
                 <td className="min-w-0 px-3 align-middle">
                   <span className="flex min-w-0 items-center gap-1.5">
-                    <PersonAvatar name={stage.owner} size={18} highlight={ownedByMe} />
+                    <PersonAvatar name={stage.owner} size={20} highlight={ownedByMe} />
                     <span
                       className={cn("min-w-0 truncate text-[12px] text-[var(--text-body)]", ownedByMe && "font-semibold text-[var(--text-primary)]")}
                     >
@@ -338,9 +381,10 @@ function LifecycleTable({ currentUser }: { currentUser: string }) {
                     </span>
                   </span>
                 </td>
-                <td className="min-w-0 px-6 align-middle">
+
+                <td className="min-w-0 px-3 pr-4 align-middle">
                   <span
-                    data-tip={state === "upcoming" ? undefined : outcome?.[1]}
+                    data-tip={state === "upcoming" ? undefined : `${outcome?.[0]} — ${outcome?.[1]}`}
                     className={cn("block truncate text-[12px]", state === "upcoming" ? "text-[var(--text-muted)]" : "text-[var(--text-body)]")}
                   >
                     {state === "upcoming" ? "Not recorded yet" : (outcome?.[1] ?? "—")}
@@ -352,5 +396,18 @@ function LifecycleTable({ currentUser }: { currentUser: string }) {
         </tbody>
       </table>
     </div>
+  );
+}
+
+// Column headers carry a small glyph, the way the reference tables label a column
+// by its kind rather than by weight alone.
+function TableHead({ icon, className, children }: { icon?: ReactNode; className?: string; children: ReactNode }) {
+  return (
+    <th scope="col" className={cn("h-9 px-3 text-[11px] font-medium text-[var(--text-muted)]", className)}>
+      <span className="inline-flex items-center gap-1.5">
+        {icon ? <span className="shrink-0 text-[var(--text-muted)]">{icon}</span> : null}
+        {children}
+      </span>
+    </th>
   );
 }

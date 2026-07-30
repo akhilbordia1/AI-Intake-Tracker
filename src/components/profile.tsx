@@ -3,6 +3,7 @@
 import { Check, ChevronDown, Lock } from "lucide-react";
 import { useRef, useState } from "react";
 
+import { MenuDivider, MenuLabel, MenuSurface } from "@/components/ui/kit";
 import { cn } from "@/lib/cn";
 import { useClickOutside } from "@/lib/use-click-outside";
 
@@ -18,6 +19,17 @@ export const PEOPLE: Array<{ name: string; role: string }> = [
   { name: "Marco B.", role: "Adoption Lead" },
 ];
 
+// A person's colour is derived from their name, so it's the same on the board, in
+// a table, in a menu and in the chat — no lookup table to keep in sync.
+const AVATAR_TONE_COUNT = 6;
+
+function avatarTone(name: string) {
+  let hash = 0;
+  for (let index = 0; index < name.length; index += 1) hash = (hash * 31 + name.charCodeAt(index)) % 9973;
+  const slot = (hash % AVATAR_TONE_COUNT) + 1;
+  return { background: `var(--avatar-${slot}-bg)`, color: `var(--avatar-${slot}-fg)` };
+}
+
 export function initials(name: string) {
   return name
     .split(" ")
@@ -29,7 +41,7 @@ export function initials(name: string) {
 
 export function PersonAvatar({
   name,
-  size = 24,
+  size = 20,
   highlight = false,
   active = false,
 }: {
@@ -41,14 +53,25 @@ export function PersonAvatar({
   return (
     <span
       data-tip={name}
-      style={{ width: size, height: size, fontSize: size <= 22 ? 9 : 10 }}
+      style={{
+        // Below 20px the initials can't keep their ring of space, so the circle
+        // never renders smaller than that — one avatar shape everywhere.
+        width: Math.max(20, size),
+        height: Math.max(20, size),
+        // Type scales with the circle, so the ring of space around the initials is
+        // the same proportion at 16px as at 32px. 0.32 leaves the initials clearly
+        // inside the circle rather than filling it.
+        fontSize: Math.round(Math.max(20, size) * 0.34),
+        lineHeight: 1,
+        ...(active ? {} : avatarTone(name)),
+      }}
       className={cn(
-        "inline-grid shrink-0 place-items-center rounded-full font-semibold",
-        active
-          ? "bg-[var(--accent)] text-white"
-          : highlight
-            ? "bg-[var(--surface-hover)] text-[var(--accent-strong)] ring-1 ring-[var(--border-default)]"
-            : "bg-[var(--border-default)] text-[var(--text-label)]",
+        // Explicit sans + reset tracking: the initials were inheriting the mono
+        // face and the global 0.1px letter-spacing in some rows, which threw them
+        // off-centre. Flex centring keeps them optically centred at any size.
+        "font-sans inline-flex shrink-0 select-none items-center justify-center rounded-full font-semibold tracking-normal",
+        active && "bg-[var(--accent)] text-white",
+        highlight && "ring-2 ring-[var(--accent-ring)]",
       )}
     >
       {initials(name)}
@@ -85,7 +108,7 @@ export function ProfileSwitcher({
         className="inline-flex h-9 items-center gap-2 rounded-full border border-[var(--border-default)] bg-white pl-1 pr-2.5 text-[13px] font-medium text-[var(--text-primary)] transition hover:bg-[var(--surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
       >
         <span className="relative inline-flex">
-          <PersonAvatar name={currentUser} size={28} active />
+          <PersonAvatar name={currentUser} size={26} active />
           {lockedBy ? (
             <span className="absolute -bottom-0.5 -right-0.5 grid h-3.5 w-3.5 place-items-center rounded-full border-2 border-white bg-[var(--tone-warning-fg)] text-white">
               <Lock size={7} strokeWidth={2.5} />
@@ -97,12 +120,18 @@ export function ProfileSwitcher({
       </button>
 
       {open ? (
-        <div
-          className="absolute right-0 top-11 z-50 w-60 rounded-[10px] border border-[var(--border-default)] bg-white p-1.5 shadow-[var(--shadow-menu)]"
-          role="menu"
-          aria-label="Switch profile"
-        >
-          <div className="px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">Switch profile</div>
+        <MenuSurface className="absolute right-0 top-11 z-50 w-64" role="menu" aria-label="Switch profile">
+          <div className="flex items-center gap-2.5 rounded-[8px] px-2 pb-2 pt-1.5">
+            <PersonAvatar name={currentUser} size={32} active highlight />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[13px] font-semibold text-[var(--text-primary)]">{currentUser}</span>
+              <span className="block truncate text-[11px] text-[var(--text-muted)]">
+                {PEOPLE.find((person) => person.name === currentUser)?.role ?? ""}
+              </span>
+            </span>
+          </div>
+          <MenuDivider />
+          <MenuLabel>Switch profile</MenuLabel>
           {PEOPLE.map((person) => {
             const isCurrent = person.name === currentUser;
             return (
@@ -116,11 +145,11 @@ export function ProfileSwitcher({
                   setOpen(false);
                 }}
                 className={cn(
-                  "flex w-full items-center gap-2.5 rounded-[8px] px-2 py-2 text-left transition",
-                  isCurrent ? "bg-[var(--surface-hover)]" : "hover:bg-[var(--surface-hover)]",
+                  "flex w-full items-center gap-2.5 rounded-[8px] px-2 py-1.5 text-left transition",
+                  isCurrent ? "bg-[var(--surface-strong)]" : "hover:bg-[var(--surface-hover)]",
                 )}
               >
-                <PersonAvatar name={person.name} size={28} active={isCurrent} highlight={isCurrent} />
+                <PersonAvatar name={person.name} size={26} active={isCurrent} highlight={isCurrent} />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[13px] font-medium text-[var(--text-primary)]">{person.name}</span>
                   <span className="block truncate text-[11px] text-[var(--text-muted)]">{person.role}</span>
@@ -129,7 +158,7 @@ export function ProfileSwitcher({
               </button>
             );
           })}
-        </div>
+        </MenuSurface>
       ) : null}
     </div>
   );

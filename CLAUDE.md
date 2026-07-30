@@ -43,6 +43,6 @@ A **prototype/demo** UI (no backend, no persistence) for an enterprise AI use-ca
 **Read `DESIGN.md` first** — it defines the tokens, the 11/12/13/14/15/18/20/40 type scale, the radius + tone system, and the component kit (`src/components/ui/kit.tsx`). Compose from the kit; no raw hex in components.
 
 - Tailwind v4 (`@import "tailwindcss"` in `src/app/globals.css`); no `tailwind.config`. Design tokens are CSS variables in `:root` (`--accent` teal, `--canvas`/`--surface*` warm cream, `--text-*`, `--border-*`, `--status-*`). **Use the token vars** (e.g. `text-[var(--text-label)]`, `bg-[var(--surface-muted)]`) rather than raw hexes where a token exists.
-- Typography: `.font-display` = **Fraunces** (editorial serif) for headings + hero values; `.font-serif-body` = lighter Fraunces for prose; default body = **Inter**. Pattern: **serif for headings/prose, sans for controls/labels/data.**
+- Typography: `.font-display` = **Fraunces** (editorial serif) for headings + hero values; `.font-serif-body` = lighter Fraunces for prose; default body = **Inter**; `.font-mono` = **Geist Mono** for ids, dates and counts. Pattern: **serif for headings/prose, sans for controls/labels/data.**
 - `cn()` (`src/lib/cn.ts`, clsx + tailwind-merge) for conditional classes. Imports use the `@/*` alias (→ `src/`).
 - `.no-scrollbar` hides scrollbars on scroll containers (used by the stage path and panels).

@@ -14,7 +14,7 @@ import {
 } from "@/data/lifecycle";
 import { GateBadge, RecordDetailsSheet } from "@/components/document-record/record-details-sheet";
 import { RecordSummary } from "@/components/document-record/record-summary";
-import { ProgressRing, StageIcon, titleCaseTag } from "@/components/ui/kit";
+import { MenuItem, MenuSurface, ProgressRing, StageIcon, VALUE_CHIP, titleCaseTag } from "@/components/ui/kit";
 import { cn } from "@/lib/cn";
 import {
   Ban,
@@ -42,7 +42,19 @@ import { PersonAvatar, ProfileSwitcher, initials } from "@/components/profile";
 import { AppShell, ContentPanel, PanelBreadcrumb, RailHeader, TabBarToggle, shellButton, useRailMode } from "@/components/app-shell";
 import { extractStageFields, isFieldEmpty } from "@/lib/stage-chat";
 
-import { CardMultiSelect, ChipMultiSelect, CurrencyField, DateField, LevelSlider, RatingStepper, SearchableSelect } from "@/components/forms/fields";
+import {
+  CardMultiSelect,
+  ChipMultiSelect,
+  ChipSelect,
+  CurrencyField,
+  DateField,
+  LevelSlider,
+  RadioGroup,
+  RatingStepper,
+  SearchableSelect,
+  Segmented,
+  SegmentedToggle,
+} from "@/components/forms/fields";
 
 // Hybrid: most stages use the generic editable form; a few high-value stages
 // get bespoke widgets ported from the reference (squad picker, milestone rail,
@@ -173,7 +185,7 @@ function StageColumnHeader({ stage, currentUser, action }: { stage: StageItem; c
   const owner = (
     <div className="flex items-center gap-2 text-[13px] leading-5">
       <span className="text-[var(--text-label)]">{gate ? "Prepared by" : "Stage Owner"}</span>
-      <PersonAvatar name={stage.owner} size={22} highlight={ownedByMe} />
+      <PersonAvatar name={stage.owner} size={20} highlight={ownedByMe} />
       <span className={cn("text-[var(--text-primary)]", ownedByMe && "font-semibold")}>{stage.owner}</span>
     </div>
   );
@@ -237,7 +249,7 @@ function StageStatusBanner({ note, canClear, onClear }: { note: StatusNote; canC
           </span>
           <span className="inline-flex items-center gap-1.5 text-[12px] text-[var(--text-muted)]">
             by
-            <PersonAvatar name={note.by} size={16} />
+            <PersonAvatar name={note.by} size={20} />
             <span className="font-medium text-[var(--text-body)]">{note.by}</span>
           </span>
         </div>
@@ -283,10 +295,13 @@ function ScaleReadValue({ value }: { value: string }) {
           <span key={index} className={cn("h-1.5 w-1.5 rounded-full", index < score ? "bg-[var(--accent)]" : "bg-[var(--border-default)]")} />
         ))}
       </span>
-      <span className="text-[14px] font-semibold tabular-nums text-[var(--text-primary)]">{value}</span>
+      <span className="font-mono text-[14px] font-medium text-[var(--text-primary)]">{value}</span>
     </span>
   );
 }
+
+// Currency, percentages, scores, dates — anything whose shape matters.
+const DATA_VALUE_RE = /^(?:[£$€]|~?\d)|\b\d{4}$|\d+\s*\/\s*\d+/;
 
 function ReadValue({ label, value }: { label: string; value: string }) {
   const items = listItems(value);
@@ -303,8 +318,8 @@ function ReadValue({ label, value }: { label: string; value: string }) {
     return (
       <div className="max-w-[280px]">
         <div className="flex items-baseline justify-between gap-3 text-[13px]">
-          <span className="font-semibold text-[var(--text-primary)] tabular-nums">{current}%</span>
-          <span className="text-[12px] text-[var(--text-muted)] tabular-nums">
+          <span className="font-mono font-medium text-[var(--text-primary)]">{current}%</span>
+          <span className="font-mono text-[12px] text-[var(--text-muted)]">
             target {target}% · {reached}% reached
           </span>
         </div>
@@ -318,15 +333,12 @@ function ReadValue({ label, value }: { label: string; value: string }) {
     );
   }
 
-  // Multi-value → chips
+  // Multi-value → chips, in the pill shape the multi-select uses
   if (items.length > 1 && items.every((item) => item.length <= 32)) {
     return (
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap gap-2">
         {items.map((item) => (
-          <span
-            key={item}
-            className="rounded-full border border-[var(--border-default)] bg-[var(--surface-muted)] px-2.5 py-1 text-[12px] font-medium text-[var(--text-body)]"
-          >
+          <span key={item} className={cn(VALUE_CHIP, "bg-[var(--surface-muted)] text-[var(--text-body)]")}>
             {item}
           </span>
         ))}
@@ -343,46 +355,41 @@ function ReadValue({ label, value }: { label: string; value: string }) {
   if (single && short && PERSON_LABEL_RE.test(label) && /^[A-Z]/.test(value)) {
     return (
       <span className="inline-flex items-center gap-2">
-        <PersonAvatar name={value} size={22} />
-        <span className="text-[14px] font-medium text-[var(--text-primary)]">{value}</span>
+        <PersonAvatar name={value} size={20} />
+        <span className="text-[15px] font-medium text-[var(--text-primary)]">{value}</span>
       </span>
     );
   }
 
   // Currency amounts → distinct styled value
   if (CURRENCY_RE.test(value)) {
-    return (
-      <span className="inline-block rounded-[6px] bg-[var(--surface-muted)] px-2.5 py-1 text-[14px] font-semibold tabular-nums text-[var(--text-primary)]">
-        {value}
-      </span>
-    );
+    return <span className="font-mono block text-[14px] font-medium text-[var(--text-primary)]">{value}</span>;
   }
 
   // Decisions / tiers / risk / PII / autonomy → colored status badge
   if (single && short && (STATUS_LABEL_RE.test(label) || /(pii|autonomy|oversight)/i.test(label))) {
     const tone = statusTone(value);
     return (
-      <span
-        className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-semibold"
-        style={{ color: tone.fg, background: tone.bg, borderColor: tone.border }}
-      >
+      <span className={cn(VALUE_CHIP)} style={{ color: tone.fg, background: tone.bg, borderColor: tone.border }}>
         <span className="h-1.5 w-1.5 rounded-full" style={{ background: tone.fg }} />
         {value}
       </span>
     );
   }
 
-  // Short attribute fields → neutral tag
+  // Short attribute fields → neutral tag, in the product's chip geometry
   if (single && short && TAG_LABEL_RE.test(label)) {
-    return (
-      <span className="inline-block rounded-full border border-[var(--border-default)] bg-white px-2.5 py-1 text-[14px] font-medium text-[var(--text-body)]">
-        {value}
-      </span>
-    );
+    return <span className={cn(VALUE_CHIP, "bg-[var(--surface-muted)] text-[var(--text-body)]")}>{value}</span>;
   }
 
-  // Prose → capped measure for readability
-  return <span className="block max-w-[62ch] text-[14px] leading-6 text-[var(--text-primary)]">{value}</span>;
+  // Numbers, money and dates are data — they take the mono face.
+  if (single && DATA_VALUE_RE.test(value)) {
+    return <span className="font-mono block text-[14px] text-[var(--text-primary)]">{value}</span>;
+  }
+
+  // Prose → the panel's width, regular weight so a long answer reads as a
+  // sentence rather than a heading.
+  return <span className="block text-[15px] leading-[1.6] text-[var(--text-primary)]">{value}</span>;
 }
 
 function StageReadOnlyRows({ rows }: { rows: StageItem["rows"] }) {
@@ -402,7 +409,7 @@ function StageReadOnlyRows({ rows }: { rows: StageItem["rows"] }) {
   );
 }
 
-type FieldKind = "segmented" | "radio" | "select" | "scale" | "level" | "cards" | "chips" | "currency" | "date" | "long" | "text";
+type FieldKind = "toggle" | "tag" | "segmented" | "radio" | "select" | "scale" | "level" | "cards" | "chips" | "currency" | "date" | "long" | "text";
 
 // Multi-selects that render as tile cards; the rest stay as pill chips.
 const CARD_FIELDS = new Set(["Pipeline", "Grounding controls"]);
@@ -425,7 +432,21 @@ function isOrdinalSet(options: string[]) {
   return ORDINAL_SETS.some((set) => set.length === options.length && set.every((item, index) => options[index] === item));
 }
 
-const CURRENCY_RE = /^\s*(GBP|USD|EUR|£|\$|€)/;
+// Money is written both ways in the record ("USD 325,000", "250K-400K USD"), and
+// both are the same field: an amount with a currency beside it.
+const CURRENCY_RE = /^\s*(?:GBP|USD|EUR|£|\$|€)|\b(?:GBP|USD|EUR)\s*$/;
+
+const CURRENCY_CODES = ["GBP", "USD", "EUR"];
+const SYMBOL_TO_CODE: Record<string, string> = { "£": "GBP", $: "USD", "€": "EUR" };
+
+// Split a written amount into its code and its number, whichever order it's in.
+function splitCurrency(text: string): { currency: string; amount: string } {
+  const leading = /^\s*(GBP|USD|EUR|£|\$|€)\s*(.*)$/.exec(text);
+  if (leading) return { currency: SYMBOL_TO_CODE[leading[1]] ?? leading[1], amount: leading[2] };
+  const trailing = /^(.*?)\s*(GBP|USD|EUR)\s*$/.exec(text);
+  if (trailing) return { currency: trailing[2], amount: trailing[1] };
+  return { currency: "GBP", amount: text };
+}
 
 const LONG_LABELS = new Set([
   "Rationale",
@@ -463,8 +484,13 @@ function buildFieldSpec(label: string, value: string): FieldSpec {
     if (isOrdinalSet(options)) return { label, kind: "level", options, suggestion: value };
     // long option lists read better as a dropdown
     if (options.length > 5) return { label, kind: "select", options, suggestion: value };
-    // short enums → segmented pill toggle; longer-label enums → radios
-    if (options.every((option) => option.length <= 10)) return { label, kind: "segmented", options, suggestion: value };
+    // Two-way choices are a toggle — one connected control, not a pair of radios.
+    if (options.length === 2) return { label, kind: "toggle", options, suggestion: value };
+    // A value the record shows as a tag is picked as one, so the control and the
+    // read view are the same shape.
+    if (TAG_LABEL_RE.test(label) || STATUS_LABEL_RE.test(label)) return { label, kind: "tag", options, suggestion: value };
+    // Short enums fit a segmented row; wordier ones need radios to stay readable.
+    if (options.every((option) => option.length <= 14)) return { label, kind: "segmented", options, suggestion: value };
     return { label, kind: "radio", options, suggestion: value };
   }
 
@@ -512,6 +538,9 @@ function stageGateReason(stageName: string, values: Record<string, string | stri
   return null;
 }
 
+// Choice controls that always show one option selected.
+const SINGLE_CHOICE_KINDS = new Set<FieldKind>(["toggle", "tag", "segmented", "radio"]);
+
 type StageFieldsState = {
   fields: FieldSpec[];
   values: Record<string, string | string[]>;
@@ -522,9 +551,6 @@ type StageFieldsState = {
   suggestingAll: boolean;
   draftDurationMs: number;
   fillNow: (label: string, value: string | string[], delay: number) => void;
-  // Labels that have been answered — by the chat or by hand. A toggle's default
-  // selection doesn't count.
-  captured: string[];
 };
 
 // Shared field state for an editable stage. Both the form grid and the chat
@@ -538,14 +564,11 @@ function useStageFields(stage: StageItem, prefill: boolean): StageFieldsState {
         if (prefill) return [field.label, field.suggestion];
         if (field.kind === "cards" || field.kind === "chips") return [field.label, []];
         // Toggles always show a selection — default to the first option.
-        if ((field.kind === "segmented" || field.kind === "radio") && field.options?.length) return [field.label, field.options[0]];
+        if (SINGLE_CHOICE_KINDS.has(field.kind) && field.options?.length) return [field.label, field.options[0]];
         return [field.label, ""];
       }),
     ),
   );
-
-  const [captured, setCaptured] = useState<string[]>(() => (prefill ? fields.map((field) => field.label) : []));
-  const markCaptured = (label: string) => setCaptured((current) => (current.includes(label) ? current : [...current, label]));
 
   // AI-suggest is mocked, so we fake generation latency: fields shimmer, then
   // fill. "Suggest all" fills them one after another for a drafting feel.
@@ -557,14 +580,12 @@ function useStageFields(stage: StageItem, prefill: boolean): StageFieldsState {
 
   function setField(label: string, value: string | string[]) {
     setValues((current) => ({ ...current, [label]: value }));
-    markCaptured(label);
   }
 
   function fillAfter(label: string, value: string | string[], delay: number) {
     setLoadingFields((current) => (current.includes(label) ? current : [...current, label]));
     const timer = setTimeout(() => {
       setValues((current) => ({ ...current, [label]: value }));
-      markCaptured(label);
       setLoadingFields((current) => current.filter((entry) => entry !== label));
     }, delay);
     timers.current.push(timer);
@@ -590,15 +611,18 @@ function useStageFields(stage: StageItem, prefill: boolean): StageFieldsState {
     fillAfter(label, value, delay);
   }
 
-  return { fields, values, loadingFields, setField, suggestField, suggestAll, suggestingAll, draftDurationMs, fillNow, captured };
+  return { fields, values, loadingFields, setField, suggestField, suggestAll, suggestingAll, draftDurationMs, fillNow };
 }
 
-// Only free-text inputs show the "Generating…" loader; choice + currency fields just fill.
-const LOADER_KINDS = new Set(["text", "long"]);
+// Fields the user types into. In read these keep their box's metrics but lose its
+// lines and fill, so the value reads as text without the row changing height.
+const INPUT_KINDS = new Set<FieldKind>(["text", "long", "select", "currency", "date"]);
 
-// A document-style field: the value reads as prose (like the read-only record).
-// Empty fields show a quiet placeholder — the value fills in once it's answered
-// in the chat. Clicking a value swaps to the editable control.
+// A record field. Read and edit render the *same* control — editing only makes it
+// interactive — because a read view with its own shapes (a chip here, a dash there)
+// resized and moved every answer the moment the form was saved. Input-like fields
+// drop their box in read (`read-field`), so the value reads as a value while
+// keeping the box's exact metrics.
 function DocumentField({
   field,
   s,
@@ -614,55 +638,63 @@ function DocumentField({
 }) {
   const value = s.values[field.label];
   const loading = s.loadingFields.includes(field.label);
-  const empty = isFieldEmpty(value);
+  const editing = !readOnly && forceEdit;
+  // Every control starts at the column's left edge — a box, a pill row, a slider's
+  // thumb and a radio's dot all line up under the label. Insetting the boxed ones to
+  // align their *text* instead left them hanging left of everything else.
+  const inset = "relative w-full min-w-0";
 
-  // Controls only appear once the whole form is put into edit mode (the header
-  // "Edit" toggle) — individual fields aren't click-to-edit.
-  if (!readOnly && forceEdit) {
+  const control = (
+    <StageField
+      spec={field}
+      value={value}
+      onChange={(next) => s.setField(field.label, next)}
+      onSuggest={() => s.suggestField(field)}
+    />
+  );
+
+  // The "Capturing…" overlay sits on top of the field rather than replacing it —
+  // a field that swaps to a line of text while the chat fills it moves the page.
+  const shimmer = loading ? <FieldGenerating tall={field.kind === "long"} /> : null;
+
+  if (editing) {
     return (
-      <div className="relative w-full min-w-0">
-        <StageField spec={field} value={value} onChange={(next) => s.setField(field.label, next)} onSuggest={() => s.suggestField(field)} />
-        {loading && LOADER_KINDS.has(field.kind) ? <FieldGenerating tall={field.kind === "long"} /> : null}
+      <div className={inset}>
+        {control}
+        {shimmer}
       </div>
     );
   }
 
-  // Being drafted → shimmer placeholder.
-  if (loading) {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-[14px] text-[var(--text-muted)]" aria-label="Capturing from chat">
-        <Sparkles size={13} className="animate-pulse text-[var(--accent)]" />
-        Capturing…
-      </span>
-    );
-  }
+  const read = (
+    <fieldset disabled className={cn(inset, "pointer-events-none", INPUT_KINDS.has(field.kind) && "read-field")}>
+      {control}
+      {shimmer}
+    </fieldset>
+  );
 
-  // Read-only display. Non-owners get a click that explains the block; owners
-  // just see the value (editing happens via the header "Edit").
-  const text = empty ? null : Array.isArray(value) ? value.join("; ") : value;
-  // Same box as the editor (border width + padding + inset), just transparent —
-  // so read ↔ edit is a change of chrome, not of layout.
-  const readBox = "-mx-3 block max-w-full rounded-[8px] border border-transparent px-3 py-1.5 text-left";
+  // Non-owners get a click that explains the block; owners edit from the header.
+  // A div, not a button: the read view now contains the control's own buttons, and
+  // a button inside a button is invalid HTML (it breaks hydration).
   if (readOnly && onBlockedEdit) {
     return (
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={onBlockedEdit}
-        className={cn(
-          readBox,
-          "transition hover:border-[var(--border-soft)] hover:bg-[var(--surface-muted)]",
-          empty && "text-[14px] leading-6 text-[var(--text-muted)]/50",
-        )}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onBlockedEdit();
+          }
+        }}
+        className="w-full min-w-0 cursor-pointer text-left"
       >
-        {empty ? "—" : <ReadValue label={field.label} value={text!} />}
-      </button>
+        {read}
+      </div>
     );
   }
-  return (
-    <div className={cn(readBox, empty && "text-[14px] leading-6 text-[var(--text-muted)]/50")}>
-      {empty ? "—" : <ReadValue label={field.label} value={text!} />}
-    </div>
-  );
+  return read;
 }
 
 // A thin rule between metadata items — reads as one line of facts rather than
@@ -731,9 +763,6 @@ function StageFieldsGrid({
   // A stage you own can still be held back by its own checklist (compliance
   // checks, production readiness) — that reads as blocked, not simply active.
   const blockedReason = canEdit ? stageGateReason(stage.name, s.values) : null;
-  // While a stage is being filled from the chat, only captured details are shown;
-  // in edit mode the whole form is available so nothing is unreachable.
-  const visibleFields = canEdit && !editAll ? s.fields.filter((field) => s.captured.includes(field.label)) : s.fields;
 
   return (
     // embedded → a plain block inside a shared scroll (stacked stages); otherwise
@@ -747,17 +776,23 @@ function StageFieldsGrid({
       <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-2">
         {heading ?? <h2 className="font-display text-[18px] leading-tight text-[var(--text-primary)]">{stage.name}</h2>}
 
+        {/* Whose stage it is belongs with its name, not in the run of metadata —
+            but outside the dropdown, so the trigger stays just the stage. */}
+        <span
+          data-tip={ownedByMe ? "You own this stage" : `${stage.owner} owns this stage`}
+          className="ml-1.5 inline-flex shrink-0 items-center gap-2 text-[12px]"
+        >
+          <PersonAvatar name={stage.owner} size={20} highlight={ownedByMe} />
+          <span className={cn("text-[var(--text-body)]", ownedByMe && "font-semibold text-[var(--text-primary)]")}>{stage.owner}</span>
+        </span>
+
         <span className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-x-2 gap-y-1.5 text-[12px] text-[var(--text-muted)]">
           <StageStatusPill isComplete={isComplete} canEdit={canEdit} owner={stage.owner} blockedReason={blockedReason} />
 
           <MetaDot />
-          <span className="inline-flex shrink-0 items-center gap-1.5">
-            <PersonAvatar name={stage.owner} size={17} highlight={ownedByMe} />
-            <span className={cn("text-[var(--text-body)]", ownedByMe && "font-semibold text-[var(--text-primary)]")}>{stage.owner}</span>
+          <span className="shrink-0">
+            Edited <span className="font-mono">{RECORD_ACTIVITY[0].when.split(",").slice(0, 2).join(",")}</span>
           </span>
-
-          <MetaDot />
-          <span className="shrink-0">Edited {RECORD_ACTIVITY[0].when.split(",").slice(0, 2).join(",")}</span>
 
           {gate && gateTone ? (
             <>
@@ -768,7 +803,7 @@ function StageFieldsGrid({
                 style={{ color: gateTone.fg, background: gateTone.bg, borderColor: gateTone.border }}
               >
                 <ShieldCheck size={11} />
-                {gate.id} · {titleCaseTag(gate.status)}
+                <span className="font-mono">{gate.id}</span> · {titleCaseTag(gate.status)}
               </span>
             </>
           ) : null}
@@ -785,36 +820,20 @@ function StageFieldsGrid({
         </span>
       </div>
 
-      {/* An open stage only shows what the conversation has captured — an empty
- form of 13 labelled blanks tells the user nothing. Completed and
- read-only stages show everything, because it's all filled. */}
-      {visibleFields.length === 0 ? (
-        <p className="mt-8 text-[13px] leading-6 text-[var(--text-muted)]">
-          Nothing captured yet — answer in the chat and each detail will appear here as it lands.
-        </p>
-      ) : null}
-
-      {/* Two-column grid: pairs of fields share a row so their labels line up
- across the form. Long text / multi-selects take the full width. */}
-      <div className={cn("mt-7 grid grid-cols-1 items-start gap-y-9 sm:grid-cols-2", embedded ? "gap-x-8" : "gap-x-12")}>
-        {visibleFields.map((field) => {
-          // Long text and multi-selects need the full width; the rest pair up.
-          const wide = ["long", "cards", "chips"].includes(field.kind);
-          // Reserve each control's height so switching read ↔ edit doesn't change
-          // the row height. The slider (level) is taller than toggles/inputs.
-          const reserve = wide ? undefined : field.kind === "level" ? 50 : 40;
-          return (
-            <div key={field.label} className={cn("min-w-0", wide && "sm:col-span-2")}>
-              <label className="block text-[13px] font-semibold text-[var(--text-primary)]">{field.label}</label>
-              <div
-                className={cn("mt-2 min-w-0", reserve && !editAll && "flex items-center")}
-                style={reserve && !editAll ? { minHeight: reserve } : undefined}
-              >
-                <DocumentField field={field} s={s} readOnly={readOnly} onBlockedEdit={onBlockedEdit} forceEdit={editAll} />
-              </div>
+      {/* One column, on a reading measure: a two-up grid tied every row's height
+          to its tallest cell and left long values fighting for half the width. */}
+      <div className="mt-7 flex flex-col gap-y-6">
+        {s.fields.map((field) => (
+          // No reserved height, and no centring: read and edit render the same
+          // control, so the row is exactly as tall in both — a min-height that
+          // applied to only one of them was itself the shift it meant to prevent.
+          <div key={field.label} className="min-w-0">
+            <label className="block text-[13px] font-medium text-[var(--text-label)]">{field.label}</label>
+            <div className="mt-1.5 min-w-0">
+              <DocumentField field={field} s={s} readOnly={readOnly} onBlockedEdit={onBlockedEdit} forceEdit={editAll} />
             </div>
-          );
-        })}
+          </div>
+        ))}
       </div>
     </section>
   );
@@ -880,7 +899,7 @@ function StagePathMenu({
     if (!rect) return;
     const top = rect.bottom + 6;
     setAnchor({
-      left: Math.min(rect.left, window.innerWidth - 332),
+      left: Math.min(rect.left, window.innerWidth - 348),
       top,
       // Fit the list to whatever room is left below the trigger, so the tail of
       // the stage path is always reachable by scrolling instead of clipped.
@@ -900,14 +919,16 @@ function StagePathMenu({
         className={cn(
           "inline-flex max-w-full items-center gap-1.5 rounded-[8px] text-left transition",
           variant === "heading" ? "-mx-2 -my-1 gap-2 px-2 py-1" : "-mx-1 px-1 py-0.5",
-          open ? "bg-[var(--surface-strong)]" : "hover:bg-[var(--surface-hover)]",
+          variant === "heading" && (open ? "bg-[var(--surface-strong)]" : "hover:bg-[var(--surface-hover)]"),
         )}
       >
-        <StageIcon
-          stage={STAGES[activeIndex].name}
-          size={variant === "heading" ? 15 : 13}
-          className={cn("shrink-0", open || variant === "crumb" ? "text-[var(--accent)]" : "text-[var(--text-muted)]")}
-        />
+        {variant === "heading" ? (
+          <StageIcon
+            stage={STAGES[activeIndex].name}
+            size={15}
+            className={cn("shrink-0", open ? "text-[var(--accent)]" : "text-[var(--text-muted)]")}
+          />
+        ) : null}
         <span
           className={cn(
             variant === "heading" ? "font-display min-w-0 truncate text-[18px] leading-tight" : "whitespace-nowrap text-[14px] font-medium",
@@ -917,8 +938,8 @@ function StagePathMenu({
           {STAGES[activeIndex].name}
         </span>
         {variant === "heading" ? (
-          <span className="shrink-0 whitespace-nowrap text-[11px] font-medium tabular-nums text-[var(--text-muted)]">
-            Stage {activeIndex + 1} of {STAGES.length}
+          <span className="font-mono shrink-0 whitespace-nowrap text-[11px] font-medium text-[var(--text-muted)]">
+            {activeIndex + 1}/{STAGES.length}
           </span>
         ) : null}
         <ChevronDown size={variant === "heading" ? 14 : 13} className={cn("shrink-0 text-[var(--text-muted)] transition", open && "rotate-180")} />
@@ -926,51 +947,47 @@ function StagePathMenu({
 
       {anchor
         ? createPortal(
-            <div
+            <MenuSurface
               ref={menuRef}
               role="menu"
               aria-label="Stage path"
-              style={{ left: anchor.left, top: anchor.top, maxHeight: anchor.maxHeight }}
-              className="fixed z-[80] flex w-[264px] flex-col overflow-hidden rounded-[10px] border border-[var(--border-default)] bg-[var(--surface)] shadow-[var(--shadow-menu)]"
+              style={{ left: anchor.left, top: anchor.top, maxHeight: anchor.maxHeight, width: 336 }}
+              className="no-scrollbar fixed z-[80] overflow-y-auto overscroll-contain"
             >
-              {/* A plain list of stages: the header band, the progress bar and the
-                  connector were all describing a path the numbers already imply. */}
-              <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain p-1.5">
-                {STAGES.map((stage, index) => {
-                  const complete = completedIndexes.includes(index);
-                  const current = index === activeIndex;
-                  return (
-                    <button
-                      key={stage.name}
-                      type="button"
-                      role="menuitem"
-                      aria-current={current ? "step" : undefined}
-                      onClick={() => {
-                        onSelect(index);
-                        setAnchor(null);
-                      }}
-                      className={cn(
-                        "flex w-full items-center gap-2.5 rounded-[8px] px-2 py-1.5 text-left transition",
-                        current ? "bg-[var(--surface-strong)]" : "hover:bg-[var(--surface-hover)]",
-                      )}
-                    >
-                      <span className={cn("w-[14px] shrink-0 text-right text-[11px] tabular-nums", current ? "font-semibold text-[var(--accent-strong)]" : "text-[var(--text-muted)]")}>
-                        {index + 1}
-                      </span>
-                      <span
-                        className={cn(
-                          "min-w-0 flex-1 truncate text-[13px]",
-                          current ? "font-semibold text-[var(--accent-strong)]" : "font-medium text-[var(--text-body)]",
-                        )}
-                      >
-                        {stage.name}
-                      </span>
-                      {complete ? <Check size={12} strokeWidth={3} className="shrink-0 text-[var(--status-success)]" /> : null}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>,
+              {STAGES.map((stage, index) => {
+                const complete = completedIndexes.includes(index);
+                const current = index === activeIndex;
+                return (
+                  <MenuItem
+                    key={stage.name}
+                    aria-current={current ? "step" : undefined}
+                    selected={current}
+                    icon={<span className="w-[14px] font-mono text-right text-[11px]">{index + 1}</span>}
+                    meta={
+                      complete ? (
+                        <span className="inline-flex items-center gap-1 text-[var(--tone-success-fg)]">
+                          <Check size={12} strokeWidth={3} />
+                          Done
+                        </span>
+                      ) : current ? (
+                        <span className="inline-flex items-center gap-1 text-[var(--accent-strong)]">
+                          <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />
+                          Active
+                        </span>
+                      ) : (
+                        "Not started"
+                      )
+                    }
+                    onClick={() => {
+                      onSelect(index);
+                      setAnchor(null);
+                    }}
+                  >
+                    {stage.name}
+                  </MenuItem>
+                );
+              })}
+            </MenuSurface>,
             document.body,
           )
         : null}
@@ -994,8 +1011,6 @@ function readOnlyStageState(stage: StageItem): StageFieldsState {
     suggestingAll: false,
     draftDurationMs: 0,
     fillNow: noop,
-    // Read-only stages are fully recorded by definition.
-    captured: fields.map((field) => field.label),
   };
 }
 
@@ -1166,6 +1181,15 @@ function SplitStageView({
   // Submit (owner, open stages). For guided stages it unlocks once every detail
   // is captured and any gate is cleared.
   const showSubmit = owned && !isComplete;
+  // Naming the next stage tells the user what submitting actually does. The long
+  // stage names use their short label so the button stays one line.
+  const nextStage = STAGES[stageIndex + 1];
+  const submitLabel =
+    stage.name === "GTAC"
+      ? "Submit decision"
+      : nextStage
+        ? `Proceed to ${SHORT_STAGE_LABELS[stageIndex + 1] ?? nextStage.name}`
+        : "Complete the record";
   let submitReady = true;
   let submitHint: string | undefined;
   if (guided) {
@@ -1203,7 +1227,7 @@ function SplitStageView({
           key={history.liveKey}
         >
           <JumpToTop visible={chatScrolled} onClick={() => chatScrollElement.current?.scrollTo({ top: 0, behavior: "smooth" })} />
-          {pastSession ? <PastChatTranscript session={pastSession} onBack={() => history.open(null)} /> : chat}
+          {pastSession ? <PastChatTranscript session={pastSession} /> : chat}
         </div>
       }
       aside={detailsOpen ? <RecordDetailsSheet onClose={onOpenDetails} /> : undefined}
@@ -1225,8 +1249,8 @@ function SplitStageView({
         }
         controls={
           <>
-            <TabBarToggle label="Details" icon={<Info size={15} />} active={detailsOpen} onClick={onOpenDetails} />
             <ProfileSwitcher currentUser={currentUser} onUserChange={onUserChange} lockedBy={lockedOwner ?? undefined} compact />
+            <TabBarToggle label="Details" icon={<Info size={15} />} active={detailsOpen} onClick={onOpenDetails} />
           </>
         }
         scroll={false}
@@ -1263,7 +1287,7 @@ function SplitStageView({
                   className={shellButton("primary")}
                 >
                   <Check size={13} />
-                  Submit {stage.name === "GTAC" ? "decision" : "stage"}
+                  {submitLabel}
                 </button>
               ) : null}
             </span>
@@ -1561,7 +1585,7 @@ function AsideChat({
 
   return (
     <div className="relative flex h-full min-h-0 flex-col bg-transparent">
-      <div ref={scrollRef} className="no-scrollbar min-h-0 flex-1 overflow-y-auto pb-40 pt-2">
+      <div ref={scrollRef} className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-1.5 pb-40 pt-2">
         <div ref={contentRef} className="space-y-4" role="log" aria-live="polite" aria-label={`${stage.name} conversation`}>
           <ChatTimeDivider />
           {/* Summary / recap sits on top; the conversation flows below it. */}
@@ -1699,7 +1723,7 @@ function QuestionCard({
       {/* Built like the composer it replaces — same box, same insets — so the
  guided flow doesn't introduce a second input shape. */}
       <div className="rounded-[14px] border border-[var(--border-default)] bg-[var(--surface)] px-2 pb-1.5 pt-2">
-        <div className="flex items-center gap-0.5 px-1 text-[11px] font-medium tabular-nums text-[var(--text-muted)]">
+        <div className="flex items-center gap-0.5 px-1 font-mono text-[11px] font-medium text-[var(--text-muted)]">
           <button
             type="button"
             onClick={onPrev}
@@ -2003,7 +2027,7 @@ function GuidedQuestions({
 
   return (
     <div className="relative flex h-full min-h-0 flex-col bg-transparent">
-      <div ref={scrollRef} className="no-scrollbar min-h-0 flex-1 overflow-y-auto pb-40 pt-2">
+      <div ref={scrollRef} className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-1.5 pb-40 pt-2">
         <div ref={contentRef} className="space-y-4" role="log" aria-live="polite" aria-label={`${stage.name} conversation`}>
           <ChatTimeDivider />
           {messages.map((message) => (
@@ -2574,7 +2598,7 @@ function ChatPanel({ stage, s }: { stage: StageItem; s: StageFieldsState }) {
 
   return (
     <div className="relative flex h-full min-h-0 flex-col bg-transparent">
-      <div ref={scrollRef} className="no-scrollbar min-h-0 flex-1 overflow-y-auto pb-40 pt-2">
+      <div ref={scrollRef} className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-1.5 pb-40 pt-2">
         <div ref={contentRef} className="space-y-4" role="log" aria-live="polite" aria-label={`${stage.name} conversation`}>
           <ChatTimeDivider />
           {messages.map((message) => (
@@ -2646,6 +2670,9 @@ function StageField({
   onSuggest: () => void;
 }) {
   const text = typeof value === "string" ? value : "";
+  // A multi-select's value can arrive from the chat as one written line
+  // ("Pilot; CSV documentation"), so read it back as its items either way.
+  const selected = Array.isArray(value) ? value : listItems(text);
 
   if (spec.kind === "scale") {
     return <RatingStepper hideHeader label={spec.label} max={spec.max ?? 5} value={text} onChange={onChange} />;
@@ -2656,17 +2683,14 @@ function StageField({
   }
 
   if (spec.kind === "currency") {
-    const match = /^\s*(GBP|USD|EUR|£|\$|€)\s*(.*)$/.exec(text);
-    const symbolToCode: Record<string, string> = { "£": "GBP", $: "USD", "€": "EUR" };
-    const currency = match ? (symbolToCode[match[1]] ?? match[1]) : "GBP";
-    const amount = match ? match[2] : text;
+    const { currency, amount } = splitCurrency(text);
     return (
       <CurrencyField
         hideHeader
         label={spec.label}
         amount={amount}
         currency={currency}
-        currencies={["GBP", "USD", "EUR"]}
+        currencies={CURRENCY_CODES}
         stepBy={10000}
         onAmount={(next) => onChange(`${currency} ${next}`.trim())}
         onCurrency={(next) => onChange(`${next} ${amount}`.trim())}
@@ -2678,27 +2702,62 @@ function StageField({
     return <DateField hideHeader label={spec.label} value={text} onChange={onChange} />;
   }
 
-  // Single-select option fields (dropdowns, toggles, radios) all edit as one
-  // consistent single-line dropdown — no wrapping, matching read-value height.
-  if (spec.kind === "select" || spec.kind === "segmented" || spec.kind === "radio") {
-    return <SearchableSelect hideHeader label={spec.label} options={spec.options ?? []} value={text} onChange={onChange} />;
+  // Choice fields deliberately don't share one control: a two-way choice is a
+  // toggle, a tag-shaped value is a pill row, a short enum a segmented row, a
+  // wordy one a radio list, and a long list a searchable dropdown.
+  if (spec.kind === "toggle") {
+    return <SegmentedToggle hideHeader label={spec.label} options={spec.options ?? []} value={text} onChange={onChange} />;
+  }
+
+  if (spec.kind === "tag") {
+    return <ChipSelect hideHeader label={spec.label} options={spec.options ?? []} value={text} onChange={onChange} />;
+  }
+
+  if (spec.kind === "segmented") {
+    return <Segmented hideHeader label={spec.label} options={spec.options ?? []} value={text} onChange={onChange} />;
+  }
+
+  if (spec.kind === "radio") {
+    return <RadioGroup hideHeader label={spec.label} options={spec.options ?? []} value={text} onChange={onChange} />;
+  }
+
+  if (spec.kind === "select") {
+    return (
+      <div className="max-w-[360px]">
+        <SearchableSelect hideHeader label={spec.label} options={spec.options ?? []} value={text} onChange={onChange} />
+      </div>
+    );
   }
 
   if (spec.kind === "cards") {
     return (
-      <CardMultiSelect hideHeader label={spec.label} options={spec.options ?? []} values={Array.isArray(value) ? value : []} onChange={onChange} />
+      <CardMultiSelect hideHeader label={spec.label} options={spec.options ?? []} values={selected} onChange={onChange} />
     );
   }
 
   if (spec.kind === "chips") {
     return (
-      <ChipMultiSelect hideHeader label={spec.label} options={spec.options ?? []} values={Array.isArray(value) ? value : []} onChange={onChange} />
+      <ChipMultiSelect hideHeader label={spec.label} options={spec.options ?? []} values={selected} onChange={onChange} />
     );
   }
 
   // Free text (short or long) uses the growing editor so nothing truncates and
-  // the box keeps the read view's metrics.
-  return <GrowText value={text} onChange={onChange} onSuggest={onSuggest} label={spec.label} />;
+  // the box keeps the read view's metrics. A short answer gets a short box —
+  // a two-word value in a column-wide field reads as a field that failed to fill.
+  return (
+    <div className={textBoxWidth(spec)}>
+      <GrowText value={text} onChange={onChange} onSuggest={onSuggest} label={spec.label} />
+    </div>
+  );
+}
+
+// How wide a free-text box should be, from the length of the answer it holds.
+function textBoxWidth(spec: FieldSpec) {
+  if (spec.kind === "long") return "w-full";
+  const length = typeof spec.suggestion === "string" ? spec.suggestion.length : 96;
+  if (length <= 24) return "max-w-[300px]";
+  if (length <= 56) return "max-w-[460px]";
+  return "w-full";
 }
 
 // Record free-text editor: grows with its content (never truncates a value to one
@@ -2706,14 +2765,17 @@ function StageField({
 // toggling Edit doesn't move anything on the page.
 function GrowText({ value, onChange, onSuggest, label }: { value: string; onChange: (value: string) => void; onSuggest: () => void; label: string }) {
   return (
-    <div className="relative -mx-3 w-[calc(100%+1.5rem)] min-w-0">
+    <div className="relative w-full min-w-0">
       <textarea
         value={value}
         onChange={(event) => onChange(event.target.value)}
         rows={1}
         aria-label={label}
         // ponytail: field-sizing handles the auto-grow; older browsers scroll instead.
-        className="field-sizing-content w-full resize-none rounded-[8px] border border-[var(--border-default)] bg-white px-3 py-1.5 pr-9 text-[14px] leading-6 text-[var(--text-primary)] outline-none transition focus:border-[var(--border-input)]"
+        // The floor matches one line of text plus the box: `field-sizing: content`
+        // collapses an empty field, and it collapses further once disabled, which
+        // made a blank answer shorter when read than when edited.
+        className="field-sizing-content min-h-[38px] w-full resize-none rounded-[8px] border border-[var(--border-default)] bg-[var(--surface)] px-3 py-1.5 pr-9 text-[15px] leading-[1.6] text-[var(--text-primary)] outline-none transition focus:border-[var(--border-input)]"
       />
       <button
         type="button"

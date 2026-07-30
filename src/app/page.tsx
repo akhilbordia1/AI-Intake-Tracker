@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, CalendarDays, ChevronDown, Columns3, Flag, Search, SlidersHorizontal, Table2 } from "lucide-react";
+import { ArrowRight, CalendarDays, ChevronDown, Columns3, Flag, Inbox, Search, ShieldCheck, SlidersHorizontal, Table2 } from "lucide-react";
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
@@ -10,7 +10,19 @@ import { ChatHistoryButton, useChatSessions, type ChatSession, type ChatTurn } f
 import { JumpToTop } from "@/components/chat/chat-ui";
 import { MiniChatRail } from "@/components/chat/mini-chat-rail";
 import { PersonAvatar, ProfileSwitcher } from "@/components/profile";
-import { IconButton, StageIcon, titleCaseTag } from "@/components/ui/kit";
+import {
+  CHIP,
+  ChipOverflow,
+  IconButton,
+  MenuDivider,
+  MenuItem,
+  MenuLabel,
+  MenuSurface,
+  PHASE_TONES,
+  PhaseIcon,
+  StageIcon,
+  titleCaseTag,
+} from "@/components/ui/kit";
 import { SHORT_STAGE_LABELS, STAGE_GROUPS, STAGES, SUBSTAGE_TO_GROUP } from "@/data/lifecycle";
 import { useClickOutside } from "@/lib/use-click-outside";
 
@@ -460,6 +472,7 @@ export default function HomePage() {
           <JumpToTop visible={railScrolled} onClick={() => railScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" })} />
           <MiniChatRail
             key={history.liveKey}
+            wide={railMode.expanded}
             past={pastSession ? { session: pastSession, onBack: () => history.open(null) } : undefined}
             onTurnsChange={(turns) => {
               liveTurns.current = turns;
@@ -498,22 +511,29 @@ export default function HomePage() {
         controls={
           <>
             <CollapsingSearch value={search} onChange={setSearch} />
-            <FilterMenu
-              activeView={activeView}
-              onViewChange={setActiveView}
-              activeScope={scopeFilter}
-              onScopeChange={setScopeFilter}
-              attentionOnly={attentionOnly}
-              onAttentionChange={setAttentionOnly}
-              attentionCount={attentionCount}
-            />
+            <button
+              type="button"
+              onClick={() => setAttentionOnly(!attentionOnly)}
+              aria-pressed={attentionOnly}
+              className={[
+                "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[8px] border px-2.5 text-[12px] font-medium transition",
+                attentionOnly
+                  ? "border-[var(--accent-border)] bg-[var(--accent-soft)] text-[var(--accent-strong)]"
+                  : "border-[var(--border-default)] bg-[var(--surface)] text-[var(--text-body)] hover:bg-[var(--surface-hover)]",
+              ].join(" ")}
+            >
+              <Inbox size={13} />
+              Needs my attention
+              <span className="font-mono text-[11px]">{attentionCount}</span>
+            </button>
+            <FilterMenu activeView={activeView} onViewChange={setActiveView} activeScope={scopeFilter} onScopeChange={setScopeFilter} />
             <ProfileSwitcher currentUser={activeProfile} onUserChange={setActiveProfile} compact />
           </>
         }
         scroll={false}
         titleMeta={
-          <span className="shrink-0 text-[12px] tabular-nums text-[var(--text-muted)]">
-            {filteredUseCases.length} {filteredUseCases.length === 1 ? "use case" : "use cases"}
+          <span className="shrink-0 font-mono text-[12px] text-[var(--text-muted)]">
+            <span className="font-mono">{filteredUseCases.length}</span> {filteredUseCases.length === 1 ? "use case" : "use cases"}
           </span>
         }
       >
@@ -597,24 +617,18 @@ function FilterMenu({
   onViewChange,
   activeScope,
   onScopeChange,
-  attentionOnly,
-  onAttentionChange,
-  attentionCount,
 }: {
   activeView: ViewKey;
   onViewChange: (view: ViewKey) => void;
   activeScope: ScopeFilter;
   onScopeChange: (scope: ScopeFilter) => void;
-  attentionOnly: boolean;
-  onAttentionChange: (only: boolean) => void;
-  attentionCount: number;
 }) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   useClickOutside(menuRef, () => setOpen(false), open);
 
-  // Anything other than the defaults counts as filtered, so the trigger can say so.
-  const activeCount = (activeScope === "all" ? 0 : 1) + (attentionOnly ? 1 : 0);
+  // Anything other than the default scope counts as filtered.
+  const activeCount = activeScope === "all" ? 0 : 1;
   const groupLabel = viewOptions.find((option) => option.key === activeView)?.label ?? "By stage";
 
   return (
@@ -641,59 +655,36 @@ function FilterMenu({
       </button>
 
       {open ? (
-        <div className="absolute right-0 top-9 z-30 w-[228px] rounded-[10px] border border-[var(--border-default)] bg-[var(--surface)] p-1.5 shadow-[var(--shadow-menu)]">
-          <MenuGroupLabel>Group by</MenuGroupLabel>
+        <MenuSurface className="absolute right-0 top-9 z-30 w-[236px]">
+          <MenuLabel>Group by</MenuLabel>
           {viewOptions.map((option) => (
-            <MenuOption key={option.key} selected={activeView === option.key} onClick={() => onViewChange(option.key)}>
+            <MenuItem key={option.key} selected={activeView === option.key} onClick={() => onViewChange(option.key)}>
               {option.label}
-            </MenuOption>
+            </MenuItem>
           ))}
 
-          <MenuGroupLabel className="mt-1.5">Scope</MenuGroupLabel>
+          <MenuDivider />
+          <MenuLabel>Scope</MenuLabel>
           {scopeOptions.map((option) => (
-            <MenuOption key={option.key} selected={activeScope === option.key} onClick={() => onScopeChange(option.key)}>
+            <MenuItem key={option.key} selected={activeScope === option.key} onClick={() => onScopeChange(option.key)}>
               {option.label}
-            </MenuOption>
+            </MenuItem>
           ))}
-
-          <div className="mt-1.5 border-t border-[var(--border-hairline)] pt-1.5">
-            <MenuOption selected={attentionOnly} onClick={() => onAttentionChange(!attentionOnly)}>
-              <span className="flex w-full items-center justify-between gap-2">
-                Needs my attention
-                <span className="text-[11px] tabular-nums text-[var(--text-muted)]">{attentionCount}</span>
-              </span>
-            </MenuOption>
-          </div>
-        </div>
+        </MenuSurface>
       ) : null}
     </div>
   );
 }
 
-function MenuGroupLabel({ className, children }: { className?: string; children: ReactNode }) {
-  return (
-    <div className={["px-2 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--text-muted)]", className ?? ""].join(" ")}>
-      {children}
-    </div>
-  );
-}
-
-function MenuOption({ selected, onClick, children }: { selected: boolean; onClick: () => void; children: ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={[
-        "flex h-8 w-full items-center rounded-[6px] px-2 text-left text-[12px] font-medium transition",
-        selected
-          ? "bg-[var(--surface-hover)] text-[var(--accent-strong)]"
-          : "text-[var(--text-body)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]",
-      ].join(" ")}
-    >
-      {children}
-    </button>
-  );
-}
+const TABLE_COLS = (
+  <colgroup>
+    <col className="w-[36%]" />
+    <col className="w-[13%]" />
+    <col className="w-[16%]" />
+    <col className="w-[23%]" />
+    <col className="w-[12%]" />
+  </colgroup>
+);
 
 function UseCaseTableView({ columns, totalRows }: { columns: BoardColumn[]; totalRows: number }) {
   const visibleColumns = columns.filter((column) => column.cards.length > 0);
@@ -707,46 +698,51 @@ function UseCaseTableView({ columns, totalRows }: { columns: BoardColumn[]; tota
   }
 
   return (
-    // One table for the whole list: a sticky head, and each group announced by a
-    // row rather than wrapped in its own card.
     <section className="no-scrollbar min-h-0 flex-1 overflow-auto">
-      <table className="w-full min-w-[980px] table-fixed border-collapse">
-        <colgroup>
-          <col className="w-[9%]" />
-          <col className="w-[30%]" />
-          <col className="w-[12%]" />
-          <col className="w-[15%]" />
-          <col className="w-[17%]" />
-          <col className="w-[8%]" />
-          <col className="w-[9%]" />
-        </colgroup>
-        <thead className="sticky top-0 z-10 bg-[var(--surface-muted)]">
-          <tr className="border-b border-[var(--border-default)] text-left">
-            <TableHeader>ID</TableHeader>
-            <TableHeader>Use case</TableHeader>
-            <TableHeader>Stage</TableHeader>
-            <TableHeader>Owner</TableHeader>
-            <TableHeader>Status</TableHeader>
-            <TableHeader align="right">Priority</TableHeader>
-            <TableHeader align="right">Due</TableHeader>
-          </tr>
-        </thead>
-        {visibleColumns.map((column) => (
-          <tbody key={column.title}>
-            <tr>
-              <th scope="colgroup" colSpan={7} className="border-y border-[var(--border-hairline)] bg-[var(--surface)] px-6 py-2.5 text-left">
-                <span className="flex items-baseline gap-2">
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--text-label)]">{column.title}</span>
-                  <span className="text-[11px] tabular-nums text-[var(--text-muted)]">{column.cards.length}</span>
-                </span>
-              </th>
+      <div className="min-w-[880px] pb-4">
+        <table className="w-full table-fixed border-collapse">
+          {TABLE_COLS}
+          <thead className="sticky top-0 z-10 bg-[var(--surface)]">
+            <tr className="border-b border-[var(--border-default)] text-left">
+              <TableHeader>Use case</TableHeader>
+              <TableHeader>Stage</TableHeader>
+              <TableHeader>Owner</TableHeader>
+              <TableHeader>Status</TableHeader>
+              <TableHeader align="right">Due</TableHeader>
             </tr>
-            {column.cards.map((row) => (
-              <UseCaseTableRow key={row.id} row={row} />
-            ))}
-          </tbody>
-        ))}
-      </table>
+          </thead>
+
+          {visibleColumns.map((column) => {
+            const tone = PHASE_TONES[column.title] ?? "neutral";
+            const members = STAGE_GROUPS[column.title];
+            return (
+              <tbody key={column.title}>
+                <tr>
+                  <th scope="colgroup" colSpan={5} className="px-4 pb-2 pt-5 text-left">
+                    {/* Neutral band, coloured glyph: the phase reads from the icon
+                        rather than a wash of tint behind everything. */}
+                    <span className="flex min-h-[38px] items-center gap-2 rounded-[8px] border border-[var(--border-hairline)] bg-[var(--surface-muted)] px-3.5 py-2.5">
+                      <PhaseIcon phase={column.title} size={14} className="shrink-0" style={{ color: `var(--tone-${tone}-fg)` }} />
+                      <span className="text-[13px] font-semibold text-[var(--text-primary)]">{column.title}</span>
+                      <span className="font-mono rounded-[5px] bg-[var(--surface-strong)] px-1.5 text-[11px] font-medium text-[var(--text-label)]">
+                        {column.cards.length}
+                      </span>
+                      {members && members.length > 1 ? (
+                        <span data-tip={`Includes ${members.join(" → ")}`} className="ml-auto text-[11px] font-normal text-[var(--text-muted)]">
+                          {members.length} stages
+                        </span>
+                      ) : null}
+                    </span>
+                  </th>
+                </tr>
+                {column.cards.map((row) => (
+                  <UseCaseTableRow key={row.id} row={row} />
+                ))}
+              </tbody>
+            );
+          })}
+        </table>
+      </div>
     </section>
   );
 }
@@ -759,36 +755,38 @@ const dueDate = (due: string) => DATE_IN_DUE.exec(due)?.[1] ?? null;
 
 function UseCaseTableRow({ row }: { row: UseCaseCard }) {
   const lifecycleTag = LIFECYCLE_TAG[row.lifecycle];
+  const priority = row.orgPriority ?? row.priority;
   const due = dueDate(row.due);
 
   return (
-    <tr className="group h-[64px] border-b border-[var(--border-hairline)] transition last:border-b-0 hover:bg-[var(--surface-hover)]">
-      <td className="px-6 align-middle">
-        <Link href={row.href} className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
-          {row.id}
-        </Link>
-      </td>
-      <td className="min-w-0 px-4 align-middle">
+    <tr className="group h-[60px] border-b border-[var(--border-hairline)] transition last:border-b-0 hover:bg-[var(--surface-hover)]">
+      {/* The id rides above the title rather than owning a column of its own. */}
+      <td className="min-w-0 px-3 align-middle first:pl-4">
         <Link href={row.href} className="block min-w-0">
-          <span className="block truncate text-[13px] font-semibold leading-5 text-[var(--text-primary)] transition group-hover:text-[var(--accent-strong)]">
-            {row.title}
+          <span className="flex min-w-0 items-baseline gap-2">
+            <span className="font-mono shrink-0 text-[11px] font-medium text-[var(--text-muted)]">{row.id}</span>
+            <span className="min-w-0 truncate text-[13px] font-semibold text-[var(--text-primary)] transition group-hover:text-[var(--accent-strong)]">
+              {row.title}
+            </span>
           </span>
-          <span className="block truncate text-[12px] leading-4 text-[var(--text-muted)]">{row.description}</span>
+          <span className="mt-0.5 block truncate text-[12px] leading-4 text-[var(--text-muted)]">{row.description}</span>
         </Link>
       </td>
-      <td className="px-4 align-middle">
-        {/* One line — the group row above already names the phase. */}
-        <span data-tip={row.substage} className="block truncate text-[13px] text-[var(--text-body)]">
+
+      <td className="px-3 align-middle">
+        {/* One line — the phase band above already names the group. */}
+        <span data-tip={`Stage — ${row.substage}`} className="block truncate text-[13px] text-[var(--text-body)]">
           {shortStageLabel(row.substage)}
         </span>
       </td>
-      <td className="px-4 align-middle">
+
+      <td className="px-3 align-middle">
         <span className="flex min-w-0 items-center gap-1.5">
           <span className="flex shrink-0 items-center">
-            <PersonAvatar name={row.owner} size={18} />
+            <PersonAvatar name={row.owner} size={20} />
             {row.coOwner ? (
               <span className="-ml-1.5 rounded-full ring-2 ring-[var(--surface)]">
-                <PersonAvatar name={row.coOwner} size={18} />
+                <PersonAvatar name={row.coOwner} size={20} />
               </span>
             ) : null}
           </span>
@@ -800,30 +798,70 @@ function UseCaseTableRow({ row }: { row: UseCaseCard }) {
           </span>
         </span>
       </td>
-      <td className="px-4 align-middle">
-        <span className="flex min-w-0 items-center gap-1.5">
-          {lifecycleTag ? (
-            <span className={["shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold", lifecycleTag].join(" ")}>
-              {titleCaseTag(row.lifecycle)}
-            </span>
-          ) : null}
-          {row.gate ? <GateChip gate={row.gate} /> : null}
-          {row.needsAttention ? (
-            <span
-              data-tip={getAttentionMessage(row)}
-              className="min-w-0 shrink truncate rounded-full bg-[var(--surface-hover)] px-2 py-0.5 text-[11px] font-semibold text-[var(--accent-strong)]"
-            >
-              {getAttentionMessage(row)}
-            </span>
-          ) : null}
-          {!lifecycleTag && !row.gate && !row.needsAttention ? <span className="text-[13px] text-[var(--text-muted)]">—</span> : null}
-        </span>
+
+      {/* Status carries priority too. Anything past the second chip collapses into
+          a +n, so a busy row stays one line. */}
+      <td className="px-3 align-middle">
+        <ChipOverflow
+          max={2}
+          items={[
+            ...(priority
+              ? [
+                  {
+                    key: "priority",
+                    label: `Priority — ${priority.toLowerCase()}`,
+                    node: (
+                      <span data-tip={`Priority — ${priority.toLowerCase()}`} className={[CHIP, PRIORITY_CHIP[priority]].join(" ")}>
+                        <Flag size={11} />
+                        {priority}
+                      </span>
+                    ),
+                  },
+                ]
+              : []),
+            ...(row.gate
+              ? [
+                  {
+                    key: "gate",
+                    label: `Gate ${row.gate.id} — ${row.gate.status.toLowerCase()}`,
+                    node: <GateChip gate={row.gate} />,
+                  },
+                ]
+              : []),
+            ...(lifecycleTag
+              ? [
+                  {
+                    key: "lifecycle",
+                    label: `Lifecycle — ${row.lifecycle.toLowerCase()}`,
+                    node: (
+                      <span data-tip={`Lifecycle — ${row.lifecycle.toLowerCase()}`} className={[CHIP, lifecycleTag].join(" ")}>
+                        {titleCaseTag(row.lifecycle)}
+                      </span>
+                    ),
+                  },
+                ]
+              : []),
+            ...(row.needsAttention
+              ? [
+                  {
+                    key: "attention",
+                    label: getAttentionMessage(row),
+                    node: (
+                      <span data-tip={getAttentionMessage(row)} className={[CHIP, "bg-[var(--accent-soft)] text-[var(--accent-strong)]"].join(" ")}>
+                        <ArrowRight size={11} />
+                        Action needed
+                      </span>
+                    ),
+                  },
+                ]
+              : []),
+          ]}
+        />
+        {!priority && !lifecycleTag && !row.gate && !row.needsAttention ? <span className="text-[13px] text-[var(--text-muted)]">—</span> : null}
       </td>
-      <td className="px-4 text-right align-middle">
-        <PriorityCell card={row} />
-      </td>
-      <td className="px-6 text-right align-middle">
-        <span className="text-[13px] tabular-nums text-[var(--text-body)]">{due ?? "—"}</span>
+
+      <td className="px-3 pr-4 text-right align-middle">
+        <span className="font-mono text-[12px] text-[var(--text-body)]">{due ?? "—"}</span>
       </td>
     </tr>
   );
@@ -833,7 +871,7 @@ function TableHeader({ children, align = "left" }: { children: ReactNode; align?
   return (
     <th
       className={[
-        "h-11 px-4 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-label)] first:pl-6 last:pr-6",
+        "h-9 px-3 text-[11px] font-medium text-[var(--text-muted)] first:pl-4 last:pr-4",
         align === "right" ? "text-right" : "text-left",
       ].join(" ")}
     >
@@ -842,41 +880,6 @@ function TableHeader({ children, align = "left" }: { children: ReactNode; align?
   );
 }
 
-// The flag on a card takes the priority's colour; the dot version is still used
-// in the table, where the column header supplies the label.
-const PRIORITY_ICON: Record<Priority, string> = {
-  High: "text-[var(--status-danger)]",
-  Medium: "text-[var(--tone-warning-fg)]",
-  Low: "text-[var(--status-success)]",
-};
-
-const PRIORITY_DOT: Record<Priority, string> = {
-  High: "bg-[var(--status-danger)]",
-  Medium: "bg-[var(--tone-warning-fg)]",
-  Low: "bg-[var(--status-success)]",
-};
-
-function PriorityCell({ card }: { card: UseCaseCard }) {
-  const effective = card.orgPriority ?? card.priority;
-  if (!effective) {
-    return <span className="text-[13px] leading-5 text-[var(--text-muted)]">Not set</span>;
-  }
-  const showFunctional = card.orgPriority && card.priority && card.orgPriority !== card.priority;
-
-  return (
-    <span className="min-w-0">
-      <span className="flex items-center justify-end gap-1.5 text-[13px] leading-5 text-[var(--text-body)]">
-        <span className={["h-1.5 w-1.5 shrink-0 rounded-full", PRIORITY_DOT[effective]].join(" ")} />
-        {effective}
-      </span>
-      {showFunctional ? <span className="mt-0.5 block truncate text-[11px] text-[var(--text-muted)]">fn {card.priority}</span> : null}
-    </span>
-  );
-}
-
-// Instant, styled hover tooltip listing the detail stages inside a phase.
-// Rendered in a portal with fixed position so it never sits behind other
-// columns / cards (which each create their own stacking context).
 function PhaseStagesHint({ members }: { members: string[] }) {
   const ref = useRef<HTMLSpanElement>(null);
   const [coords, setCoords] = useState<{ x: number; y: number; w: number } | null>(null);
@@ -922,7 +925,7 @@ function PhaseStagesHint({ members }: { members: string[] }) {
                         <span className="text-[13px] font-semibold leading-4 text-[var(--text-primary)]">{member}</span>
                         {owner ? (
                           <span className="flex shrink-0 items-center gap-1.5">
-                            <PersonAvatar name={owner} size={18} />
+                            <PersonAvatar name={owner} size={20} />
                             <span className="text-[11px] font-medium text-[var(--text-body)]">{owner}</span>
                           </span>
                         ) : null}
@@ -952,7 +955,7 @@ function KanbanColumn({ column }: { column: BoardColumn }) {
             <h2 className="text-[15px] font-medium text-[var(--text-primary)]">{column.title}</h2>
             {members && members.length > 1 ? <PhaseStagesHint members={members} /> : null}
           </div>
-          <span className="grid h-[20px] min-w-[20px] place-items-center rounded-full bg-[var(--surface-strong)] px-1.5 text-[11px] font-semibold tabular-nums text-[var(--text-label)]">
+          <span className="grid h-[20px] min-w-[20px] place-items-center rounded-full bg-[var(--surface-strong)] px-1.5 font-mono text-[11px] font-medium text-[var(--text-label)]">
             {column.cards.length}
           </span>
         </div>
@@ -971,20 +974,6 @@ function KanbanColumn({ column }: { column: BoardColumn }) {
       <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-b from-transparent to-[var(--surface)]" />
     </section>
   );
-}
-
-// Very light colour coding on the board: a card's header band and a 3px left edge
-// take the tone of its state, so a column reads at a glance — red is stuck, amber
-// is waiting on a decision, green is live, accent is yours to act on. Everything
-// else stays neutral, so the colour marks exceptions rather than decorating rows.
-type CardTone = "danger" | "warning" | "success" | "info" | "neutral";
-
-function cardTone(card: UseCaseCard): CardTone {
-  if (card.lifecycle === "Rejected" || card.gate?.status === "Rejected" || card.gate?.status === "Blocked") return "danger";
-  if (card.lifecycle === "On hold" || card.gate?.status === "In review") return "warning";
-  if (card.lifecycle === "Live") return "success";
-  if (card.needsAttention) return "info";
-  return "neutral";
 }
 
 // Passed = green, in-review = amber, blocked/rejected = red, pending = neutral.
@@ -1006,10 +995,25 @@ const LIFECYCLE_TAG: Record<Lifecycle, string | null> = {
 
 function GateChip({ gate }: { gate: { id: string; status: GateStatus } }) {
   return (
-    <span
-      className={["inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", GATE_BADGE[gate.status]].join(" ")}
-    >
-      {gate.id} · {titleCaseTag(gate.status)}
+    <span data-tip={`Gate ${gate.id} — ${gate.status.toLowerCase()}`} className={[CHIP, GATE_BADGE[gate.status]].join(" ")}>
+      <ShieldCheck size={11} />
+      <span className="font-mono">{gate.id}</span> · {titleCaseTag(gate.status)}
+    </span>
+  );
+}
+
+// Priority as a tinted chip, the way the references carry it — the colour does the
+// work, so the word can stay small.
+const PRIORITY_CHIP: Record<Priority, string> = {
+  High: "bg-[var(--tone-danger-bg)] text-[var(--tone-danger-fg)]",
+  Medium: "bg-[var(--tone-warning-bg)] text-[var(--tone-warning-fg)]",
+  Low: "bg-[var(--tone-success-bg)] text-[var(--tone-success-fg)]",
+};
+
+function CardChip({ tip, className, children }: { tip?: string; className?: string; children: ReactNode }) {
+  return (
+    <span data-tip={tip} className={[CHIP, className ?? ""].join(" ")}>
+      {children}
     </span>
   );
 }
@@ -1018,98 +1022,131 @@ function UseCaseBoardCard({ card }: { card: UseCaseCard }) {
   const lifecycleTag = LIFECYCLE_TAG[card.lifecycle];
   const priority = card.orgPriority ?? card.priority;
   const due = dueDate(card.due);
-  const tone = cardTone(card);
-  const toned = tone !== "neutral";
 
   return (
+    // Title first, then what it is, then what it's tagged with, then the record's
+    // own line: id and date on the left, the people on the right.
     <Link
       href={card.href}
-      className="group block shrink-0 overflow-hidden rounded-[10px] border border-[var(--border-default)] bg-[var(--surface)] transition hover:border-[var(--border-input)]"
+      className="group block shrink-0 rounded-[10px] border border-[var(--border-default)] bg-[var(--surface)] transition hover:border-[var(--border-input)] hover:bg-[var(--surface-muted)]"
     >
-      {/* Header band: the record's id and the tags that qualify it, on its own
-          ground — the same treatment as the panel and table-group headers. */}
-      <div
-        style={toned ? { background: `var(--tone-${tone}-bg)`, borderColor: `var(--tone-${tone}-border)` } : undefined}
-        className="flex min-h-[34px] items-center gap-2 border-b border-[var(--border-hairline)] bg-[var(--surface-strong)] px-4 py-1.5"
-      >
+      <div className="px-3.5 pb-3 pt-3">
+        <div className="flex min-w-0 items-start gap-2">
+          <StageIcon stage={card.substage} size={14} className="mt-[3px] shrink-0 text-[var(--text-muted)]" />
+          <h3 className="min-w-0 flex-1 text-[14px] font-semibold leading-[1.4] text-[var(--text-primary)] transition group-hover:text-[var(--accent-strong)]">
+            {card.title}
+          </h3>
+        </div>
+
+        <p className="mt-1.5 line-clamp-2 text-[12px] leading-[1.5] text-[var(--text-body)]">{card.description}</p>
+
+        {/* Chips stay on one line: past the third, the rest collapse into a +n whose
+            tooltip lists them. */}
+        <div className="mt-2.5 min-w-0">
+          <ChipOverflow
+            max={3}
+            items={[
+              {
+                key: "stage",
+                label: `Stage — ${card.substage}`,
+                node: (
+                  <CardChip tip={`Stage — ${card.substage}`} className="bg-[var(--surface-strong)] text-[var(--text-body)]">
+                    {shortStageLabel(card.substage)}
+                  </CardChip>
+                ),
+              },
+              ...(priority
+                ? [
+                    {
+                      key: "priority",
+                      label: `Priority — ${priority.toLowerCase()}`,
+                      node: (
+                        <CardChip
+                          tip={
+                            card.orgPriority && card.priority !== card.orgPriority
+                              ? `Priority — portfolio ${card.orgPriority}, functional ${card.priority}`
+                              : `Priority — ${priority.toLowerCase()}`
+                          }
+                          className={PRIORITY_CHIP[priority]}
+                        >
+                          {priority}
+                        </CardChip>
+                      ),
+                    },
+                  ]
+                : []),
+              ...(card.gate
+                ? [
+                    {
+                      key: "gate",
+                      label: `Gate ${card.gate.id} — ${card.gate.status.toLowerCase()}`,
+                      node: (
+                        <CardChip
+                          tip={`Assessment gate ${card.gate.id} — ${card.gate.status.toLowerCase()}`}
+                          className={GATE_BADGE[card.gate.status]}
+                        >
+                          <span className="font-mono">{card.gate.id}</span> · {titleCaseTag(card.gate.status)}
+                        </CardChip>
+                      ),
+                    },
+                  ]
+                : []),
+              ...(lifecycleTag
+                ? [
+                    {
+                      key: "lifecycle",
+                      label: `Lifecycle — ${card.lifecycle.toLowerCase()}`,
+                      node: (
+                        <CardChip tip={`Lifecycle — ${card.lifecycle.toLowerCase()}`} className={lifecycleTag}>
+                          {titleCaseTag(card.lifecycle)}
+                        </CardChip>
+                      ),
+                    },
+                  ]
+                : []),
+            ]}
+          />
+        </div>
+
+        {/* The action is not a tag: it takes the card's width with the arrow on the
+            far side, so it reads as the thing to do rather than another label. */}
+        {card.needsAttention ? (
+          <span className="mt-3 flex w-full items-center gap-2 rounded-[8px] bg-[var(--accent-soft)] px-2.5 py-1.5 text-[12px] font-medium text-[var(--accent-strong)]">
+            <span className="min-w-0 flex-1 truncate">{getAttentionMessage(card)}</span>
+            <ArrowRight size={13} className="shrink-0" />
+          </span>
+        ) : null}
+      </div>
+
+      <div className="flex min-w-0 items-center gap-2 border-t border-[var(--border-hairline)] px-3.5 py-2 text-[11px] text-[var(--text-muted)]">
+        <span className="font-mono shrink-0 text-[11px] font-medium">{card.id}</span>
+        {due ? (
+          <>
+            <span aria-hidden className="h-2.5 w-px shrink-0 bg-[var(--border-default)]" />
+            <span className="font-mono inline-flex shrink-0 items-center gap-1">
+              <CalendarDays size={11} />
+              {due}
+            </span>
+          </>
+        ) : null}
+        {card.pendingFor ? (
+          <>
+            <span aria-hidden className="h-2.5 w-px shrink-0 bg-[var(--border-default)]" />
+            <span className="shrink-0">Waiting {card.pendingFor}</span>
+          </>
+        ) : null}
         <span
-          style={toned ? { color: `var(--tone-${tone}-fg)` } : undefined}
-          className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-label)]"
+          data-tip={card.coOwner ? `${formatStageOwner(card)} and ${card.coOwner}` : formatStageOwner(card)}
+          className="ml-auto flex shrink-0 items-center"
         >
-          {card.id}
-        </span>
-        <span className="ml-auto flex shrink-0 items-center gap-1.5">
-          {lifecycleTag ? (
-            <span className={["rounded-full px-2 py-0.5 text-[11px] font-semibold", lifecycleTag].join(" ")}>{titleCaseTag(card.lifecycle)}</span>
+          <PersonAvatar name={card.owner} size={20} />
+          {card.coOwner ? (
+            <span className="-ml-2 rounded-full ring-2 ring-[var(--surface)]">
+              <PersonAvatar name={card.coOwner} size={20} />
+            </span>
           ) : null}
-          {card.gate ? <GateChip gate={card.gate} /> : null}
         </span>
       </div>
-
-      <div className="px-4 pb-3.5 pt-3">
-        <h3 className="text-[14px] font-semibold leading-[1.4] text-[var(--text-primary)] transition group-hover:text-[var(--accent-strong)]">
-          {card.title}
-        </h3>
-        <p className="mt-1 line-clamp-2 text-[12px] leading-[1.5] text-[var(--text-body)]">{card.description}</p>
-
-        {/* Each value carries an icon, so it says what it is without a caption and
-            without waiting for a tooltip: who owns it, when it's due, where it is
-            in the lifecycle, how urgent it is. */}
-        <div className="mt-3.5 space-y-1.5 text-[12px]">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="flex shrink-0 items-center">
-              <PersonAvatar name={card.owner} size={18} />
-              {card.coOwner ? (
-                <span className="-ml-1.5 rounded-full ring-2 ring-[var(--surface)]">
-                  <PersonAvatar name={card.coOwner} size={18} />
-                </span>
-              ) : null}
-            </span>
-            <span
-              data-tip={card.coOwner ? `Owners — ${formatStageOwner(card)} and ${card.coOwner}` : `Owner — ${formatStageOwner(card)}`}
-              className="min-w-0 truncate text-[var(--text-body)]"
-            >
-              {card.coOwner ? `${formatStageOwner(card)} +1` : formatStageOwner(card)}
-            </span>
-            {due ? (
-              <span data-tip={`Due ${due}`} className="ml-auto flex shrink-0 items-center gap-1.5 tabular-nums text-[var(--text-body)]">
-                <CalendarDays size={12} className="text-[var(--text-muted)]" />
-                {due}
-              </span>
-            ) : null}
-          </div>
-
-          <div className="flex min-w-0 items-center gap-2 text-[var(--text-body)]">
-            <span data-tip={`Stage — ${card.substage}`} className="flex min-w-0 items-center gap-1.5">
-              <StageIcon stage={card.substage} size={12} className="shrink-0 text-[var(--text-muted)]" />
-              <span className="min-w-0 truncate">{shortStageLabel(card.substage)}</span>
-            </span>
-            <span
-              data-tip={
-                priority
-                  ? card.orgPriority && card.priority !== card.orgPriority
-                    ? `Priority — portfolio ${card.orgPriority}, functional ${card.priority}`
-                    : `Priority — ${priority.toLowerCase()}`
-                  : "Not prioritised yet"
-              }
-              className="ml-auto flex shrink-0 items-center gap-1.5"
-            >
-              <Flag size={12} className={priority ? PRIORITY_ICON[priority] : "text-[var(--text-muted)]"} />
-              {priority ?? "None"}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* What this card wants from you, inside its border rather than hanging off
-          the bottom of it. */}
-      {card.needsAttention ? (
-        <div className="flex items-center gap-1.5 border-t border-[var(--border-hairline)] bg-[var(--surface-muted)] px-4 py-2 text-[12px] font-medium text-[var(--text-primary)] transition group-hover:bg-[var(--surface-hover)]">
-          <ArrowRight size={12} className="shrink-0 text-[var(--accent)]" />
-          <span className="min-w-0 truncate">{getAttentionMessage(card)}</span>
-          {card.pendingFor ? <span className="ml-auto shrink-0 text-[11px] text-[var(--text-muted)]">{card.pendingFor}</span> : null}
-        </div>
-      ) : null}
     </Link>
   );
 }

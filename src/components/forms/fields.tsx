@@ -13,7 +13,7 @@ import { useClickOutside } from "@/lib/use-click-outside";
 
 const FOCUS_RING = "focus:border-[var(--border-input)] focus:ring-2 focus:ring-[var(--accent-soft)]";
 const BASE_INPUT = cn(
-  "h-9 w-full rounded-[8px] border bg-white px-3 text-[14px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)]",
+  "h-9 w-full rounded-[8px] border bg-white px-3 text-[15px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)]",
   FOCUS_RING,
 );
 
@@ -143,7 +143,7 @@ export function SmartTextarea({
           maxLength={maxLength}
           aria-invalid={Boolean(error)}
           className={cn(
-            "w-full resize-none rounded-[8px] border bg-white py-2.5 pl-3 text-[14px] leading-6 text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)]",
+            "w-full resize-none rounded-[8px] border bg-white py-2.5 pl-3 text-[15px] leading-[1.6] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)]",
             FOCUS_RING,
             borderClass(error),
             onSuggest ? "pr-10" : "pr-3",
@@ -153,7 +153,7 @@ export function SmartTextarea({
       </div>
       <div className="mt-1 flex items-start justify-between gap-3">
         <FieldError error={error} />
-        <span className="ml-auto shrink-0 text-[11px] tabular-nums text-[var(--text-muted)]">
+        <span className="ml-auto shrink-0 font-mono text-[11px] text-[var(--text-muted)]">
           {value.length}
           {maxLength ? ` / ${maxLength}` : ""}
         </span>
@@ -280,7 +280,7 @@ export function Segmented({
               aria-pressed={selected}
               onClick={() => onChange(option)}
               className={cn(
-                "h-9 rounded-[8px] border px-3 text-[14px] font-normal transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-soft)]",
+                "h-9 rounded-[8px] border px-3 text-[15px] font-normal transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-soft)]",
                 selected
                   ? "border-[var(--accent)] bg-white text-[var(--accent-strong)] shadow-[inset_0_0_0_1px_var(--accent)]"
                   : "border-[var(--border-default)] bg-white text-[var(--text-primary)] hover:border-[var(--accent-border)] hover:bg-[var(--surface-hover)]",
@@ -330,7 +330,7 @@ export function SegmentedToggle({
               aria-checked={selected}
               onClick={() => onChange(option)}
               className={cn(
-                "rounded-[6px] px-3 py-1.5 text-[14px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-soft)]",
+                "rounded-[6px] px-3 py-1.5 text-[15px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-soft)]",
                 selected
                   ? "bg-white text-[var(--text-primary)] shadow-[0_1px_2px_rgba(12,10,9,0.12)]"
                   : "text-[var(--text-label)] hover:text-[var(--text-primary)]",
@@ -379,7 +379,57 @@ export function ChipMultiSelect({
               aria-pressed={selected}
               onClick={() => toggle(option)}
               className={cn(
-                "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[12px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-soft)]",
+                "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[13px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-soft)]",
+                selected
+                  ? "border-[var(--accent)] bg-[var(--accent)] text-white"
+                  : "border-[var(--border-default)] bg-white text-[var(--text-body)] hover:border-[var(--accent-border)] hover:bg-[var(--surface-hover)]",
+              )}
+            >
+              {selected ? <Check size={13} /> : null}
+              {option}
+            </button>
+          );
+        })}
+      </div>
+      <FieldError error={error} />
+    </div>
+  );
+}
+
+// ── Tag select (single-select pills) ───────────────────────────────────────
+// The same pill row as the multi-select, but only one can be on — for fields
+// whose value reads as a tag in the record (a status, a tier, a verdict), so
+// the control and the read view are the same shape.
+
+export function ChipSelect({
+  value,
+  options,
+  onChange,
+  label,
+  required,
+  hint,
+  error,
+  hideHeader,
+}: FieldChrome & {
+  value: string;
+  options: string[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="min-w-0">
+      {hideHeader ? null : <FieldHeader label={label} required={required} hint={hint} />}
+      <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={label}>
+        {options.map((option) => {
+          const selected = value === option;
+          return (
+            <button
+              key={option}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              onClick={() => onChange(option)}
+              className={cn(
+                "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[13px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-soft)]",
                 selected
                   ? "border-[var(--accent)] bg-[var(--accent)] text-white"
                   : "border-[var(--border-default)] bg-white text-[var(--text-body)] hover:border-[var(--accent-border)] hover:bg-[var(--surface-hover)]",
@@ -410,6 +460,102 @@ function stepAmount(amount: string, delta: number): string {
   const scaled = next / mult;
   const out = Number.isInteger(scaled) ? String(scaled) : scaled.toFixed(2).replace(/\.?0+$/, "");
   return `${out}${unit ?? ""}${rest}`;
+}
+
+// The currency sits inside the field, and picking it uses the product's own menu —
+// a native <select> renders the operating system's picker, which looks like it
+// belongs to another application.
+function CurrencyPicker({ currency, currencies, onCurrency }: { currency: string; currencies: string[]; onCurrency: (value: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null);
+
+  // The menu is portalled, so it isn't inside the wrapper — dismissal has to know
+  // about both, or picking an option would close the menu before the click landed.
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(event: PointerEvent) {
+      const target = event.target as Node;
+      if (wrapRef.current?.contains(target) || popRef.current?.contains(target)) return;
+      setOpen(false);
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  // Portalled and positioned from the trigger's box: the form scrolls inside a
+  // panel that clips its overflow, so an absolute menu loses its lower half.
+  useEffect(() => {
+    if (!open || !triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const width = 104;
+    const height = currencies.length * 32 + 8;
+    const left = Math.min(rect.left, window.innerWidth - width - 8);
+    const below = rect.bottom + 4;
+    setCoords({ top: below + height > window.innerHeight - 8 ? Math.max(8, rect.top - height - 4) : below, left: Math.max(8, left) });
+  }, [open, currencies.length]);
+
+  return (
+    <div ref={wrapRef} className="relative shrink-0 rounded-l-[7px] border-r border-[var(--border-default)] bg-[var(--shell-canvas)]">
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label="Currency"
+        className="flex h-full items-center gap-1.5 rounded-l-[7px] pl-3 pr-2.5 text-[12px] font-medium text-[var(--text-label)] outline-none transition hover:text-[var(--text-primary)] focus-visible:ring-2 focus-visible:ring-[var(--accent-soft)]"
+      >
+        {currency}
+        <ChevronDown size={13} className={cn("text-[var(--text-muted)] transition", open && "rotate-180")} />
+      </button>
+
+      {open && coords && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              ref={popRef}
+              role="listbox"
+              aria-label="Currency"
+              style={{ position: "fixed", top: coords.top, left: coords.left }}
+              className="z-[60] w-[104px] rounded-[8px] border border-[var(--border-default)] bg-[var(--surface)] p-1 shadow-[var(--shadow-menu)]"
+            >
+              {currencies.map((code) => {
+                const selected = code === currency;
+                return (
+                  <button
+                    key={code}
+                    type="button"
+                    role="option"
+                    aria-selected={selected}
+                    onClick={() => {
+                      onCurrency(code);
+                      setOpen(false);
+                    }}
+                    className={cn(
+                      "flex h-8 w-full items-center justify-between gap-2 rounded-[6px] px-2.5 text-left text-[13px] font-medium transition",
+                      selected ? "bg-[var(--surface-strong)] text-[var(--text-primary)]" : "text-[var(--text-body)] hover:bg-[var(--surface-hover)]",
+                    )}
+                  >
+                    {code}
+                    {selected ? <Check size={13} className="text-[var(--accent)]" /> : null}
+                  </button>
+                );
+              })}
+            </div>,
+            document.body,
+          )
+        : null}
+    </div>
+  );
 }
 
 export function CurrencyField({
@@ -443,31 +589,17 @@ export function CurrencyField({
       {hideHeader ? null : <FieldHeader label={label} required={required} hint={hint} />}
       <div
         className={cn(
-          "flex h-9 max-w-[360px] items-stretch overflow-hidden rounded-[8px] border bg-white transition focus-within:border-[var(--border-input)] focus-within:ring-2 focus-within:ring-[var(--accent-soft)]",
+          "flex h-9 max-w-[360px] items-stretch rounded-[8px] border bg-white transition focus-within:border-[var(--border-input)] focus-within:ring-2 focus-within:ring-[var(--accent-soft)]",
           borderClass(error),
         )}
       >
-        <div className="relative shrink-0 border-r border-[var(--border-default)] bg-[var(--shell-canvas)]">
-          <select
-            value={currency}
-            onChange={(event) => onCurrency(event.target.value)}
-            aria-label="Currency"
-            className="h-full appearance-none bg-transparent pl-3 pr-8 text-[12px] font-medium text-[var(--text-label)] outline-none"
-          >
-            {currencies.map((code) => (
-              <option key={code} value={code}>
-                {code}
-              </option>
-            ))}
-          </select>
-          <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-        </div>
+        <CurrencyPicker currency={currency} currencies={currencies} onCurrency={onCurrency} />
         <input
           inputMode="decimal"
           value={amount}
           onChange={(event) => onAmount(event.target.value)}
           placeholder={placeholder}
-          className="h-full min-w-0 flex-1 bg-transparent px-3 text-[14px] tabular-nums text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
+          className="h-full min-w-0 flex-1 bg-transparent px-3 font-mono text-[14px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
         />
         {suffix ? <span className="flex h-full shrink-0 items-center pr-3 text-[12px] text-[var(--text-muted)]">{suffix}</span> : null}
         {stepBy ? (
@@ -477,7 +609,7 @@ export function CurrencyField({
               aria-label={`Decrease by ${stepBy.toLocaleString()}`}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => onAmount(stepAmount(amount, -stepBy))}
-              className="flex items-center gap-0.5 border-l border-[var(--border-default)] px-2 text-[11px] font-semibold tabular-nums text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
+              className="flex items-center gap-0.5 border-l border-[var(--border-default)] px-2 font-mono text-[11px] font-medium text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
             >
               <Minus size={11} />
               {stepLabel}
@@ -487,7 +619,7 @@ export function CurrencyField({
               aria-label={`Increase by ${stepBy.toLocaleString()}`}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => onAmount(stepAmount(amount, stepBy))}
-              className="flex items-center gap-0.5 border-l border-[var(--border-default)] px-2 text-[11px] font-semibold tabular-nums text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
+              className="flex items-center gap-0.5 border-l border-[var(--border-default)] px-2 font-mono text-[11px] font-medium text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
             >
               <Plus size={11} />
               {stepLabel}
@@ -656,7 +788,7 @@ export function DateField({
                         setOpen(false);
                       }}
                       className={cn(
-                        "grid h-8 place-items-center rounded-[6px] text-[13px] tabular-nums transition",
+                        "grid h-8 place-items-center rounded-[6px] font-mono text-[13px] transition",
                         selected
                           ? "bg-[var(--accent)] font-semibold text-white"
                           : isToday
@@ -729,7 +861,7 @@ export function RadioGroup({
               role="radio"
               aria-checked={selected}
               onClick={() => onChange(option)}
-              className="group inline-flex items-center gap-2 text-[14px] text-[var(--text-primary)]"
+              className="group inline-flex items-center gap-2 text-[15px] text-[var(--text-primary)]"
             >
               <span
                 className={cn(
@@ -786,7 +918,7 @@ export function RatingStepper({
                   aria-pressed={step === current}
                   onClick={() => onChange(`${step}/${max}`)}
                   className={cn(
-                    "grid h-7 w-7 shrink-0 place-items-center rounded-full border-[1.5px] text-[11px] font-semibold tabular-nums transition",
+                    "grid h-7 w-7 shrink-0 place-items-center rounded-full border-[1.5px] font-mono text-[11px] font-medium transition",
                     filled
                       ? "border-[var(--accent)] bg-[var(--accent)] text-white"
                       : "border-[var(--border-input)] bg-white text-[var(--text-muted)] hover:border-[var(--accent-border)] hover:text-[var(--text-body)]",
@@ -798,7 +930,7 @@ export function RatingStepper({
             );
           })}
         </div>
-        <span className="text-[13px] font-semibold tabular-nums text-[var(--text-primary)]">{current ? `${current}/${max}` : ""}</span>
+        <span className="font-mono text-[14px] font-medium text-[var(--text-primary)]">{current ? `${current}/${max}` : ""}</span>
       </div>
       <FieldError error={error} />
     </div>
@@ -840,7 +972,9 @@ export function LevelSlider({
   return (
     <div className="min-w-0">
       {hideHeader ? null : <FieldHeader label={label} required={required} hint={hint} />}
-      <div className="max-w-full select-none" style={{ width: count * 92 }}>
+      {/* Pulled left by the track's own inset, so the track and the first option
+          label start where the field's label does; only the handle overhangs. */}
+      <div className="-ml-2.5 max-w-full select-none" style={{ width: count * 92 }}>
         <div
           ref={trackRef}
           role="slider"
@@ -987,7 +1121,7 @@ export function CompletionMeter({ done, total, className }: { done: number; tota
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className="shrink-0 text-[11px] font-medium tabular-nums text-[var(--text-label)]">
+      <span className="shrink-0 font-mono text-[11px] font-medium text-[var(--text-label)]">
         {done}/{total} complete
       </span>
     </div>

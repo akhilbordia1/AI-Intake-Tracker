@@ -155,20 +155,21 @@ export const STAGES = [
   },
 ] satisfies StageItem[];
 
-// Short chevron labels for the stage path (index-aligned with STAGES).
+// Short labels (index-aligned with STAGES), used wherever the full stage name
+// would wrap: the board's stage line, the tables, and the "Proceed to …" action.
 export const SHORT_STAGE_LABELS = [
   "Ideation",
-  "Qualify",
-  "Prioritize",
+  "Qualification",
+  "Prioritisation",
   "Triage",
-  "Assess",
+  "Risk assessment",
   "Business case",
   "GTAC",
-  "Plan",
-  "Design",
-  "Build",
-  "Monitor",
-  "Adopt",
+  "Plan & KPI",
+  "Blueprint",
+  "Production",
+  "Monitoring",
+  "Adoption",
 ];
 
 // The four high-level phases of the lifecycle; the tracker board condenses the
