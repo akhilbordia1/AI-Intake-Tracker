@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronDown, Columns3, Plus, Search, SlidersHorizontal, Table2 } from "lucide-react";
+import { ChevronDown, Columns3, Search, SlidersHorizontal, Table2 } from "lucide-react";
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
-import { AppShell, ContentPanel, PanelTabs, RailHeader, shellButton, useRailMode } from "@/components/app-shell";
+import { AppShell, ContentPanel, PanelTabs, RailHeader, useRailMode } from "@/components/app-shell";
 import { MiniChatRail } from "@/components/chat/mini-chat-rail";
 import { PersonAvatar, ProfileSwitcher } from "@/components/profile";
 import { IconButton, titleCaseTag } from "@/components/ui/kit";
@@ -469,10 +469,6 @@ export default function HomePage() {
               onAttentionChange={setAttentionOnly}
               attentionCount={attentionCount}
             />
-            <Link href="/intake" className={shellButton("primary")}>
-              <Plus size={14} />
-              New use case
-            </Link>
             <ProfileSwitcher currentUser={activeProfile} onUserChange={setActiveProfile} compact />
           </>
         }
