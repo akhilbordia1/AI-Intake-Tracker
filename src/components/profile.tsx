@@ -40,7 +40,7 @@ export function PersonAvatar({
 }) {
   return (
     <span
-      title={name}
+      data-tip={name}
       style={{ width: size, height: size, fontSize: size <= 22 ? 9 : 10 }}
       className={cn(
         "inline-grid shrink-0 place-items-center rounded-full font-semibold",
@@ -81,7 +81,7 @@ export function ProfileSwitcher({
         onClick={() => setOpen((current) => !current)}
         aria-haspopup="menu"
         aria-expanded={open}
-        title={lockedBy ? `This stage is owned by ${lockedBy} — switch profile to edit` : undefined}
+        data-tip={lockedBy ? `This stage is owned by ${lockedBy} — switch profile to edit` : undefined}
         className="inline-flex h-9 items-center gap-2 rounded-full border border-[var(--border-default)] bg-white pl-1 pr-2.5 text-[13px] font-medium text-[var(--text-primary)] transition hover:bg-[var(--surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
       >
         <span className="relative inline-flex">

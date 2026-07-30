@@ -29,7 +29,7 @@ export function GateBadge({ gate }: { gate: Gate }) {
   return (
     <span className="flex items-center gap-2 text-[13px] leading-5">
       <span
-        title={`${gate.id} · ${gate.name}`}
+        data-tip={`${gate.id} · ${gate.name}`}
         className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold"
         style={{ color: tone.fg, background: tone.bg, borderColor: tone.border }}
       >

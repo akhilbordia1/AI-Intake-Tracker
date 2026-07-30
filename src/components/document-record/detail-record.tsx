@@ -14,7 +14,7 @@ import {
 } from "@/data/lifecycle";
 import { GateBadge, RecordDetailsSheet } from "@/components/document-record/record-details-sheet";
 import { RecordSummary } from "@/components/document-record/record-summary";
-import { ProgressRing, Tag, titleCaseTag } from "@/components/ui/kit";
+import { ProgressRing, titleCaseTag } from "@/components/ui/kit";
 import { cn } from "@/lib/cn";
 import {
   Ban,
@@ -22,7 +22,6 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Clock,
   CornerUpLeft,
   FileText,
   Info,
@@ -665,7 +664,15 @@ function DocumentField({
   );
 }
 
-// One coloured pill for the stage's state, next to its title.
+// A thin rule between metadata items — reads as one line of facts rather than
+// several chips, and holds the eye better than a dot at this size.
+function MetaDot() {
+  return <span aria-hidden className="h-3 w-px shrink-0 bg-[var(--border-default)]" />;
+}
+
+// The stage's state, next to its title: a dot and a word. Gates and risk tiers are
+// bordered tags because they're record facts; the stage's own state is lighter than
+// that — a boxed pill made the header look like a row of badges.
 function StageStatusPill({
   isComplete,
   canEdit,
@@ -678,17 +685,18 @@ function StageStatusPill({
   blockedReason: string | null;
 }) {
   const state = isComplete
-    ? { label: "Complete", icon: <Check size={11} strokeWidth={3} />, tone: "success" as const, title: undefined as string | undefined }
+    ? { label: "Complete", colour: "var(--status-success)", title: undefined as string | undefined }
     : !canEdit
-      ? { label: "Locked", icon: <Lock size={11} />, tone: "warning" as const, title: `${owner} owns this stage — switch profile to edit` }
+      ? { label: "Locked", colour: "var(--tone-warning-fg)", title: `${owner} owns this stage — switch profile to edit` }
       : blockedReason
-        ? { label: "Blocked by gate", icon: <Ban size={11} />, tone: "danger" as const, title: blockedReason }
-        : { label: "Active", icon: <span className="h-1.5 w-1.5 rounded-full bg-current" />, tone: "info" as const, title: undefined };
+        ? { label: "Blocked by gate", colour: "var(--tone-danger-fg)", title: blockedReason }
+        : { label: "Active", colour: "var(--accent)", title: undefined };
 
   return (
-    <Tag tone={state.tone} title={state.title} icon={state.icon}>
-      {state.label}
-    </Tag>
+    <span data-tip={state.title} className="inline-flex shrink-0 items-center gap-1.5 text-[12px] font-medium" style={{ color: state.colour }}>
+      <span className="h-1.5 w-1.5 rounded-full" style={{ background: state.colour }} />
+      {titleCaseTag(state.label)}
+    </span>
   );
 }
 
@@ -730,59 +738,50 @@ function StageFieldsGrid({
     // embedded → a plain block inside a shared scroll (stacked stages); otherwise
     // its own scroll container.
     <section
-      className={cn(embedded ? "px-6 pb-10 pt-6 xl:px-12" : "no-scrollbar min-h-0 flex-1 overflow-y-auto px-8 pb-12 pt-6")}
+      className={cn(embedded ? "px-6 pb-10 pt-5" : "no-scrollbar min-h-0 flex-1 overflow-y-auto px-8 pb-12 pt-6")}
       aria-label={`${stage.name} stage`}
     >
-      {/* Stage header. Line 1: the stage name (which opens the stage path) and its
- state. Line 2: what the stage is for. Line 3: who it needs and when it
- last moved. The phase is in the panel breadcrumb and capture progress is
- in the action bar, so neither is repeated here. */}
-      <div className="min-w-0">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
-          {heading ?? <h2 className="font-display text-[18px] leading-tight text-[var(--text-primary)]">{stage.name}</h2>}
+      {/* Stage header, one line: the stage (which opens the stage path) on the left,
+          its state, people and last edit as one run of metadata on the right. */}
+      <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-2">
+        {heading ?? <h2 className="font-display text-[18px] leading-tight text-[var(--text-primary)]">{stage.name}</h2>}
+
+        <span className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-x-2 gap-y-1.5 text-[12px] text-[var(--text-muted)]">
           <StageStatusPill isComplete={isComplete} canEdit={canEdit} owner={stage.owner} blockedReason={blockedReason} />
-        </div>
-        {STAGE_INTROS[stage.name] ? (
-          <p className={cn("mt-2.5 max-w-[68ch] leading-6 text-[var(--text-muted)]", embedded ? "text-[14px]" : "text-[15px]")}>
-            {STAGE_INTROS[stage.name]}
-          </p>
-        ) : null}
-        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] text-[var(--text-muted)]">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border-default)] bg-[var(--surface)] py-1 pl-1 pr-2.5">
-            <PersonAvatar name={stage.owner} size={20} highlight={ownedByMe} />
-            <span className={cn("text-[var(--text-primary)]", ownedByMe && "font-semibold")}>{stage.owner}</span>
+
+          <MetaDot />
+          <span className="inline-flex shrink-0 items-center gap-1.5">
+            <PersonAvatar name={stage.owner} size={17} highlight={ownedByMe} />
+            <span className={cn("text-[var(--text-body)]", ownedByMe && "font-semibold text-[var(--text-primary)]")}>{stage.owner}</span>
           </span>
+
+          <MetaDot />
+          <span className="shrink-0">Edited {RECORD_ACTIVITY[0].when.split(",").slice(0, 2).join(",")}</span>
+
           {gate && gateTone ? (
             <>
+              <MetaDot />
               <span
-                title={`${gate.id} · ${gate.name}`}
-                className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-semibold"
+                data-tip={`${gate.id} · ${gate.name} — approver ${gate.approver}`}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold"
                 style={{ color: gateTone.fg, background: gateTone.bg, borderColor: gateTone.border }}
               >
-                <ShieldCheck size={12} />
+                <ShieldCheck size={11} />
                 {gate.id} · {titleCaseTag(gate.status)}
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                Approver
-                <PersonAvatar name={gate.approver} size={18} highlight={gate.approver === currentUser} />
-                <span className={cn("text-[var(--text-primary)]", gate.approver === currentUser && "font-semibold")}>{gate.approver}</span>
               </span>
             </>
           ) : null}
+
           {riskTier ? (
             <span
-              className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-semibold"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold"
               style={{ color: riskTier.fg, background: riskTier.bg, borderColor: riskTier.border }}
             >
-              <ShieldCheck size={12} />
-              {riskTier.tier} tier
+              <ShieldCheck size={11} />
+              {titleCaseTag(`${riskTier.tier} tier`)}
             </span>
           ) : null}
-          <span className="inline-flex items-center gap-1.5">
-            <Clock size={12} />
-            Updated {RECORD_ACTIVITY[0].when.split(",").slice(0, 2).join(",")}
-          </span>
-        </div>
+        </span>
       </div>
 
       {/* An open stage only shows what the conversation has captured — an empty
@@ -796,7 +795,7 @@ function StageFieldsGrid({
 
       {/* Two-column grid: pairs of fields share a row so their labels line up
  across the form. Long text / multi-selects take the full width. */}
-      <div className={cn("mt-8 grid grid-cols-1 items-start gap-y-9 sm:grid-cols-2", embedded ? "gap-x-8" : "gap-x-12")}>
+      <div className={cn("mt-7 grid grid-cols-1 items-start gap-y-9 sm:grid-cols-2", embedded ? "gap-x-8" : "gap-x-12")}>
         {visibleFields.map((field) => {
           // Long text and multi-selects need the full width; the rest pair up.
           const wide = ["long", "cards", "chips"].includes(field.kind);
@@ -827,10 +826,13 @@ function StagePathMenu({
   activeIndex,
   completedIndexes,
   onSelect,
+  variant = "heading",
 }: {
   activeIndex: number;
   completedIndexes: number[];
   onSelect: (index: number) => void;
+  // "heading" is the stage header's title; "crumb" is the last breadcrumb step.
+  variant?: "heading" | "crumb";
 }) {
   // Anchored to the trigger and portaled to the body: the form panel scrolls and
   // clips, so an absolutely-positioned menu inside it gets cut off.
@@ -894,24 +896,26 @@ function StagePathMenu({
         onClick={toggle}
         aria-haspopup="menu"
         aria-expanded={open}
-        title={`Stage ${activeIndex + 1} of ${STAGES.length} · ${completedIndexes.length} complete — switch stage`}
         className={cn(
-          "-mx-2 -my-1 inline-flex max-w-full items-center gap-2 rounded-[10px] px-2 py-1 text-left transition",
+          "inline-flex max-w-full items-center gap-1.5 rounded-[8px] text-left transition",
+          variant === "heading" ? "-mx-2 -my-1 gap-2 px-2 py-1" : "-mx-1 px-1 py-0.5",
           open ? "bg-[var(--accent-soft)]" : "hover:bg-[var(--surface-muted)]",
         )}
       >
         <span
           className={cn(
-            "font-display min-w-0 truncate text-[18px] leading-tight",
-            open ? "text-[var(--accent-strong)]" : "text-[var(--text-primary)]",
+            variant === "heading" ? "font-display min-w-0 truncate text-[18px] leading-tight" : "whitespace-nowrap text-[14px] font-medium",
+            open || variant === "crumb" ? "text-[var(--accent-strong)]" : "text-[var(--text-primary)]",
           )}
         >
           {STAGES[activeIndex].name}
         </span>
-        <span className="shrink-0 whitespace-nowrap text-[11px] font-medium tabular-nums text-[var(--text-muted)]">
-          Stage {activeIndex + 1} of {STAGES.length}
-        </span>
-        <ChevronDown size={14} className={cn("shrink-0 text-[var(--text-muted)] transition", open && "rotate-180")} />
+        {variant === "heading" ? (
+          <span className="shrink-0 whitespace-nowrap text-[11px] font-medium tabular-nums text-[var(--text-muted)]">
+            Stage {activeIndex + 1} of {STAGES.length}
+          </span>
+        ) : null}
+        <ChevronDown size={variant === "heading" ? 14 : 13} className={cn("shrink-0 text-[var(--text-muted)] transition", open && "rotate-180")} />
       </button>
 
       {anchor
@@ -921,28 +925,14 @@ function StagePathMenu({
               role="menu"
               aria-label="Stage path"
               style={{ left: anchor.left, top: anchor.top, maxHeight: anchor.maxHeight }}
-              className="fixed z-[80] flex w-[318px] flex-col overflow-hidden rounded-[14px] border border-[var(--border-default)] bg-white shadow-[var(--shadow-menu)]"
+              className="fixed z-[80] flex w-[264px] flex-col overflow-hidden rounded-[10px] border border-[var(--border-default)] bg-[var(--surface)] shadow-[var(--shadow-menu)]"
             >
-              <div className="shrink-0 border-b border-[var(--border-hairline)] px-3.5 pb-2.5 pt-3">
-                <div className="flex items-baseline justify-between">
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-label)]">Stage path</span>
-                  <span className="text-[11px] font-medium tabular-nums text-[var(--text-muted)]">
-                    {completedIndexes.length}/{STAGES.length} complete
-                  </span>
-                </div>
-                <div className="mt-2 h-[3px] overflow-hidden rounded-full bg-[var(--surface-strong)]">
-                  <div
-                    className="h-full rounded-full bg-[var(--accent)] transition-[width] duration-300"
-                    style={{ width: `${Math.round((completedIndexes.length / STAGES.length) * 100)}%` }}
-                  />
-                </div>
-              </div>
-
+              {/* A plain list of stages: the header band, the progress bar and the
+                  connector were all describing a path the numbers already imply. */}
               <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain p-1.5">
                 {STAGES.map((stage, index) => {
                   const complete = completedIndexes.includes(index);
                   const current = index === activeIndex;
-                  const last = index === STAGES.length - 1;
                   return (
                     <button
                       key={stage.name}
@@ -954,31 +944,17 @@ function StagePathMenu({
                         setAnchor(null);
                       }}
                       className={cn(
-                        "relative flex w-full items-center gap-2.5 rounded-[10px] py-1.5 pl-2 pr-2.5 text-left transition",
+                        "flex w-full items-center gap-2.5 rounded-[8px] px-2 py-1.5 text-left transition",
                         current ? "bg-[var(--accent-soft)]" : "hover:bg-[var(--surface-hover)]",
                       )}
                     >
-                      {/* Connector: turns the list into a path rather than 12 loose rows. */}
-                      {last ? null : (
-                        <span
-                          aria-hidden
-                          className={cn(
-                            "absolute left-[17px] top-[26px] bottom-[-4px] w-px",
-                            complete ? "bg-[var(--tone-success-border)]" : "bg-[#e9e6e2]",
-                          )}
-                        />
-                      )}
                       <span
                         className={cn(
-                          "relative grid h-[20px] w-[20px] shrink-0 place-items-center rounded-full text-[11px] font-semibold tabular-nums ring-2 ring-white",
-                          complete
-                            ? "bg-[var(--status-success)] text-white"
-                            : current
-                              ? "bg-[var(--accent)] text-white"
-                              : "border border-[var(--border-input)] bg-white text-[var(--text-muted)]",
+                          "w-[14px] shrink-0 text-right text-[11px] tabular-nums",
+                          current ? "font-semibold text-[var(--accent-strong)]" : "text-[var(--text-muted)]",
                         )}
                       >
-                        {complete ? <Check size={11} strokeWidth={3.25} /> : index + 1}
+                        {index + 1}
                       </span>
                       <span
                         className={cn(
@@ -988,7 +964,7 @@ function StagePathMenu({
                       >
                         {stage.name}
                       </span>
-                      <span className="shrink-0 text-[11px] text-[var(--text-muted)]">{firstName(stage.owner)}</span>
+                      {complete ? <Check size={12} strokeWidth={3} className="shrink-0 text-[var(--status-success)]" /> : null}
                     </button>
                   );
                 })}
@@ -1204,7 +1180,10 @@ function SplitStageView({
             items={[
               { label: "All use cases", href: "/" },
               { label: USE_CASE.id, href: "/overview", icon: <FileText size={13} />, title: USE_CASE.name },
-              { label: stage.name },
+              {
+                label: stage.name,
+                node: <StagePathMenu activeIndex={stageIndex} completedIndexes={completedIndexes} onSelect={onSelectStage} variant="crumb" />,
+              },
             ]}
           />
         }
@@ -1244,7 +1223,7 @@ function SplitStageView({
                   type="button"
                   onClick={onMarkComplete}
                   disabled={!submitReady}
-                  title={submitReady ? undefined : submitHint}
+                  data-tip={submitReady ? undefined : submitHint}
                   className={shellButton("primary")}
                 >
                   <Check size={13} />
@@ -2704,7 +2683,7 @@ function GrowText({ value, onChange, onSuggest, label }: { value: string; onChan
         type="button"
         onClick={onSuggest}
         aria-label={`Suggest ${label}`}
-        title="Suggest"
+        data-tip="Suggest"
         className="absolute right-1 top-1 grid h-7 w-7 place-items-center rounded-[8px] text-[var(--text-muted)] transition hover:bg-[var(--accent-soft)] hover:text-[var(--accent-strong)]"
       >
         <Sparkles size={14} />

@@ -73,7 +73,7 @@ export function IconButton({
     <button
       type="button"
       aria-label={label}
-      title={label}
+      data-tip={label}
       aria-pressed={active}
       style={{ width: size, height: size }}
       {...rest}

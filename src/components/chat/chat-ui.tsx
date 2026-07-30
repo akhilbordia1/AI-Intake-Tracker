@@ -143,7 +143,7 @@ export function ChatComposer({
               inputRef?.current?.focus();
             }}
             aria-label="Mention someone"
-            title="Mention someone"
+            data-tip="Mention someone"
             className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[var(--text-muted)] transition hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
           >
             <AtSign size={16} />

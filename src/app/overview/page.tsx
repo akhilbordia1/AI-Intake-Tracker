@@ -304,7 +304,7 @@ function LifecycleTable({ currentUser }: { currentUser: string }) {
                 </td>
                 <td className="min-w-0 px-6 align-middle">
                   <span
-                    title={state === "upcoming" ? undefined : outcome?.[1]}
+                    data-tip={state === "upcoming" ? undefined : outcome?.[1]}
                     className={cn("block truncate text-[12px]", state === "upcoming" ? "text-[var(--text-muted)]" : "text-[var(--text-body)]")}
                   >
                     {state === "upcoming" ? "Not recorded yet" : (outcome?.[1] ?? "—")}

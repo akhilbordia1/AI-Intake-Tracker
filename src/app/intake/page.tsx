@@ -34,7 +34,7 @@ export default function StartUseCasePage() {
       <header className="flex h-14 shrink-0 items-center gap-2 border-b border-[var(--border-hairline)] px-4">
         <Link
           href="/"
-          title="All use cases"
+          data-tip="All use cases"
           aria-label="All use cases"
           className="grid h-7 w-7 shrink-0 place-items-center rounded-[8px] bg-[var(--accent)] text-white transition hover:bg-[var(--accent-hover)]"
         >

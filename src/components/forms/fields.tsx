@@ -32,7 +32,7 @@ export function FieldHeader({ label, required, hint }: { label: string; required
       </span>
       {hint ? (
         <span
-          title={hint}
+          data-tip={hint}
           aria-label={hint}
           className="inline-flex cursor-help items-center text-[var(--text-muted)] transition hover:text-[var(--text-label)]"
         >
@@ -49,7 +49,7 @@ function SuggestButton({ onClick, className }: { onClick: () => void; className?
     <button
       type="button"
       onClick={onClick}
-      title="Suggest a draft"
+      data-tip="Suggest a draft"
       aria-label="Suggest a draft"
       className={cn(
         "absolute inline-flex h-6 w-6 items-center justify-center rounded-full text-[var(--text-muted)] transition hover:bg-[var(--accent-soft)] hover:text-[var(--accent-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-soft)]",

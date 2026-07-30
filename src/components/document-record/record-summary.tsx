@@ -3,7 +3,7 @@
 import { CalendarDays, ShieldCheck } from "lucide-react";
 
 import { PersonAvatar } from "@/components/profile";
-import { Tag, titleCaseTag, type Tone } from "@/components/ui/kit";
+import { Tag, type Tone } from "@/components/ui/kit";
 import { USE_CASE } from "@/data/document-workflow-form-schema";
 import { ACTIVE_STAGE_INDEX, RECORD_DETAILS, STAGES, gateForStage, stageValue, type Gate } from "@/data/lifecycle";
 import { cn } from "@/lib/cn";
@@ -39,17 +39,8 @@ export function RecordSummary({ currentUser }: { currentUser: string }) {
   const ownedByMe = activeStage.owner === currentUser;
 
   return (
-    <div className="border-b border-[var(--border-hairline)] px-7 pb-6 pt-6">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <h2 className="font-display text-[20px] leading-tight text-[var(--text-primary)]">{USE_CASE.name}</h2>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--accent-muted)] px-2.5 py-1 text-[11px] font-semibold text-[var(--accent-strong)]">
-          <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-strong)]" />
-          {titleCaseTag("In delivery")}
-        </span>
-        <span className="text-[13px] text-[var(--text-muted)]">
-          {activeStage.name} · stage {ACTIVE_STAGE_INDEX + 1} of {STAGES.length}
-        </span>
-      </div>
+    <div className="border-b border-[var(--border-hairline)] px-6 pb-5 pt-5">
+      <h2 className="font-display text-[20px] leading-tight text-[var(--text-primary)]">{USE_CASE.name}</h2>
 
       <p className="mt-3 max-w-[82ch] text-[14px] leading-6 text-[var(--text-body)]">{stageValue("Ideation", "Problem statement")}</p>
 
@@ -62,14 +53,22 @@ export function RecordSummary({ currentUser }: { currentUser: string }) {
         </span>
 
         {tier ? (
-          <Tag tone={riskTone(overallRisk)} icon={<ShieldCheck size={12} />} className="px-2.5 py-1 text-[12px]">
-            {`${tier} assessment${overallRisk ? ` · ${overallRisk.toLowerCase()} risk` : ""}`}
+          <Tag
+            tone={riskTone(overallRisk)}
+            icon={<ShieldCheck size={12} />}
+            title={`Risk tier — ${tier}${overallRisk ? `, ${overallRisk.toLowerCase()} overall risk` : ""}`}
+            className="px-2.5 py-1 text-[12px]"
+          >
+            {overallRisk ? `${overallRisk} risk` : `${tier} assessment`}
           </Tag>
         ) : null}
 
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border-default)] bg-[var(--surface)] px-2.5 py-1 text-[13px] text-[var(--text-primary)]">
+        <span
+          data-tip="Target go-live"
+          className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border-default)] bg-[var(--surface)] px-2.5 py-1 text-[13px] text-[var(--text-primary)]"
+        >
           <CalendarDays size={12} className="text-[var(--text-muted)]" />
-          Go-live {recordDetail("Target go-live") ?? "—"}
+          {recordDetail("Target go-live") ?? "—"}
         </span>
 
         {gateOnActive ? (

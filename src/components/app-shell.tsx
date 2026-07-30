@@ -65,7 +65,7 @@ export function RailHeader({
       )}
     >
       {toggle}
-      <Link href="/" title="All use cases" className="text-[14px] font-medium text-[var(--text-primary)] transition hover:text-[var(--accent-strong)]">
+      <Link href="/" data-tip="All use cases" className="text-[14px] font-medium text-[var(--text-primary)] transition hover:text-[var(--accent-strong)]">
         {label}
       </Link>
       <span className="ml-auto flex items-center gap-0.5">
@@ -160,7 +160,7 @@ export function PanelTabs({
           </>
         );
         return tab.href && !active ? (
-          <Link key={tab.id} href={tab.href} title={tab.label} aria-label={tab.label} className={shape}>
+          <Link key={tab.id} href={tab.href} data-tip={tab.label} aria-label={tab.label} className={shape}>
             {inner}
           </Link>
         ) : (
@@ -169,7 +169,7 @@ export function PanelTabs({
             type="button"
             onClick={() => onSelect?.(tab.id)}
             aria-current={active ? "page" : undefined}
-            title={tab.label}
+            data-tip={tab.label}
             aria-label={tab.label}
             className={shape}
           >
@@ -190,7 +190,7 @@ export function TabBarToggle({ label, icon, active = false, onClick }: { label: 
       active={active}
       onClick={onClick}
       aria-pressed={active}
-      title={active ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`}
+      data-tip={active ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`}
     >
       {icon}
       {label}
@@ -202,20 +202,35 @@ export function TabBarToggle({ label, icon, active = false, onClick }: { label: 
 
 // Where you are, as a path you can walk back up: All use cases › the record › the
 // view. The last crumb is the page you're on.
-export type Crumb = { label: string; href?: string; icon?: ReactNode; title?: string };
+export type Crumb = {
+  label: string;
+  href?: string;
+  icon?: ReactNode;
+  title?: string;
+  // A crumb that is its own control (e.g. the stage switcher) renders this
+  // instead of plain text.
+  node?: ReactNode;
+};
 
 export function PanelBreadcrumb({ items }: { items: Crumb[] }) {
   return (
-    <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 text-[14px]">
+    <nav aria-label="Breadcrumb" className="flex shrink-0 items-center gap-1.5 text-[14px]">
       {items.map((crumb, index) => {
         const last = index === items.length - 1;
+        if (crumb.node) {
+          return (
+            <span key={crumb.label} className="flex min-w-0 items-center gap-1.5">
+              {crumb.node}
+            </span>
+          );
+        }
         const body = (
           <span
-            title={crumb.title}
+            data-tip={crumb.title}
             className={cn("inline-flex min-w-0 items-center gap-1.5", last ? "font-medium text-[var(--accent-strong)]" : "text-[var(--text-label)]")}
           >
             {crumb.icon ? <span className="shrink-0 text-[var(--text-muted)]">{crumb.icon}</span> : null}
-            <span className="min-w-0 truncate">{crumb.label}</span>
+            <span className="whitespace-nowrap">{crumb.label}</span>
           </span>
         );
         return (
@@ -264,7 +279,7 @@ export function ContentPanel({
 }) {
   return (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[12px] border border-[var(--border-default)] bg-[var(--surface)] ">
-      <div className="flex min-h-[52px] shrink-0 flex-wrap items-center gap-x-2.5 gap-y-1.5 border-b border-[var(--border-hairline)] px-4 py-2">
+      <div className="flex min-h-[52px] shrink-0 flex-wrap items-center gap-x-2.5 gap-y-1.5 border-b border-[var(--border-hairline)] px-6 py-2">
         {icon ? <span className="shrink-0 text-[var(--accent)]">{icon}</span> : null}
         {title ? <h1 className="font-display min-w-0 shrink-0 truncate text-[18px] leading-tight text-[var(--text-primary)]">{title}</h1> : null}
         {titleMeta}
@@ -275,7 +290,7 @@ export function ContentPanel({
       {/* Content scrolls inside the panel; nothing bleeds past its rounded edge. */}
       <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden", scroll && "no-scrollbar overflow-y-auto")}>{children}</div>
       {footer ? (
-        <div className="flex min-h-[48px] shrink-0 items-center gap-3 border-t border-[var(--border-hairline)] px-4 py-2">{footer}</div>
+        <div className="flex min-h-[48px] shrink-0 items-center gap-3 border-t border-[var(--border-hairline)] px-6 py-2">{footer}</div>
       ) : null}
     </section>
   );

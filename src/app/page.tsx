@@ -445,7 +445,7 @@ export default function HomePage() {
     >
       <ContentPanel
         icon={displayMode === "board" ? <Columns3 size={17} /> : <Table2 size={17} />}
-        title="All use cases"
+        data-tip="All use cases"
         tabs={
           <PanelTabs
             compact
@@ -586,7 +586,7 @@ function FilterMenu({
         onClick={() => setOpen(!open)}
         aria-haspopup="menu"
         aria-expanded={open}
-        title={`Grouped ${groupLabel.toLowerCase()}`}
+        data-tip={`Grouped ${groupLabel.toLowerCase()}`}
         aria-label={`Filters — grouped ${groupLabel.toLowerCase()}`}
         className={[
           "inline-flex h-8 items-center gap-1.5 rounded-[8px] border px-2.5 text-[12px] transition",
@@ -740,7 +740,7 @@ function UseCaseTableRow({ row }: { row: UseCaseCard }) {
       </td>
       <td className="px-4 align-middle">
         {/* One line — the group row above already names the phase. */}
-        <span title={row.substage} className="block truncate text-[13px] text-[var(--text-body)]">
+        <span data-tip={row.substage} className="block truncate text-[13px] text-[var(--text-body)]">
           {shortStageLabel(row.substage)}
         </span>
       </td>
@@ -755,7 +755,7 @@ function UseCaseTableRow({ row }: { row: UseCaseCard }) {
             ) : null}
           </span>
           <span
-            title={row.coOwner ? `${formatStageOwner(row)} and ${row.coOwner}` : formatStageOwner(row)}
+            data-tip={row.coOwner ? `${formatStageOwner(row)} and ${row.coOwner}` : formatStageOwner(row)}
             className="min-w-0 truncate text-[13px] text-[var(--text-body)]"
           >
             {row.coOwner ? `${formatStageOwner(row)} +1` : formatStageOwner(row)}
@@ -770,7 +770,7 @@ function UseCaseTableRow({ row }: { row: UseCaseCard }) {
           {row.gate ? <GateChip gate={row.gate} /> : null}
           {row.needsAttention ? (
             <span
-              title={getAttentionMessage(row)}
+              data-tip={getAttentionMessage(row)}
               className="min-w-0 shrink truncate rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-[11px] font-semibold text-[var(--accent-strong)]"
             >
               {getAttentionMessage(row)}
@@ -989,7 +989,7 @@ function OwnerInline({ card }: { card: UseCaseCard }) {
         ) : null}
       </div>
       <span
-        title={card.coOwner ? `${formatStageOwner(card)} and ${card.coOwner}` : formatStageOwner(card)}
+        data-tip={card.coOwner ? `${formatStageOwner(card)} and ${card.coOwner}` : formatStageOwner(card)}
         className="min-w-0 truncate text-[12px] font-medium text-[var(--text-primary)]"
       >
         {card.coOwner ? `${formatStageOwner(card)} +1` : formatStageOwner(card)}
@@ -1020,7 +1020,7 @@ function UseCaseBoardCard({ card }: { card: UseCaseCard }) {
         <div className="grid grid-cols-2 gap-x-6 gap-y-4 border-t border-[var(--border-hairline)] px-5 py-4">
           <MetaCell label="Stage">
             {/* The short lifecycle label — the full name doesn't fit a card column. */}
-            <span title={card.substage} className="block truncate text-[12px] font-medium text-[var(--text-primary)]">
+            <span data-tip={card.substage} className="block truncate text-[12px] font-medium text-[var(--text-primary)]">
               {shortStageLabel(card.substage)}
             </span>
           </MetaCell>
