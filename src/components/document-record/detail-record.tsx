@@ -2,7 +2,7 @@
 
 import { USE_CASE } from "@/data/document-workflow-form-schema";
 import { cn } from "@/lib/cn";
-import { ArrowLeft, Ban, Check, ChevronLeft, ChevronRight, CornerUpLeft, FileText, Info, LoaderCircle, Lock, Mic, Pencil, Plus, RotateCcw, Send, ShieldCheck, Sparkles, X } from "lucide-react";
+import { ArrowLeft, Ban, Check, ChevronDown, ChevronLeft, ChevronRight, CornerUpLeft, FileText, Info, LoaderCircle, Lock, Mic, Pencil, Plus, RotateCcw, Send, ShieldCheck, Sparkles, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactElement, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
@@ -18,8 +18,6 @@ import {
   LevelSlider,
   RatingStepper,
   SearchableSelect,
-  SmartText,
-  SmartTextarea,
 } from "@/components/forms/fields";
 
 const RECORD_THEME = {
@@ -284,6 +282,10 @@ export function DetailRecordPage() {
   // Split layout: chat on the left drives the form on the right (always both
   // shown). A horizontal Journey bar up top navigates between stages.
   const [detailsOpen, setDetailsOpen] = useState(false);
+  // The stage path collapses into the header until opened. The chevron strip is
+  // kept as an alternative style, currently off.
+  const [railOpen, setRailOpen] = useState(false);
+  const [railStyle] = useState<RailStyle>("segments");
   // The record name stays hidden until the user has given some context.
   const [started, setStarted] = useState(false);
 
@@ -352,13 +354,20 @@ export function DetailRecordPage() {
         detailsOpen={detailsOpen}
         onOpenDetails={() => setDetailsOpen((v) => !v)}
         recordName={started ? USE_CASE.name : null}
-      />
-      {/* Full-width stage path, below the header. */}
-      <JourneyBar
         activeIndex={stageIndex}
         completedIndexes={completedStageIndexes}
-        onSelect={(index) => selectStage(index)}
+        railOpen={railOpen}
+        onToggleRail={() => setRailOpen((v) => !v)}
       />
+      {/* Full-width stage path — collapsed into the header until opened. */}
+      {railOpen ? (
+        <StageRail
+          style={railStyle}
+          activeIndex={stageIndex}
+          completedIndexes={completedStageIndexes}
+          onSelect={(index) => selectStage(index)}
+        />
+      ) : null}
       {statusNote ? <StageStatusBanner note={statusNote} canClear={canComplete} onClear={clearCurrentStatus} /> : null}
       {/* Chat card + form card; an optional record details sheet card slides in. */}
       <div
@@ -616,14 +625,14 @@ function ReadValue({ label, value }: { label: string; value: string }) {
   // Short attribute fields → neutral tag
   if (single && short && TAG_LABEL_RE.test(label)) {
     return (
-      <span className="inline-block rounded-full border border-[var(--border-default)] bg-white px-2.5 py-1 text-[13px] font-medium text-[var(--text-body)]">
+      <span className="inline-block rounded-full border border-[var(--border-default)] bg-white px-2.5 py-1 text-[14px] font-medium text-[var(--text-body)]">
         {value}
       </span>
     );
   }
 
   // Prose → capped measure for readability
-  return <span className="block max-w-[62ch] text-[15px] leading-6 text-[var(--text-primary)]">{value}</span>;
+  return <span className="block max-w-[62ch] text-[14px] leading-6 text-[var(--text-primary)]">{value}</span>;
 }
 
 function StageReadOnlyRows({ rows }: { rows: StageItem["rows"] }) {
@@ -865,19 +874,22 @@ function DocumentField({ field, s, readOnly, onBlockedEdit, forceEdit = false }:
   // Read-only display. Non-owners get a click that explains the block; owners
   // just see the value (editing happens via the header "Edit").
   const text = empty ? null : Array.isArray(value) ? value.join("; ") : value;
+  // Same box as the editor (border width + padding + inset), just transparent —
+  // so read ↔ edit is a change of chrome, not of layout.
+  const readBox = "-mx-3 block max-w-full rounded-[8px] border border-transparent px-3 py-1.5 text-left";
   if (readOnly && onBlockedEdit) {
     return (
       <button
         type="button"
         onClick={onBlockedEdit}
-        className={cn("-mx-2 inline-block max-w-full rounded-[8px] px-2 py-1 text-left transition hover:bg-[var(--surface-muted)]", empty && "text-[15px] leading-6 text-[var(--text-muted)]/50")}
+        className={cn(readBox, "transition hover:border-[#ecebea] hover:bg-[var(--surface-muted)]", empty && "text-[14px] leading-6 text-[var(--text-muted)]/50")}
       >
         {empty ? "—" : <ReadValue label={field.label} value={text!} />}
       </button>
     );
   }
   return (
-    <div className={cn("inline-block max-w-full rounded-[8px]", empty && "text-[15px] leading-6 text-[var(--text-muted)]/50")}>
+    <div className={cn(readBox, empty && "text-[14px] leading-6 text-[var(--text-muted)]/50")}>
       {empty ? "—" : <ReadValue label={field.label} value={text!} />}
     </div>
   );
@@ -944,18 +956,17 @@ function StageFieldsGrid({ stage, s, currentUser, canEdit, isComplete = false, e
         </div>
       </div>
 
-      {/* CSS multi-column so fields pack tightly without row-height coupling —
-          short values don't leave a gap under their taller row-mate. Long text /
-          multi-selects span the full width. */}
-      <div className={cn("mt-8 sm:columns-2", embedded ? "gap-x-8" : "gap-x-12")}>
+      {/* Two-column grid: pairs of fields share a row so their labels line up
+          across the form. Long text / multi-selects take the full width. */}
+      <div className={cn("mt-8 grid grid-cols-1 items-start gap-y-9 sm:grid-cols-2", embedded ? "gap-x-8" : "gap-x-12")}>
         {s.fields.map((field, index) => {
-          // Long text and multi-selects need the full width; the rest pack in columns.
+          // Long text and multi-selects need the full width; the rest pair up.
           const wide = ["long", "cards", "chips"].includes(field.kind);
           // Reserve each control's height so switching read ↔ edit doesn't change
           // the row height. The slider (level) is taller than toggles/inputs.
           const reserve = wide ? undefined : field.kind === "level" ? 50 : 40;
           return (
-            <div key={field.label} className={cn("min-w-0 break-inside-avoid pb-9", wide && "[column-span:all]")}>
+            <div key={field.label} className={cn("min-w-0", wide && "sm:col-span-2")}>
               <label className="flex items-baseline gap-2 text-[13.5px] font-semibold text-[var(--text-primary)]">
                 <span className="text-[var(--text-muted)]">{stageNo}.{index + 1}</span>
                 {field.label}
@@ -1125,6 +1136,10 @@ function TopBar({
   onOpenDetails,
   detailsOpen,
   recordName,
+  activeIndex,
+  completedIndexes,
+  railOpen,
+  onToggleRail,
 }: {
   currentUser: string;
   onUserChange: (user: string) => void;
@@ -1132,6 +1147,10 @@ function TopBar({
   lockedOwner: string | null;
   onOpenDetails: () => void;
   recordName: string | null;
+  activeIndex: number;
+  completedIndexes: number[];
+  railOpen: boolean;
+  onToggleRail: () => void;
 }) {
   return (
     <header className="flex shrink-0 items-center gap-4 px-5 py-3">
@@ -1153,9 +1172,10 @@ function TopBar({
         >
           {USE_CASE.id}
         </span>
-        <ProfileSwitcher currentUser={currentUser} onUserChange={onUserChange} lockedBy={lockedOwner ?? undefined} compact />
       </div>
       <div className="flex shrink-0 items-center gap-3">
+        <ProfileSwitcher currentUser={currentUser} onUserChange={onUserChange} lockedBy={lockedOwner ?? undefined} compact />
+        <StagePathToggle activeIndex={activeIndex} completedIndexes={completedIndexes} open={railOpen} onToggle={onToggleRail} />
         <button
           type="button"
           onClick={onOpenDetails}
@@ -1191,6 +1211,8 @@ const SHORT_STAGE_LABELS = [
   "Adopt",
 ];
 
+type RailStyle = "chevron" | "segments";
+
 // Horizontal stage path: a chevron/arrow strip, one segment per stage. Completed
 // = green (with a check), current = dark, upcoming = light grey. Click to jump.
 // Scrolls horizontally inside the form card when it overflows.
@@ -1208,7 +1230,7 @@ function JourneyBar({
   // the horizontally-scrolling strip.
   const [tip, setTip] = useState<{ text: string; x: number; y: number } | null>(null);
   return (
-    <div className="shrink-0 overflow-hidden px-3 py-2.5">
+    <div className="min-w-0 flex-1 overflow-hidden">
       <div className="flex items-stretch">
         {STAGES.map((stage, i) => {
           const complete = completedIndexes.includes(i);
@@ -1264,6 +1286,159 @@ function JourneyBar({
   );
 }
 
+
+// The second stage path: a node-and-connector stepper. Completed nodes are green
+// with a tick, the active node is dark with an accent halo, upcoming ones are
+// hollow and numbered — each labelled underneath, owner on hover.
+function SegmentRail({
+  activeIndex,
+  completedIndexes,
+  onSelect,
+}: {
+  activeIndex: number;
+  completedIndexes: number[];
+  onSelect: (index: number) => void;
+}) {
+  const [tip, setTip] = useState<{ text: string; x: number; y: number } | null>(null);
+  return (
+    <div className="min-w-0 flex-1">
+      <div className="flex items-start">
+        {STAGES.map((stage, i) => {
+          const complete = completedIndexes.includes(i);
+          const current = i === activeIndex;
+          const state = complete ? "Completed" : current ? "Active" : "Upcoming";
+          return (
+            <button
+              key={i}
+              type="button"
+              onClick={() => onSelect(i)}
+              onMouseEnter={(event) => {
+                const rect = event.currentTarget.getBoundingClientRect();
+                setTip({ text: `${stage.name} · ${state} · ${stage.owner}`, x: Math.max(12, rect.left), y: rect.bottom });
+              }}
+              onMouseLeave={() => setTip(null)}
+              aria-current={current}
+              aria-label={`${stage.name} · ${state} · ${stage.owner}`}
+              className="group relative min-w-0 flex-1 px-1"
+            >
+              {/* Connector to the next node — green once this stage is done. */}
+              {i < STAGES.length - 1 ? (
+                <span
+                  aria-hidden
+                  className="absolute left-1/2 top-[15px] h-[2px] w-full"
+                  style={{ background: complete ? "#1f9d57" : "#dedad5" }}
+                />
+              ) : null}
+              <span className="relative z-[1] grid h-8 place-items-center">
+                <span
+                  className={cn(
+                    "grid place-items-center rounded-full transition",
+                    complete
+                      ? "h-[22px] w-[22px] bg-[#1f9d57] text-white shadow-[0_1px_2px_rgba(16,24,40,0.14)]"
+                      : current
+                        ? "h-7 w-7 bg-[var(--accent)] text-white ring-4 ring-[var(--accent-soft)]"
+                        : "h-[22px] w-[22px] border border-[#dcd9d5] bg-white text-[var(--text-muted)] group-hover:border-[var(--accent-ring)] group-hover:text-[var(--accent-strong)]",
+                  )}
+                >
+                  {complete ? <Check size={13} strokeWidth={3} /> : <span className="text-[11px] font-semibold tabular-nums">{i + 1}</span>}
+                </span>
+              </span>
+              <span
+                className={cn(
+                  "mt-1.5 block truncate text-[11.5px] leading-4 transition",
+                  current
+                    ? "font-semibold text-[var(--accent-strong)]"
+                    : complete
+                      ? "font-medium text-[var(--text-label)]"
+                      : "text-[var(--text-muted)] group-hover:text-[var(--text-body)]",
+                )}
+              >
+                {SHORT_STAGE_LABELS[i] ?? stage.name}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      {tip
+        ? createPortal(
+            <span
+              className="pointer-events-none fixed z-[80] whitespace-nowrap rounded-[8px] bg-[var(--text-primary)] px-3 py-1.5 text-[12px] font-medium text-white shadow-md"
+              style={{ left: tip.x, top: tip.y + 8 }}
+            >
+              {tip.text}
+            </span>,
+            document.body,
+          )
+        : null}
+    </div>
+  );
+}
+
+// Whichever path style is on, laid out bare on the page (no card).
+function StageRail({
+  style,
+  ...rail
+}: {
+  style: RailStyle;
+  activeIndex: number;
+  completedIndexes: number[];
+  onSelect: (index: number) => void;
+}) {
+  return (
+    <div className="shrink-0 px-6 pb-3 pt-1">
+      {style === "chevron" ? <JourneyBar {...rail} /> : <SegmentRail {...rail} />}
+    </div>
+  );
+}
+
+// The rail collapsed into the header: a dot per stage plus the active stage's
+// name. Click to open the full path below.
+function StagePathToggle({
+  activeIndex,
+  completedIndexes,
+  open,
+  onToggle,
+}: {
+  activeIndex: number;
+  completedIndexes: number[];
+  open: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={open}
+      title={`Stage ${activeIndex + 1} of ${STAGES.length} · ${completedIndexes.length} complete — ${open ? "hide" : "show"} the stage path`}
+      className={cn(
+        "inline-flex h-9 shrink-0 items-center gap-2 rounded-full border pl-2.5 pr-2 text-[13px] font-medium transition",
+        open
+          ? "border-[var(--accent-border)] bg-[var(--accent-soft)] text-[var(--accent-strong)]"
+          : "border-[var(--border-default)] bg-white text-[var(--text-body)] hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)]",
+      )}
+    >
+      {/* Progress ring: stages banked, plus a sliver for the one in flight. */}
+      <svg aria-hidden viewBox="0 0 36 36" className="h-[17px] w-[17px] -rotate-90">
+        <circle cx="18" cy="18" r="15" fill="none" stroke="#e0ddd9" strokeWidth="6" />
+        <circle
+          cx="18"
+          cy="18"
+          r="15"
+          fill="none"
+          stroke="var(--accent)"
+          strokeWidth="6"
+          strokeLinecap="round"
+          strokeDasharray={`${(((completedIndexes.length + 0.5) / STAGES.length) * 94.25).toFixed(1)} 94.25`}
+        />
+      </svg>
+      <span className="whitespace-nowrap">{SHORT_STAGE_LABELS[activeIndex] ?? STAGES[activeIndex].name}</span>
+      <span className="text-[12px] tabular-nums text-[var(--text-muted)]">
+        {activeIndex + 1}/{STAGES.length}
+      </span>
+      <ChevronDown size={14} className={cn("text-[var(--text-muted)] transition", open && "rotate-180")} />
+    </button>
+  );
+}
 
 // A hookless, read-only field state for a stage — its recorded values are the
 // mock suggestions. Cheaper than useStageFields for read-only summaries.
@@ -1332,7 +1507,7 @@ function SplitStageView({
       intro = `The ${stage.name} stage is complete — here's what was captured. Ask me anything about it.`;
       editNote = owned ? "Reopen it on the form panel to make changes." : `${stage.owner} can reopen it to make changes.`;
     }
-    chat = <AsideChat stage={stage} intro={intro} editNote={editNote} />;
+    chat = <AsideChat stage={stage} intro={intro} editNote={editNote} complete={isComplete} />;
   }
 
   // ---- RIGHT: the form/document, filling live. Completed stages show the
@@ -1510,6 +1685,12 @@ function joinList(items: string[]): string {
   return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
 }
 
+// Prose list that stays short — names a few, counts the rest.
+function listWithMore(items: string[], max: number): string {
+  if (items.length <= max) return joinList(items);
+  return `${items.slice(0, max).join(", ")} and ${items.length - max} more`;
+}
+
 // Same, but with "or" — for offering choices in prose.
 function orList(items: string[]): string {
   if (items.length <= 1) return items[0] ?? "";
@@ -1570,7 +1751,7 @@ type ChatMessage = { id: number; role: "assistant" | "user"; text: string; recap
 function MessageBubble({ role, text, recap = false }: { role: "assistant" | "user"; text: string; recap?: boolean }) {
   if (recap) {
     return (
-      <div className="bubble-in-left max-w-[85%] whitespace-pre-line py-1 text-[14px] leading-6 text-[var(--text-body)]">
+      <div className="bubble-in-left max-w-[85%] whitespace-pre-line py-1 text-[14px] leading-[1.7] text-[var(--text-body)]">
         {text}
       </div>
     );
@@ -1578,11 +1759,11 @@ function MessageBubble({ role, text, recap = false }: { role: "assistant" | "use
   return (
     <div className={cn("flex", role === "user" ? "justify-end" : "justify-start")}>
       {role === "user" ? (
-        <div className="bubble-in-right max-w-[85%] whitespace-pre-line rounded-[12px] bg-[#f1efec] px-3.5 py-2 text-[14.5px] leading-6 text-[var(--text-primary)]">
+        <div className="bubble-in-right max-w-[82%] whitespace-pre-line rounded-[14px] bg-[#f1efec] px-4 py-2.5 text-[14.5px] leading-[1.65] text-[var(--text-primary)]">
           {text}
         </div>
       ) : (
-        <div className="bubble-in-left max-w-[92%] whitespace-pre-line py-1 text-[14.5px] leading-6 text-[var(--text-body)]">
+        <div className="bubble-in-left max-w-[88%] whitespace-pre-line py-0.5 text-[14.5px] leading-[1.7] text-[var(--text-body)]">
           {text}
         </div>
       )}
@@ -1645,8 +1826,8 @@ function ChatComposer({
   sendDisabled?: boolean;
 }) {
   return (
-    <div className="shrink-0 p-3">
-      <div className="rounded-[12px] border border-[#e7e5e4] bg-white px-2.5 pb-2 pt-2 focus-within:border-[var(--accent-ring)]">
+    <div className="shrink-0 px-6 pb-5 pt-2">
+      <div className="rounded-[12px] border border-[#e7e5e4] bg-white px-3 pb-2 pt-2.5 focus-within:border-[var(--accent-ring)]">
         <textarea
           ref={inputRef}
           value={value}
@@ -1698,7 +1879,7 @@ function ChatComposer({
 // A non-guided stage chat (locked / bespoke / completed): the chat stays open so
 // every stage keeps its composer. It opens with `intro`, shows an optional
 // `footer` (summary / actions), and answers any message with a canned `reply`.
-function AsideChat({ stage, intro, editNote, footer }: { stage: StageItem; intro: string; editNote?: string; footer?: ReactNode }) {
+function AsideChat({ stage, intro, editNote, footer, complete = false }: { stage: StageItem; intro: string; editNote?: string; footer?: ReactNode; complete?: boolean }) {
   const { scrollRef, contentRef } = useBottomPinnedScroll();
   const data = useMemo(() => readOnlyStageState(stage), [stage]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -1740,15 +1921,65 @@ function AsideChat({ stage, intro, editNote, footer }: { stage: StageItem; intro
   function send(textArg?: string) {
     const text = (textArg ?? input).trim();
     if (!text) return;
+    setShowStarters(false);
     pushUser(text);
     setInput("");
     sayLines([respond(text)]);
   }
 
+  // Browsing / locked / completed starters: read the stage rather than fill it,
+  // worded from this stage — its name, its owner, its headline field.
+  const [showStarters, setShowStarters] = useState(true);
+  const short = shortStageName(stage.name);
+  const previous = previousStageName(stage.name);
+  const signature = signatureField(data.fields);
+  const starters: Starter[] = [
+    // The stage's own questions first, then the role-aware and catch-up chips.
+    ...specStarters(STAGE_STARTERS[stage.name]?.viewer ?? [{ icon: "doc", label: `What's in ${short}?`, read: data.fields.map((f) => f.label).slice(0, 5) }]),
+    complete
+      ? { id: "signoff", icon: <ShieldCheck size={13} />, label: `Who signed off ${short}?` }
+      : { id: "open", icon: <Info size={13} />, label: `What's left for ${firstName(stage.owner)}?` },
+    previous
+      ? { id: "recap", icon: <CornerUpLeft size={13} />, label: `What happened in ${previous}?` }
+      : { id: "why", icon: <CornerUpLeft size={13} />, label: `Why does ${short} matter?` },
+  ];
+
+  function pickStarter(item: Starter) {
+    setShowStarters(false);
+    pushUser(item.label);
+    if (item.spec?.read?.length) {
+      sayLines([`${capturedAnswer(item.spec.read, data.values)}${editNote ? `\n\n${editNote}` : ""}`]);
+      return;
+    }
+    if (item.spec?.reply) {
+      sayLines([item.spec.reply]);
+      return;
+    }
+    if (item.id === "recap") {
+      sayLines([priorStagesRecap(stage.name)]);
+      return;
+    }
+    if (item.id === "why") {
+      sayLines([`${STAGE_INTROS[stage.name] ?? `${stage.name} is the first step in the lifecycle.`} ${stage.owner} owns it.${editNote ? ` ${editNote}` : ""}`]);
+      return;
+    }
+    if (item.id === "signoff") {
+      const headline = signature && !isFieldEmpty(data.values[signature.label]) ? ` The ${humanizeLabel(signature.label)} was ${suggestionText(data.values[signature.label])}.` : "";
+      sayLines([`${stage.name} was completed by ${stage.owner} and signed off at its gate.${headline}${editNote ? ` ${editNote}` : ""}`]);
+      return;
+    }
+    const open = data.fields.filter((f) => isFieldEmpty(data.values[f.label]));
+    sayLines([
+      open.length
+        ? `Still open on ${stage.name}: ${joinList(open.map((f) => humanizeLabel(f.label)))}. ${stage.owner} records them.${editNote ? ` ${editNote}` : ""}`
+        : `Everything's filled on ${stage.name} — it's ready to submit.${editNote ? ` ${editNote}` : ""}`,
+    ]);
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col bg-transparent">
-      <div ref={scrollRef} className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-4 pt-4 pb-32">
-        <div ref={contentRef} className="space-y-3" role="log" aria-live="polite" aria-label={`${stage.name} conversation`}>
+      <div ref={scrollRef} className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-6 pb-8 pt-6">
+        <div ref={contentRef} className="space-y-5" role="log" aria-live="polite" aria-label={`${stage.name} conversation`}>
           {/* Summary / recap sits on top; the conversation flows below it. */}
           {footer ? <div className="pb-1">{footer}</div> : null}
           {messages.map((message) => (
@@ -1756,6 +1987,8 @@ function AsideChat({ stage, intro, editNote, footer }: { stage: StageItem; intro
           ))}
         </div>
       </div>
+      {showStarters ? <ChatStarters items={starters} onPick={pickStarter} /> : null}
+
       <ChatComposer
         inputRef={inputRef}
         value={input}
@@ -1806,6 +2039,16 @@ const IDEATION_SEED: { role: "assistant" | "user"; text: string }[] = [
 // including the ones the follow-up questions don't cover, so the stage can be
 // submitted once the flow is done.
 const IDEATION_SEED_FIELDS = ["Idea name", "Problem statement", "Objective", "AI capability", "Business function"];
+// Anything that reads as a "go ahead" when the agent asks to confirm a fill.
+const YES_RE = /\b(yes|yep|yeah|yup|confirm|go ahead|do it|sure|ok|okay|proceed|fill|please)\b/i;
+
+// Trim a value to one readable line in chat (the form shows it in full).
+function clip(text: string, max: number) {
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > max * 0.6 ? cut.slice(0, space) : cut).replace(/[,.;:\s]+$/, "")}…`;
+}
 
 // The question script for a stage: Ideation's hand-authored flow, otherwise one
 // question per still-relevant field.
@@ -1840,8 +2083,8 @@ function QuestionCard({
   onClose: () => void;
 }) {
   return (
-    <div className="shrink-0 p-3">
-      <div className="rounded-[14px] border border-[#e7e5e4] bg-white p-3.5">
+    <div className="shrink-0 px-6 pb-5 pt-2">
+      <div className="rounded-[14px] border border-[#e7e5e4] bg-white p-4">
         <div className="flex items-start justify-between gap-3">
           <p className="text-[15px] font-semibold leading-6 text-[var(--text-primary)]">{question}</p>
           <div className="flex shrink-0 items-center gap-1 text-[13px] font-medium tabular-nums text-[var(--text-muted)]">
@@ -1899,9 +2142,10 @@ function GuidedQuestions({ stage, s, onStarted, onBusyChange }: { stage: StageIt
   const [answers, setAnswers] = useState<Record<number, string>>(() => Object.fromEntries(questions.map((q, i) => [i, q.answer])));
   const [skipped, setSkipped] = useState<Record<number, boolean>>({});
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  // seed = opening exchange; questions = the card flow; confirm = recap + await
-  // the user's yes before filling the form; done = wrap-up.
-  const [phase, setPhase] = useState<"seed" | "questions" | "confirm" | "done">("seed");
+  // seed = opening exchange; confirmSeed = await the user's yes on what was
+  // extracted from their description; questions = the card flow; confirm = recap
+  // + await the yes before filling the answers; done = wrap-up.
+  const [phase, setPhase] = useState<"seed" | "confirmSeed" | "questions" | "confirm" | "done">("seed");
   const done = phase === "done";
   const [input, setInput] = useState("");
   const { scrollRef, contentRef } = useBottomPinnedScroll();
@@ -1913,8 +2157,18 @@ function GuidedQuestions({ stage, s, onStarted, onBusyChange }: { stage: StageIt
   // The agent "thinks" between the user's idea and its bridge reply.
   const [thinking, setThinking] = useState(false);
 
-  // Show the user's idea, then a thinking beat, then the bridge into the
-  // follow-ups; finally fill the fields the description already establishes.
+  // What the opening description already establishes, as a "here's what I read"
+  // list the user confirms before any of it lands on the form.
+  const seedSummary = useMemo(() => {
+    const lines = IDEATION_SEED_FIELDS.map((label) => {
+      const f = fieldByLabel.get(label);
+      return f ? `• ${label} — ${clip(suggestionText(f.suggestion), 68)}` : null;
+    }).filter(Boolean);
+    return `Here's what I picked up from your description:\n\n${lines.join("\n")}`;
+  }, [fieldByLabel]);
+
+  // Show the user's idea, then a thinking beat, then the summary of what was
+  // extracted — nothing reaches the form until the user confirms it.
   const timers = useRef<number[]>([]);
   useEffect(() => () => timers.current.forEach((t) => clearTimeout(t)), []);
   useEffect(() => {
@@ -1922,14 +2176,17 @@ function GuidedQuestions({ stage, s, onStarted, onBusyChange }: { stage: StageIt
     timers.current.push(window.setTimeout(() => setMessages((cur) => [...cur, { id: bump(), role: "user", text: IDEATION_SEED[0].text }]), 300));
     // 2. the agent thinks…
     timers.current.push(window.setTimeout(() => setThinking(true), 600));
-    // 3. …then replies with the bridge and the question flow begins. Nothing is
-    // written to the form yet — that waits for the user's confirmation.
+    // 3. …then recaps what it extracted and asks to confirm.
     timers.current.push(
       window.setTimeout(() => {
         setThinking(false);
-        setMessages((cur) => [...cur, { id: bump(), role: "assistant", text: IDEATION_SEED[1].text }]);
+        setMessages((cur) => [
+          ...cur,
+          { id: bump(), role: "assistant", text: seedSummary },
+          { id: bump(), role: "assistant", text: "Shall I add these to the form on the right? Reply “yes” to confirm." },
+        ]);
         onStarted?.();
-        setPhase("questions");
+        setPhase("confirmSeed");
       }, 1900),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1980,15 +2237,25 @@ function GuidedQuestions({ stage, s, onStarted, onBusyChange }: { stage: StageIt
     advance(answers, nextSkipped);
   }
 
-  // On confirmation, write every captured answer (+ the fields the idea already
-  // established) into the form, with the loading state.
-  function fillForm() {
+  // Confirmed the extracted details → write those fields, then move into the
+  // follow-up questions for what the description didn't cover.
+  function fillSeed() {
     onBusyChange?.(true);
     let d = 0;
     IDEATION_SEED_FIELDS.forEach((label) => {
       const f = fieldByLabel.get(label);
       if (f) s.fillNow(label, f.suggestion, 300 + d++ * 200);
     });
+    timers.current.push(window.setTimeout(() => onBusyChange?.(false), 300 + d * 200 + 400));
+    pushAssistant(IDEATION_SEED[1].text);
+    setPhase("questions");
+  }
+
+  // On confirmation, write every captured answer into the form, with the
+  // loading state.
+  function fillForm() {
+    onBusyChange?.(true);
+    let d = 0;
     questions.forEach((q, i) => {
       if (resultRef.current.skipped[i]) return;
       const a = (resultRef.current.answers[i] ?? "").trim();
@@ -2005,9 +2272,10 @@ function GuidedQuestions({ stage, s, onStarted, onBusyChange }: { stage: StageIt
     if (!text) return;
     pushUser(text);
     setInput("");
-    if (phase === "confirm") {
-      if (/\b(yes|yep|yeah|yup|confirm|go ahead|do it|sure|ok|okay|proceed|fill|please)\b/i.test(text)) {
-        fillForm();
+    if (phase === "confirmSeed" || phase === "confirm") {
+      if (YES_RE.test(text)) {
+        if (phase === "confirmSeed") fillSeed();
+        else fillForm();
       } else {
         pushAssistant("No problem — tell me what to change, or say “yes” when you're ready to fill the form.");
       }
@@ -2025,8 +2293,8 @@ function GuidedQuestions({ stage, s, onStarted, onBusyChange }: { stage: StageIt
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-transparent">
-      <div ref={scrollRef} className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-4 pt-4 pb-6">
-        <div ref={contentRef} className="space-y-3" role="log" aria-live="polite" aria-label={`${stage.name} conversation`}>
+      <div ref={scrollRef} className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-6 pb-8 pt-6">
+        <div ref={contentRef} className="space-y-5" role="log" aria-live="polite" aria-label={`${stage.name} conversation`}>
           {messages.map((message) => (
             <MessageBubble key={message.id} role={message.role} text={message.text} recap={message.recap} />
           ))}
@@ -2063,7 +2331,13 @@ function GuidedQuestions({ stage, s, onStarted, onBusyChange }: { stage: StageIt
           onChange={setInput}
           onSend={handleSend}
           sendDisabled={!input.trim()}
-          placeholder={phase === "confirm" ? "Reply “yes” to confirm, or tell me what to change…" : done ? "Ask me to change any detail, or submit on the form…" : "Type a message…"}
+          placeholder={
+            phase === "confirmSeed" || phase === "confirm"
+              ? "Reply “yes” to confirm, or tell me what to change…"
+              : done
+                ? "Ask me to change any detail, or submit on the form…"
+                : "Type a message…"
+          }
           onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault();
@@ -2072,6 +2346,207 @@ function GuidedQuestions({ stage, s, onStarted, onBusyChange }: { stage: StageIt
           }}
         />
       )}
+    </div>
+  );
+}
+
+// Rows that read as an earlier stage's outcome — used for the catch-up recap and
+// to pick the field a stage is best known by.
+const OUTCOME_ROW = /decision|outcome|recommend|status|tier|verdict|score|priority|approv|result/i;
+
+// ── Per-stage conversation starters ──
+// Each stage gets its own openers, because the work differs: Triage sets a tier,
+// Business Case runs numbers, Adoption chases training. `fill` does the stage's
+// work (writes those fields), `read` answers from what's captured, `reply` is a
+// canned explanation. Owner sets act; viewer sets ask.
+type StarterSpec = { icon: "spark" | "info" | "shield" | "doc"; label: string; fill?: string[]; read?: string[]; reply?: string };
+
+const STARTER_ICONS: Record<StarterSpec["icon"], ReactNode> = {
+  spark: <Sparkles size={13} />,
+  info: <Info size={13} />,
+  shield: <ShieldCheck size={13} />,
+  doc: <FileText size={13} />,
+};
+
+const STAGE_STARTERS: Record<string, { owner: StarterSpec[]; viewer: StarterSpec[] }> = {
+  Ideation: {
+    owner: [
+      { icon: "spark", label: "Sketch the problem and objective", fill: ["Problem statement", "Objective"] },
+      { icon: "info", label: "Who would use this?", fill: ["Target users", "Geography"] },
+    ],
+    viewer: [
+      { icon: "info", label: "What problem does this solve?", read: ["Problem statement", "Objective"] },
+      { icon: "doc", label: "Who's it for?", read: ["Target users", "Business function"] },
+    ],
+  },
+  Qualification: {
+    owner: [
+      { icon: "shield", label: "Is this a prohibited use?", reply: "No — it's document summarisation with a human reviewing every output, so it stays inside policy. Nothing here is an automated decision about a person." },
+      { icon: "spark", label: "Set oversight and decision impact", fill: ["Human oversight", "Decision impact", "Data sensitivity"] },
+    ],
+    viewer: [
+      { icon: "shield", label: "Why did this pass screening?", read: ["Human oversight", "Decision impact"] },
+      { icon: "doc", label: "Was anything similar built already?", read: ["Duplication check"] },
+    ],
+  },
+  Prioritisation: {
+    owner: [
+      { icon: "spark", label: "Score value against feasibility", fill: ["Business value", "Technical feasibility", "Complexity"] },
+      { icon: "info", label: "Work out the priority score", fill: ["Cost", "Strategic alignment", "Priority score"] },
+    ],
+    viewer: [
+      { icon: "info", label: "How was the priority score set?", read: ["Priority score", "Business value", "Technical feasibility"] },
+      { icon: "doc", label: "Does it fit the strategy?", read: ["Strategic alignment"] },
+    ],
+  },
+  Triage: {
+    owner: [
+      { icon: "shield", label: "Which risk tier applies?", fill: ["Risk governance tier"] },
+      { icon: "spark", label: "Does it need a full assessment?", fill: ["Compliance assessment required", "Triage notes"] },
+    ],
+    viewer: [
+      { icon: "shield", label: "Why this risk tier?", read: ["Risk governance tier", "Triage notes"] },
+      { icon: "info", label: "Is a compliance assessment needed?", read: ["Compliance assessment required"] },
+    ],
+  },
+  "Assessment - Risk & Compliance": {
+    owner: [
+      { icon: "shield", label: "Assess PII and data hosting", fill: ["PII", "Data hosted risk"] },
+      { icon: "spark", label: "Rate model and ethical risk", fill: ["Model risk", "Ethical risk", "Overall risk"] },
+    ],
+    viewer: [
+      { icon: "shield", label: "What are the top risks?", read: ["Overall risk", "Model risk", "Ethical risk"] },
+      { icon: "doc", label: "Which checks are cleared?", read: ["Compliance checks"] },
+    ],
+  },
+  "Business Case": {
+    owner: [
+      { icon: "spark", label: "Estimate the savings", fill: ["Current annual volume", "Current cost per review", "Projected time savings", "Projected annual savings"] },
+      { icon: "info", label: "Work out the payback", fill: ["Investment", "Payback period", "3-year net value"] },
+    ],
+    viewer: [
+      { icon: "info", label: "What's the payback?", read: ["Payback period", "Investment", "3-year net value"] },
+      { icon: "doc", label: "How were savings estimated?", read: ["Current annual volume", "Projected time savings", "Projected annual savings"] },
+    ],
+  },
+  GTAC: {
+    owner: [
+      { icon: "spark", label: "Record the board's decision", fill: ["Go / No-Go", "Recommendation"] },
+      { icon: "shield", label: "Risk versus return?", fill: ["ROI payback", "Overall risk"] },
+    ],
+    viewer: [
+      { icon: "shield", label: "What did the board decide?", read: ["Go / No-Go", "Recommendation"] },
+      { icon: "doc", label: "Any conditions attached?", read: ["Board notes"] },
+    ],
+  },
+  "Plan & KPI": {
+    owner: [
+      { icon: "spark", label: "Draft the delivery plan", fill: ["Project plan"] },
+      { icon: "info", label: "Which KPIs do we lock?", fill: ["KPIs", "Targets locked"] },
+    ],
+    viewer: [
+      { icon: "info", label: "What are the KPIs?", read: ["KPIs", "Targets locked"] },
+      { icon: "doc", label: "What's the delivery plan?", read: ["Project plan"] },
+    ],
+  },
+  "Solution blue print": {
+    owner: [
+      { icon: "shield", label: "Set the guardrails", fill: ["Human checkpoint", "Access control", "Audit trail"] },
+      { icon: "spark", label: "How often do we retrain?", fill: ["Capability", "Retraining cadence"] },
+    ],
+    viewer: [
+      { icon: "shield", label: "What are the guardrails?", read: ["Human checkpoint", "Access control", "Audit trail"] },
+      { icon: "info", label: "How often is it retrained?", read: ["Retraining cadence"] },
+    ],
+  },
+  "Solutionise and Production": {
+    owner: [
+      { icon: "spark", label: "Log the pilot results", fill: ["Build & configure", "Pilot (US & EU)"] },
+      { icon: "shield", label: "Is validation documented?", fill: ["CSV documentation", "Production deployment"] },
+    ],
+    viewer: [
+      { icon: "info", label: "How did the pilot go?", read: ["Pilot (US & EU)"] },
+      { icon: "shield", label: "Is it validated and live?", read: ["CSV documentation", "Production deployment"] },
+    ],
+  },
+  "Monitoring and tracking": {
+    owner: [
+      { icon: "spark", label: "Log the latest metrics", fill: ["Review time reduction", "Summary accuracy", "Writer satisfaction (CSAT)"] },
+      { icon: "info", label: "Where's adoption at?", fill: ["Adoption rate"] },
+    ],
+    viewer: [
+      { icon: "info", label: "Is it hitting its targets?", read: ["Review time reduction", "Summary accuracy"] },
+      { icon: "doc", label: "How do users rate it?", read: ["Writer satisfaction (CSAT)", "Adoption rate"] },
+    ],
+  },
+  Adoption: {
+    owner: [
+      { icon: "spark", label: "Who still needs training?", fill: ["Training completed"] },
+      { icon: "doc", label: "Plan comms and support", fill: ["Change management comms", "Support model", "Feedback loop"] },
+    ],
+    viewer: [
+      { icon: "info", label: "How's uptake going?", read: ["Training completed", "Change management comms"] },
+      { icon: "doc", label: "How do users get help?", read: ["Support model", "Feedback loop"] },
+    ],
+  },
+};
+
+// Short, stage-aware bits used to word the starter chips per stage.
+const shortStageName = (name: string) => SHORT_STAGE_LABELS[STAGES.findIndex((item) => item.name === name)] ?? name;
+const previousStageName = (name: string) => {
+  const index = STAGES.findIndex((item) => item.name === name);
+  return index > 0 ? shortStageName(STAGES[index - 1].name) : "";
+};
+const firstName = (name: string) => name.split(" ")[0];
+// The field a stage reads as being *about* — its outcome row, else its first.
+const signatureField = (fields: FieldSpec[]) => fields.find((f) => OUTCOME_ROW.test(f.label)) ?? fields[0];
+
+// "What happened before this stage" — one headline per earlier stage, taken from
+// its outcome-ish row (or its first row as a fallback).
+function priorStagesRecap(stageName: string): string {
+  const index = STAGES.findIndex((item) => item.name === stageName);
+  const prior = STAGES.slice(0, Math.max(0, index));
+  if (!prior.length) return "This is the first stage — nothing has happened before it yet.";
+  const lines = prior.map((item) => {
+    const row = item.rows.find(([label]) => OUTCOME_ROW.test(label)) ?? item.rows[0];
+    return `• ${item.name} — ${clip(row[1], 64)} (${item.owner})`;
+  });
+  return `Here's where things got to before this stage:\n\n${lines.join("\n")}`;
+}
+
+// Tap-to-send openers, shown while a stage's chat has no user input yet so
+// there's always an obvious way in. Compact chips that wrap — they sit above the
+// composer without eating the conversation's space.
+type Starter = { id: string; icon: ReactNode; label: string; spec?: StarterSpec };
+
+// Turn a stage's authored specs into chips.
+const specStarters = (specs: StarterSpec[] = []): Starter[] =>
+  specs.map((spec, index) => ({ id: `spec-${index}`, icon: STARTER_ICONS[spec.icon], label: spec.label, spec }));
+
+// Answer a "what's the X?" starter from what the stage has captured.
+function capturedAnswer(labels: string[], values: Record<string, string | string[]>): string {
+  return labels
+    .map((label) => {
+      const value = values[label] ?? "";
+      return isFieldEmpty(value) ? `• ${label} — not recorded yet` : `• ${label} — ${suggestionText(value)}`;
+    })
+    .join("\n");
+}
+
+function ChatStarters({ items, onPick }: { items: Starter[]; onPick: (item: Starter) => void }) {
+  return (
+    <div className="flex shrink-0 flex-wrap gap-1.5 px-6 pb-2">
+      {items.map((item) => (
+        <button
+          key={item.id}
+          type="button"
+          onClick={() => onPick(item)}
+          className="inline-flex items-center gap-1.5 rounded-full border border-[#e7e5e4] bg-white py-1.5 pl-2.5 pr-3 text-[12.5px] font-medium text-[var(--text-body)] transition hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)] hover:text-[var(--text-primary)]"
+        >
+          <span className="shrink-0 text-[var(--accent)]">{item.icon}</span>
+          {item.label}
+        </button>
+      ))}
     </div>
   );
 }
@@ -2158,18 +2633,125 @@ function ChatPanel({ stage, s }: { stage: StageItem; s: StageFieldsState }) {
     }
   }
 
-  // Open with the first question (the stage intro already shows in the header /
-  // summary, so the chat doesn't repeat it).
+  // Openers, shown until the user says (or picks) something.
+  const [showStarters, setShowStarters] = useState(true);
+
+  const openLabels = () => s.fields.filter((f) => isFieldEmpty(s.values[f.label])).map((f) => f.label);
+
+  // Open with a brief — what this stage is for and what it still needs — then the
+  // first question. Starters below cover the "how do I begin" case.
   useEffect(() => {
     const first = firstOpenGroup(initialHandled);
-    sayLines([first ? groupQuestion(first, groupRemaining(first, initialHandled), false) : "Everything's already filled — open the document to review."]);
+    const needs = openLabels();
+    const brief = [STAGE_INTROS[stage.name], needs.length ? `For this stage I need the ${listWithMore(needs.map(humanizeLabel), 4)}.` : ""]
+      .filter(Boolean)
+      .join(" ");
+    sayLines([brief, first ? groupQuestion(first, groupRemaining(first, initialHandled), false) : "Everything's already filled — review the form and submit when it looks right."].filter(Boolean));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Draft every still-open field from the earlier stages, then wrap up.
+  function draftEverything() {
+    const open = s.fields.filter((f) => !handled.includes(f.label) && isFieldEmpty(s.values[f.label]));
+    open.forEach((field, index) => s.fillNow(field.label, field.suggestion, 450 + index * 250));
+    const drafted = [...handled, ...open.map((f) => f.label)];
+    setHandled(drafted);
+    sayLines([`I've drafted the ${listWithMore(open.map((f) => humanizeLabel(f.label)), 4)} from what the earlier stages recorded — check the form and tweak anything that's off.`], finish);
+  }
+
+  // Owner starters, worded from this stage: what it's called, what it's about,
+  // what came before. On an already-filled (prefilled) stage they read/revise
+  // instead of fill.
+  const short = shortStageName(stage.name);
+  const previous = previousStageName(stage.name);
+  const recapStarter: Starter = previous
+    ? { id: "recap", icon: <CornerUpLeft size={13} />, label: `What happened in ${previous}?` }
+    : { id: "why", icon: <CornerUpLeft size={13} />, label: `Why does ${short} matter?` };
+  // Stage-authored openers: act on an open stage, read on a filled one. Stages
+  // without authored copy fall back to the generic draft/needs pair.
+  const authored = STAGE_STARTERS[stage.name];
+  const authoredSpecs = done ? authored?.viewer : authored?.owner;
+  const starters: Starter[] = authoredSpecs?.length
+    ? [...specStarters(authoredSpecs), recapStarter]
+    : done
+      ? [{ id: "captured", icon: <FileText size={13} />, label: `What's in ${short}?` }, recapStarter]
+      : [
+          { id: "draft", icon: <Sparkles size={13} />, label: `Draft all ${openLabels().length} details` },
+          { id: "needs", icon: <Info size={13} />, label: `What does ${short} need?` },
+          recapStarter,
+        ];
+
+  // Run an authored starter: fill the stage's fields, read them back, or explain.
+  function runSpec(spec: StarterSpec) {
+    if (spec.fill?.length) {
+      const targets = spec.fill.map((label) => fieldByLabel.get(label)).filter((f): f is FieldSpec => Boolean(f));
+      const toFill = targets.filter((f) => isFieldEmpty(s.values[f.label]));
+      if (!toFill.length) {
+        sayLines([`Already recorded:\n\n${capturedAnswer(targets.map((f) => f.label), s.values)}`]);
+        return;
+      }
+      toFill.forEach((field, index) => s.fillNow(field.label, field.suggestion, 450 + index * 250));
+      const drafted = [...handled, ...toFill.map((f) => f.label)];
+      setHandled(drafted);
+      const stillOpen = s.fields.filter((f) => !drafted.includes(f.label) && isFieldEmpty(s.values[f.label]));
+      sayLines(
+        [
+          `Set the ${joinList(toFill.map((f) => humanizeLabel(f.label)))} on the form — tweak anything that's off.${
+            stillOpen.length ? ` Still open: ${listWithMore(stillOpen.map((f) => humanizeLabel(f.label)), 3)}.` : ""
+          }`,
+        ],
+        stillOpen.length ? undefined : finish,
+      );
+      return;
+    }
+    if (spec.read?.length) {
+      sayLines([capturedAnswer(spec.read, s.values)]);
+      return;
+    }
+    if (spec.reply) sayLines([spec.reply]);
+  }
+
+  function pickStarter(item: Starter) {
+    setShowStarters(false);
+    pushUser(item.label);
+    if (item.spec) {
+      runSpec(item.spec);
+      return;
+    }
+    if (item.id === "draft") {
+      draftEverything();
+      return;
+    }
+    if (item.id === "captured") {
+      const filled = s.fields.filter((f) => !isFieldEmpty(s.values[f.label]));
+      sayLines([
+        filled.length
+          ? `${stage.name} has:\n\n${filled.map((f) => `• ${f.label} — ${clip(suggestionText(s.values[f.label]), 64)}`).join("\n")}`
+          : `Nothing's captured on ${stage.name} yet.`,
+      ]);
+      return;
+    }
+    if (item.id === "why") {
+      sayLines([`${STAGE_INTROS[stage.name] ?? `${stage.name} is the first step in the lifecycle.`} You own it, so it's yours to record.`]);
+      return;
+    }
+    if (item.id === "needs") {
+      const needs = openLabels();
+      sayLines([
+        needs.length
+          ? `${stage.name} needs the ${joinList(needs.map(humanizeLabel))} — you own it, and it goes to the gate once submitted.\nAnswer in your own words and I'll fill the form as we go.`
+          : "Nothing's outstanding — review the form on the right and submit when it looks right.",
+      ]);
+      return;
+    }
+    sayLines([priorStagesRecap(stage.name)]);
+  }
 
   // Send a reply — the typed input, or an override (the accepted ghost reply).
   function send(textArg?: string) {
     const text = (textArg ?? input).trim();
     if (!text) return;
+    setShowStarters(false);
 
     // Post-finish: the flow is done but the chat stays open so the user can
     // still tweak details here. Re-parse against every field and update matches.
@@ -2260,13 +2842,15 @@ function ChatPanel({ stage, s }: { stage: StageItem; s: StageFieldsState }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-transparent">
-      <div ref={scrollRef} className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-4 pt-4 pb-32">
-        <div ref={contentRef} className="space-y-3" role="log" aria-live="polite" aria-label={`${stage.name} conversation`}>
+      <div ref={scrollRef} className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-6 pb-8 pt-6">
+        <div ref={contentRef} className="space-y-5" role="log" aria-live="polite" aria-label={`${stage.name} conversation`}>
           {messages.map((message) => (
             <MessageBubble key={message.id} role={message.role} text={message.text} />
           ))}
         </div>
       </div>
+
+      {showStarters ? <ChatStarters items={starters} onPick={pickStarter} /> : null}
 
       <ChatComposer
         inputRef={inputRef}
@@ -2389,11 +2973,36 @@ function StageField({
     );
   }
 
-  if (spec.kind === "long") {
-    return <SmartTextarea hideHeader label={spec.label} maxLength={600} value={text} onChange={onChange} onSuggest={onSuggest} />;
-  }
+  // Free text (short or long) uses the growing editor so nothing truncates and
+  // the box keeps the read view's metrics.
+  return <GrowText value={text} onChange={onChange} onSuggest={onSuggest} label={spec.label} />;
+}
 
-  return <SmartText hideHeader label={spec.label} value={text} onChange={onChange} onSuggest={onSuggest} />;
+// Record free-text editor: grows with its content (never truncates a value to one
+// clipped line) and carries the same font, padding and inset as the read view, so
+// toggling Edit doesn't move anything on the page.
+function GrowText({ value, onChange, onSuggest, label }: { value: string; onChange: (value: string) => void; onSuggest: () => void; label: string }) {
+  return (
+    <div className="relative -mx-3 w-[calc(100%+1.5rem)] min-w-0">
+      <textarea
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        rows={1}
+        aria-label={label}
+        // ponytail: field-sizing handles the auto-grow; older browsers scroll instead.
+        className="field-sizing-content w-full resize-none rounded-[8px] border border-[var(--border-default)] bg-white px-3 py-1.5 pr-9 text-[14px] leading-6 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent-ring)]"
+      />
+      <button
+        type="button"
+        onClick={onSuggest}
+        aria-label={`Suggest ${label}`}
+        title="Suggest"
+        className="absolute right-1 top-1 grid h-7 w-7 place-items-center rounded-[7px] text-[var(--text-muted)] transition hover:bg-[var(--accent-soft)] hover:text-[var(--accent-strong)]"
+      >
+        <Sparkles size={14} />
+      </button>
+    </div>
+  );
 }
 
 // ── Bespoke Plan stage (ported from reference: mandate, squad, milestones, metrics) ──

@@ -13,7 +13,7 @@ import { useClickOutside } from "@/lib/use-click-outside";
 
 const FOCUS_RING = "focus:border-[#8fc0cf] focus:ring-2 focus:ring-[#e8f4f8]";
 const BASE_INPUT = cn(
-  "h-9 w-full rounded-[8px] border bg-white px-3 text-[13px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)]",
+  "h-9 w-full rounded-[8px] border bg-white px-3 text-[14px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)]",
   FOCUS_RING,
 );
 
@@ -143,7 +143,7 @@ export function SmartTextarea({
           maxLength={maxLength}
           aria-invalid={Boolean(error)}
           className={cn(
-            "w-full resize-none rounded-[8px] border bg-white py-2.5 pl-3 text-[13px] leading-5 text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)]",
+            "w-full resize-none rounded-[8px] border bg-white py-2.5 pl-3 text-[14px] leading-6 text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)]",
             FOCUS_RING,
             borderClass(error),
             onSuggest ? "pr-10" : "pr-3",
@@ -278,7 +278,7 @@ export function Segmented({
               aria-pressed={selected}
               onClick={() => onChange(option)}
               className={cn(
-                "h-9 rounded-[8px] border px-3 text-[13px] font-normal transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e8f4f8]",
+                "h-9 rounded-[8px] border px-3 text-[14px] font-normal transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e8f4f8]",
                 selected
                   ? "border-[#0e7090] bg-white text-[#0c5f7a] shadow-[inset_0_0_0_1px_#0e7090]"
                   : "border-[#e7e5e4] bg-white text-[var(--text-primary)] hover:border-[#c5e2ea] hover:bg-[#f4fafb]",
@@ -324,7 +324,7 @@ export function SegmentedToggle({
               aria-checked={selected}
               onClick={() => onChange(option)}
               className={cn(
-                "rounded-[6px] px-3 py-1.5 text-[13px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e8f4f8]",
+                "rounded-[6px] px-3 py-1.5 text-[14px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e8f4f8]",
                 selected
                   ? "bg-white text-[var(--text-primary)] shadow-[0_1px_2px_rgba(12,10,9,0.12)]"
                   : "text-[var(--text-label)] hover:text-[var(--text-primary)]",
@@ -456,7 +456,7 @@ export function CurrencyField({
           value={amount}
           onChange={(event) => onAmount(event.target.value)}
           placeholder={placeholder}
-          className="h-full min-w-0 flex-1 bg-transparent px-3 text-[13px] tabular-nums text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
+          className="h-full min-w-0 flex-1 bg-transparent px-3 text-[14px] tabular-nums text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
         />
         {suffix ? <span className="flex h-full shrink-0 items-center pr-3 text-[12px] text-[var(--text-muted)]">{suffix}</span> : null}
         {stepBy ? (
@@ -710,7 +710,7 @@ export function RadioGroup({
               role="radio"
               aria-checked={selected}
               onClick={() => onChange(option)}
-              className="group inline-flex items-center gap-2 text-[13px] text-[var(--text-primary)]"
+              className="group inline-flex items-center gap-2 text-[14px] text-[var(--text-primary)]"
             >
               <span
                 className={cn(
