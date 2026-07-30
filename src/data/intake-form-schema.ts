@@ -21,7 +21,14 @@ export const INTAKE_FORM_SECTIONS: IntakeSectionDef[] = [
     title: "Use case details",
     fields: [
       { key: "name", label: "Use case name", type: "text", required: true },
-      { key: "oneLineDescription", label: "One-line description", type: "text", required: true, wide: true, hint: "How you'd explain this to a colleague in one sentence" },
+      {
+        key: "oneLineDescription",
+        label: "One-line description",
+        type: "text",
+        required: true,
+        wide: true,
+        hint: "How you'd explain this to a colleague in one sentence",
+      },
       { key: "businessProblem", label: "Business problem", type: "long", required: true, wide: true },
       { key: "desiredOutcome", label: "Desired outcome", type: "long", required: true, wide: true },
       { key: "kpis", label: "KPIs", type: "long", wide: true, hint: "Baseline and target for productivity, customer experience, and adoption" },
@@ -83,8 +90,7 @@ export const INTAKE_FORM_SECTIONS: IntakeSectionDef[] = [
 /** Demo intake for UC-142 — Support Ticket Response Agent (matches New use case form fields). */
 export const UC_142_INTAKE_DATA: Record<string, IntakeFieldValue> = {
   name: "Support Ticket Response Agent",
-  oneLineDescription:
-    "AI agent that drafts first-line replies to tier-1 support tickets from approved knowledge base articles.",
+  oneLineDescription: "AI agent that drafts first-line replies to tier-1 support tickets from approved knowledge base articles.",
   businessProblem:
     "Tier-1 agents spend too long drafting repetitive first responses to common support tickets, slowing handle times and creating inconsistent tone across regions.",
   desiredOutcome:
@@ -94,14 +100,11 @@ export const UC_142_INTAKE_DATA: Record<string, IntakeFieldValue> = {
     "Customer experience (CSAT %): 68 → 85",
     "Adoption (% of eligible tickets using draft): 40 → 80",
   ].join("\n"),
-  alternatives:
-    "Continue fully manual drafting; expand static template library without AI; outsource tier-1 responses to BPO.",
+  alternatives: "Continue fully manual drafting; expand static template library without AI; outsource tier-1 responses to BPO.",
   targetUsers: "Tier-1 customer support agents (~120 agents across EU, UK, and US queues)",
   modelArchetype: "Agent",
-  scopeIn:
-    "Draft first-line responses to tier-1 tickets using approved knowledge base articles; suggest routing labels for edge cases.",
-  scopeOut:
-    "Direct customer sends without agent review; billing disputes; escalated complaints; social-channel responses.",
+  scopeIn: "Draft first-line responses to tier-1 tickets using approved knowledge base articles; suggest routing labels for edge cases.",
+  scopeOut: "Direct customer sends without agent review; billing disputes; escalated complaints; social-channel responses.",
   department: "Support",
   functionArea: "Customer Experience",
   team: "Tier-1 Operations",
@@ -144,17 +147,13 @@ export function formatIntakeKpis(form: {
   ].join("\n");
 }
 
-export function formatIntakeDataSources(
-  sources: { source: string; dataType: string; lawfulBasis: string }[],
-): string {
+export function formatIntakeDataSources(sources: { source: string; dataType: string; lawfulBasis: string }[]): string {
   return sources
     .filter((row) => row.source.trim() || row.dataType.trim() || row.lawfulBasis.trim())
     .map((row, index) => {
       const lines = [`Source ${index + 1}: ${row.source.trim() || "—"}`];
       if (row.dataType.trim() || row.lawfulBasis.trim()) {
-        lines.push(
-          `  Data type: ${row.dataType.trim() || "—"} · Lawful basis: ${row.lawfulBasis.trim() || "—"}`,
-        );
+        lines.push(`  Data type: ${row.dataType.trim() || "—"} · Lawful basis: ${row.lawfulBasis.trim() || "—"}`);
       }
       return lines.join("\n");
     })

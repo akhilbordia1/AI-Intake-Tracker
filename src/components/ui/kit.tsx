@@ -97,13 +97,22 @@ export function IconButton({
 
 export type Tone = "neutral" | "info" | "success" | "warning" | "danger";
 
-export function Tag({
-  tone = "neutral",
-  icon,
-  className,
-  children,
-  ...rest
-}: { tone?: Tone; icon?: ReactNode } & ComponentProps<"span">) {
+// Tags read in Title Case ("In Review", "Blocked by Gate") — short prepositions
+// stay lowercase. Prose elsewhere stays sentence case.
+const TAG_LOWER = new Set(["a", "an", "and", "as", "at", "by", "for", "in", "of", "on", "or", "the", "to", "via", "with"]);
+
+export function titleCaseTag(text: string) {
+  return text
+    .split(" ")
+    .map((word, index) => {
+      if (index > 0 && TAG_LOWER.has(word.toLowerCase())) return word.toLowerCase();
+      if (!/[a-z]/.test(word)) return word;
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(" ");
+}
+
+export function Tag({ tone = "neutral", icon, className, children, ...rest }: { tone?: Tone; icon?: ReactNode } & ComponentProps<"span">) {
   return (
     <span
       {...rest}
@@ -114,7 +123,7 @@ export function Tag({
       )}
     >
       {icon}
-      {children}
+      {typeof children === "string" ? titleCaseTag(children) : children}
     </span>
   );
 }
@@ -136,9 +145,7 @@ export const TONE_CLASS_MANIFEST = [
 export function cardClass({ selected = false, interactive = false }: { selected?: boolean; interactive?: boolean } = {}) {
   return cn(
     "rounded-[10px] border",
-    selected
-      ? "border-[var(--accent-border)] bg-[var(--accent-soft)]"
-      : "border-[var(--border-default)] bg-[var(--surface)]",
+    selected ? "border-[var(--accent-border)] bg-[var(--accent-soft)]" : "border-[var(--border-default)] bg-[var(--surface)]",
     interactive && !selected && "transition hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)]",
   );
 }
@@ -171,7 +178,17 @@ export function Fact({ label, children }: { label: string; children: ReactNode }
 // ── Progress ──
 
 // A ring for "n of m" — used wherever progress is a glance rather than a bar.
-export function ProgressRing({ ratio, size = 22, stroke = 2.5, complete = false }: { ratio: number; size?: number; stroke?: number; complete?: boolean }) {
+export function ProgressRing({
+  ratio,
+  size = 22,
+  stroke = 2.5,
+  complete = false,
+}: {
+  ratio: number;
+  size?: number;
+  stroke?: number;
+  complete?: boolean;
+}) {
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
   const clamped = Math.max(0, Math.min(1, ratio));
@@ -237,7 +254,17 @@ export function StageNode({
       )}
     >
       {state === "complete" ? (
-        <svg width={size * 0.55} height={size * 0.55} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <svg
+          width={size * 0.55}
+          height={size * 0.55}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="3.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
           <path d="M20 6 9 17l-5-5" />
         </svg>
       ) : state === "active" ? (

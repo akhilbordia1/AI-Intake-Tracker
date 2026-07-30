@@ -119,7 +119,7 @@ From `src/components/app-shell.tsx` (layout chrome): `AppTopBar`, `RailHeader`,
 `useRailMode`.
 
 From `src/components/chat/chat-ui.tsx` (conversation): `ChatLine`, `ChatComposer`,
-`ChatStarters`, `ChatDock`, `ChatTimeDivider`.
+`ChatStarters`, `ChatStartScreen`, `ChatDock`, `ChatTimeDivider`.
 
 ---
 
@@ -130,11 +130,11 @@ Three rows of chrome on every route:
 1. **Top bar** (on the canvas) — product mark, title, centred search, avatar.
 2. **Rail + tab bar** — the chat rail's header and its two controls on the left;
    the panel's view tabs (and any panel toggle) on the right.
-3. **Content panel** — a rounded white panel with its own header (icon, title,
-   breadcrumb) and, where the view has one, a footer holding the primary action
-   and the count.
+3. **Content panel** — a rounded white panel, fully inside the window, with its
+   own header (icon, title, count, breadcrumb) and, where the view has one, a
+   footer holding that view's actions.
 
-The chat rail is a fixed **330px** side rail, collapsible to a 36px strip and
+The chat rail is a fixed **364px** side rail, collapsible to a 36px strip and
 expandable to full width (`useRailMode` — the states are mutually exclusive). The
 panel clips its own content: **nothing bleeds past its rounded edge**, and content
 that needs more room scrolls inside it.
@@ -149,12 +149,18 @@ owner, gate, whose turn). A fact appears in one of them, never both.
 
 One kit for every conversation. Assistant messages are plain prose (no bubble);
 the user gets a `--surface-bubble` bubble with its send time beneath. Work steps
-render as activity lines (bold verb + muted detail); completions as a notice strip.
+render as activity lines (bold verb + muted detail). Nothing the agent says is
+boxed — a completion is a message, not a callout.
 Messages over ~460 characters clamp to six lines with *Show more*.
 
+Before anything is asked, a chat shows `ChatStartScreen`: mark, headline, lead and
+suggestions as one centred block, with the composer docked at the bottom. Starter
+chips only sit next to the input inside a stage's chat, where they're follow-ups
+rather than a greeting.
+
 The composer is one shape everywhere: textarea, a mention control on the left, a
-circular send on the right that stays visible and greys out when empty. Its side
-padding equals its bottom padding.
+circular send on the right that stays visible and greys out when empty. The shell
+provides its insets, so it lines up with the bottom of the content panel.
 
 ---
 

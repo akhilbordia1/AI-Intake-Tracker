@@ -1,21 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronDown, Columns3, Plus, SlidersHorizontal, Table2 } from "lucide-react";
+import { ChevronDown, Columns3, Plus, Search, SlidersHorizontal, Table2 } from "lucide-react";
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
-import {
-  AppShell,
-  AppTopBar,
-  ContentPanel,
-  PanelTabs,
-  RailHeader,
-  shellButton,
-  useRailMode,
-} from "@/components/app-shell";
+import { AppShell, ContentPanel, PanelTabs, RailHeader, shellButton, useRailMode } from "@/components/app-shell";
 import { MiniChatRail } from "@/components/chat/mini-chat-rail";
 import { PersonAvatar, ProfileSwitcher } from "@/components/profile";
+import { IconButton, titleCaseTag } from "@/components/ui/kit";
 import { SHORT_STAGE_LABELS, STAGE_GROUPS, STAGES, SUBSTAGE_TO_GROUP } from "@/data/lifecycle";
 import { useClickOutside } from "@/lib/use-click-outside";
 
@@ -81,7 +74,8 @@ function answerAboutPortfolio(question: string, person: string): string | undefi
     return stalled.length
       ? `${stalled.length} ${stalled.length === 1 ? "use case is" : "use cases are"} not moving:\n\n${list(
           stalled,
-          (card) => `${card.lifecycle === "Active" ? `gate ${card.gate?.id} ${card.gate?.status.toLowerCase()}` : card.lifecycle.toLowerCase()} at ${shortStageLabel(card.substage)}`,
+          (card) =>
+            `${card.lifecycle === "Active" ? `gate ${card.gate?.id} ${card.gate?.status.toLowerCase()}` : card.lifecycle.toLowerCase()} at ${shortStageLabel(card.substage)}`,
         )}`
       : "Nothing is blocked — every use case is moving.";
   }
@@ -376,15 +370,13 @@ export default function HomePage() {
   const [attentionOnly, setAttentionOnly] = useState(false);
   const [search, setSearch] = useState("");
   const [activeProfile, setActiveProfile] = useState(currentUser);
-  const [viewMenuOpen, setViewMenuOpen] = useState(false);
   const [railScrolled, setRailScrolled] = useState(false);
   const railScrollRef = useRef<HTMLDivElement>(null);
   const railMode = useRailMode();
+  // Bumping this remounts the rail, which is exactly "start a new chat".
+  const [chatKey, setChatKey] = useState(0);
   const scopedUseCases = useMemo(() => filterUseCasesByScope(useCases, scopeFilter), [scopeFilter]);
-  const attentionCount = useMemo(
-    () => scopedUseCases.filter((card) => card.needsAttention).length,
-    [scopedUseCases],
-  );
+  const attentionCount = useMemo(() => scopedUseCases.filter((card) => card.needsAttention).length, [scopedUseCases]);
   const filteredUseCases = useMemo(() => {
     const visibleUseCases = attentionOnly ? scopedUseCases.filter((card) => card.needsAttention) : scopedUseCases;
     const query = search.trim().toLowerCase();
@@ -418,13 +410,6 @@ export default function HomePage() {
 
   return (
     <AppShell
-      topBar={
-        <AppTopBar
-          title="AI Intake Tracker"
-          search={{ value: search, onChange: setSearch, placeholder: "Search use cases…" }}
-          profile={<ProfileSwitcher currentUser={activeProfile} onUserChange={setActiveProfile} compact />}
-        />
-      }
       railExpanded={railMode.expanded}
       railCollapsed={railMode.collapsed}
       railHeader={
@@ -436,37 +421,23 @@ export default function HomePage() {
           onToggleExpand={railMode.toggleExpand}
           collapsed={railMode.collapsed}
           onToggleCollapse={railMode.toggleCollapse}
-        />
-      }
-      tabs={
-        <PanelTabs
-          activeId={displayMode}
-          onSelect={(id) => setDisplayMode(id as DisplayMode)}
-          tabs={[
-            { id: "board", label: "Board", icon: <Columns3 size={14} /> },
-            { id: "table", label: "Table", icon: <Table2 size={14} /> },
-          ]}
-          right={
-            <Link href="/intake" className={shellButton("primary")}>
-              <Plus size={14} />
-              New use case
-            </Link>
-          }
+          onNewChat={() => setChatKey((key) => key + 1)}
         />
       }
       rail={
         <MiniChatRail
+          key={chatKey}
           scrollRef={railScrollRef}
           onScrolledChange={setRailScrolled}
-          emptyTitle={`Hello, ${activeProfile.split(" ")[0]}`}
+          emptyTitle={`How can I help, ${activeProfile.split(" ")[0]}?`}
           intro={`${useCases.length} use cases are in the registry and ${attentionCount} need attention. Describe an idea and I'll start a new one, or ask me about what's already here.`}
-          starterGroups={[
-            { label: "Start something", items: ["I want to build an AI assistant for…", "Raise a new use case"] },
-            { label: "About the registry", items: ["What needs my attention?", "Which use cases are blocked?", "What's waiting on GTAC?"] },
+          starters={[
+            { label: "Start a new use case", draft: "I want to build an AI assistant that " },
+            "What needs my attention?",
+            "Which use cases are blocked?",
           ]}
-          starters={["What needs my attention?", "Which use cases are blocked?", "What's waiting on GTAC?"]}
           answer={(question) => answerAboutPortfolio(question, activeProfile)}
-          newIdeaHref="/intake"
+          newIdeaHref="/detail"
           placeholder="Describe an idea, or ask about the registry"
           reply="I can answer on what needs attention, what's blocked, and what's at the GTAC board — or describe an idea and I'll start a new use case."
         />
@@ -474,55 +445,64 @@ export default function HomePage() {
     >
       <ContentPanel
         icon={displayMode === "board" ? <Columns3 size={17} /> : <Table2 size={17} />}
-        title="Use case pipeline"
+        title="All use cases"
+        tabs={
+          <PanelTabs
+            compact
+            activeId={displayMode}
+            onSelect={(id) => setDisplayMode(id as DisplayMode)}
+            tabs={[
+              { id: "board", label: "Board", icon: <Columns3 size={15} /> },
+              { id: "table", label: "Table", icon: <Table2 size={15} /> },
+            ]}
+          />
+        }
         controls={
           <>
-            <SlidersHorizontal size={14} className="mr-0.5 hidden text-[var(--text-muted)] lg:block" />
-            <ViewDropdown
+            <CollapsingSearch value={search} onChange={setSearch} />
+            <FilterMenu
               activeView={activeView}
-              open={viewMenuOpen}
-              onOpenChange={setViewMenuOpen}
-              onChange={setActiveView}
+              onViewChange={setActiveView}
+              activeScope={scopeFilter}
+              onScopeChange={setScopeFilter}
+              attentionOnly={attentionOnly}
+              onAttentionChange={setAttentionOnly}
+              attentionCount={attentionCount}
             />
-            <ScopeFilterControl activeScope={scopeFilter} onChange={setScopeFilter} />
-            <button
-              type="button"
-              onClick={() => setAttentionOnly(!attentionOnly)}
-              aria-pressed={attentionOnly}
-              className={[
-                "inline-flex h-8 items-center gap-2 rounded-[8px] border px-2.5 text-[12px] transition",
-                attentionOnly
-                  ? "border-[var(--accent-ring)] bg-[var(--accent-soft)] text-[var(--accent-strong)]"
-                  : "border-[var(--border-default)] bg-white text-[var(--text-body)] hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)] hover:text-[var(--accent-strong)]",
-              ].join(" ")}
-            >
-              Needs my attention
-              <span className="rounded-full bg-[var(--accent-soft)] px-1.5 py-0.5 text-[11px] font-semibold leading-none text-[var(--accent-strong)]">
-                {attentionCount}
-              </span>
-            </button>
+            <Link href="/intake" className={shellButton("primary")}>
+              <Plus size={14} />
+              New use case
+            </Link>
+            <ProfileSwitcher currentUser={activeProfile} onUserChange={setActiveProfile} compact />
           </>
         }
         scroll={false}
-        footer={
-          <span className="ml-auto text-[12px] tabular-nums text-[var(--text-muted)]">
-            {filteredUseCases.length} {filteredUseCases.length === 1 ? "result" : "results"}
+        titleMeta={
+          <span className="shrink-0 text-[12px] tabular-nums text-[var(--text-muted)]">
+            {filteredUseCases.length} {filteredUseCases.length === 1 ? "use case" : "use cases"}
           </span>
         }
       >
         {displayMode === "board" ? (
           <section className="flex min-h-0 flex-1 flex-col">
-            <div className="min-h-0 flex-1 overflow-x-auto px-4">
-              <div
-                className="grid h-full min-h-[540px] gap-5 pr-1"
-                style={{
-                  gridTemplateColumns: `repeat(${columns.length}, minmax(330px, 1fr))`,
-                }}
-              >
-                {columns.map((column) => (
-                  <KanbanColumn key={column.title} column={column} />
-                ))}
+            {/* Columns share the panel's width down to a readable floor, then the
+ board scrolls sideways rather than squeezing the cards. */}
+            <div className="relative min-h-0 flex-1">
+              <div className="no-scrollbar h-full min-h-0 overflow-x-auto px-5">
+                <div
+                  className="grid h-full min-h-[320px] gap-6"
+                  style={{
+                    gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))`,
+                    minWidth: `${columns.length * 320 + (columns.length - 1) * 24}px`,
+                  }}
+                >
+                  {columns.map((column) => (
+                    <KanbanColumn key={column.title} column={column} />
+                  ))}
+                </div>
               </div>
+              {/* Sideways overflow reads as "more to scroll", not a sliced column. */}
+              <div aria-hidden className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-[var(--surface)] to-transparent" />
             </div>
           </section>
         ) : (
@@ -533,197 +513,206 @@ export default function HomePage() {
   );
 }
 
-function ScopeFilterControl({
+// Search costs a 180px field in a header that has five other things in it, so it
+// stays an icon until you use it (and reopens whenever a query is set).
+function CollapsingSearch({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const expanded = open || value.length > 0;
+
+  if (!expanded) {
+    return (
+      <IconButton
+        label="Search use cases"
+        size={32}
+        onClick={() => {
+          setOpen(true);
+          requestAnimationFrame(() => inputRef.current?.focus());
+        }}
+      >
+        <Search size={15} />
+      </IconButton>
+    );
+  }
+
+  return (
+    <label className="relative block">
+      <Search aria-hidden size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+      <input
+        ref={inputRef}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onBlur={() => setOpen(false)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            onChange("");
+            setOpen(false);
+          }
+        }}
+        placeholder="Search use cases…"
+        className="h-8 w-[180px] rounded-[8px] border border-[var(--border-default)] bg-[var(--surface)] pl-7 pr-2.5 text-[12px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--accent-ring)]"
+      />
+    </label>
+  );
+}
+
+// Grouping, scope and the attention toggle in one menu: three separate triggers
+// filled the header without ever being used together.
+function FilterMenu({
+  activeView,
+  onViewChange,
   activeScope,
-  onChange,
+  onScopeChange,
+  attentionOnly,
+  onAttentionChange,
+  attentionCount,
 }: {
+  activeView: ViewKey;
+  onViewChange: (view: ViewKey) => void;
   activeScope: ScopeFilter;
-  onChange: (scope: ScopeFilter) => void;
+  onScopeChange: (scope: ScopeFilter) => void;
+  attentionOnly: boolean;
+  onAttentionChange: (only: boolean) => void;
+  attentionCount: number;
 }) {
   const [open, setOpen] = useState(false);
-  const activeLabel = scopeOptions.find((option) => option.key === activeScope)?.label ?? "All Use Cases";
   const menuRef = useRef<HTMLDivElement>(null);
   useClickOutside(menuRef, () => setOpen(false), open);
 
+  // Anything other than the defaults counts as filtered, so the trigger can say so.
+  const activeCount = (activeScope === "all" ? 0 : 1) + (attentionOnly ? 1 : 0);
+  const groupLabel = viewOptions.find((option) => option.key === activeView)?.label ?? "By stage";
+
   return (
     <div ref={menuRef} className="relative">
-      <FilterTrigger label="Scope" value={activeLabel} open={open} onClick={() => setOpen(!open)} />
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title={`Grouped ${groupLabel.toLowerCase()}`}
+        aria-label={`Filters — grouped ${groupLabel.toLowerCase()}`}
+        className={[
+          "inline-flex h-8 items-center gap-1.5 rounded-[8px] border px-2.5 text-[12px] transition",
+          open || activeCount > 0
+            ? "border-[var(--accent-ring)] bg-[var(--accent-soft)] text-[var(--accent-strong)]"
+            : "border-[var(--border-default)] bg-[var(--surface)] text-[var(--text-body)] hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)]",
+        ].join(" ")}
+      >
+        <SlidersHorizontal size={14} />
+        {activeCount > 0 ? (
+          <span className="rounded-full bg-[var(--accent)] px-1.5 text-[11px] font-semibold leading-[17px] text-white">{activeCount}</span>
+        ) : null}
+        <ChevronDown size={13} className={["text-[var(--text-muted)] transition", open ? "rotate-180" : ""].join(" ")} />
+      </button>
 
       {open ? (
-        <div className="absolute right-0 top-9 z-30 w-max min-w-full rounded-[8px] border border-[var(--border-default)] bg-white p-1 shadow-[var(--shadow-menu)]">
-          {scopeOptions.map((option) => (
-            <button
-              key={option.key}
-              type="button"
-              onClick={() => {
-                onChange(option.key);
-                setOpen(false);
-              }}
-              className={[
-                "block h-8 w-full rounded-[6px] px-2.5 text-left text-[12px] font-medium transition",
-                activeScope === option.key
-                  ? "bg-[var(--accent-soft)] text-[var(--accent-strong)]"
-                  : "text-[var(--text-body)] hover:bg-[var(--shell-canvas)] hover:text-[var(--text-primary)]",
-              ].join(" ")}
-            >
+        <div className="absolute right-0 top-9 z-30 w-[228px] rounded-[10px] border border-[var(--border-default)] bg-[var(--surface)] p-1.5 shadow-[var(--shadow-menu)]">
+          <MenuGroupLabel>Group by</MenuGroupLabel>
+          {viewOptions.map((option) => (
+            <MenuOption key={option.key} selected={activeView === option.key} onClick={() => onViewChange(option.key)}>
               {option.label}
-            </button>
+            </MenuOption>
           ))}
+
+          <MenuGroupLabel className="mt-1.5">Scope</MenuGroupLabel>
+          {scopeOptions.map((option) => (
+            <MenuOption key={option.key} selected={activeScope === option.key} onClick={() => onScopeChange(option.key)}>
+              {option.label}
+            </MenuOption>
+          ))}
+
+          <div className="mt-1.5 border-t border-[var(--border-hairline)] pt-1.5">
+            <MenuOption selected={attentionOnly} onClick={() => onAttentionChange(!attentionOnly)}>
+              <span className="flex w-full items-center justify-between gap-2">
+                Needs my attention
+                <span className="text-[11px] tabular-nums text-[var(--text-muted)]">{attentionCount}</span>
+              </span>
+            </MenuOption>
+          </div>
         </div>
       ) : null}
     </div>
   );
 }
 
-// One shape for both filter controls: a muted label, the current value, and a
-// chevron — so grouping and scope read as filters rather than as a breadcrumb.
-function FilterTrigger({
-  label,
-  value,
-  open,
-  onClick,
-}: {
-  label: string;
-  value: string;
-  open: boolean;
-  onClick: () => void;
-}) {
+function MenuGroupLabel({ className, children }: { className?: string; children: ReactNode }) {
+  return (
+    <div className={["px-2 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--text-muted)]", className ?? ""].join(" ")}>
+      {children}
+    </div>
+  );
+}
+
+function MenuOption({ selected, onClick, children }: { selected: boolean; onClick: () => void; children: ReactNode }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      aria-haspopup="menu"
-      aria-expanded={open}
       className={[
-        "inline-flex h-8 w-fit items-center gap-1.5 rounded-[8px] border bg-white px-2.5 text-[12px] transition",
-        open ? "border-[var(--accent-ring)] bg-[var(--accent-hover-bg)]" : "border-[var(--border-default)] hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)]",
+        "flex h-8 w-full items-center rounded-[6px] px-2 text-left text-[12px] font-medium transition",
+        selected
+          ? "bg-[var(--accent-soft)] text-[var(--accent-strong)]"
+          : "text-[var(--text-body)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]",
       ].join(" ")}
     >
-      <span className="whitespace-nowrap text-[var(--text-muted)]">{label}</span>
-      <span className="whitespace-nowrap font-medium text-[var(--text-primary)]">{value}</span>
-      <ChevronDown size={13} className={["text-[var(--text-muted)] transition", open ? "rotate-180" : ""].join(" ")} />
+      {children}
     </button>
-  );
-}
-
-function ViewDropdown({
-  activeView,
-  open,
-  onOpenChange,
-  onChange,
-}: {
-  activeView: ViewKey;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onChange: (view: ViewKey) => void;
-}) {
-  const activeLabel = viewOptions.find((option) => option.key === activeView)?.label ?? "By Stage";
-  const menuRef = useRef<HTMLDivElement>(null);
-  useClickOutside(menuRef, () => onOpenChange(false), open);
-
-  return (
-    <div ref={menuRef} className="relative">
-      <FilterTrigger label="Group" value={activeLabel} open={open} onClick={() => onOpenChange(!open)} />
-
-      {open ? (
-        <div className="absolute right-0 top-9 z-30 w-max min-w-[170px] rounded-[8px] border border-[var(--border-default)] bg-white p-1 shadow-[var(--shadow-menu)]">
-          {viewOptions.map((option) => (
-            <button
-              key={option.key}
-              type="button"
-              onClick={() => {
-                onChange(option.key);
-                onOpenChange(false);
-              }}
-              className={[
-                "block h-8 w-full rounded-[6px] px-2.5 text-left text-[12px] font-medium transition",
-                activeView === option.key
-                  ? "bg-[var(--accent-soft)] text-[var(--accent-strong)]"
-                  : "text-[var(--text-body)] hover:bg-[var(--shell-canvas)] hover:text-[var(--text-primary)]",
-              ].join(" ")}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      ) : null}
-    </div>
   );
 }
 
 function UseCaseTableView({ columns, totalRows }: { columns: BoardColumn[]; totalRows: number }) {
   const visibleColumns = columns.filter((column) => column.cards.length > 0);
 
-  return (
-    <section className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-5">
-      {totalRows === 0 ? (
-        <div className="grid h-[260px] place-items-center rounded-[8px] border border-[var(--border-default)] bg-white text-[13px] text-[var(--text-label)] shadow-[0_1px_3px_rgba(15,23,42,0.05)]">
-          No use cases match the current search.
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {visibleColumns.map((column) => (
-            <TableGroupCard key={column.title} column={column} />
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function TableGroupCard({ column }: { column: BoardColumn }) {
-  const members = STAGE_GROUPS[column.title];
-  const groupHint = members && members.length > 1 ? `Includes ${members.join(" → ")}` : undefined;
+  if (totalRows === 0) {
+    return (
+      <section className="grid min-h-0 flex-1 place-items-center px-6 py-10">
+        <p className="text-[13px] text-[var(--text-label)]">No use cases match the current search.</p>
+      </section>
+    );
+  }
 
   return (
-    <section>
-      <div className="flex items-baseline gap-2 px-1 pb-3 pt-1">
-        <h2
-          title={groupHint}
-          className={["text-[15px] font-medium text-[var(--text-primary)]", groupHint ? "cursor-help" : ""].join(" ")}
-        >
-          {column.title}
-        </h2>
-        {members && members.length > 1 ? (
-          <span title={groupHint} className="cursor-help text-[11px] font-medium text-[var(--text-muted)]">
-            {members.join(" · ")}
-          </span>
-        ) : null}
-        <span className="grid h-[20px] min-w-[20px] place-items-center rounded-full bg-[var(--surface-strong)] px-1.5 text-[11px] font-semibold tabular-nums text-[var(--text-label)]">
-          {column.cards.length}
-        </span>
-      </div>
-      <div className="overflow-hidden rounded-[10px] border border-[var(--border-default)] bg-white shadow-[0_1px_3px_rgba(15,23,42,0.05)]">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1000px] table-fixed border-collapse">
-            <colgroup>
-              <col className="w-[8%]" />
-              <col className="w-[30%]" />
-              <col className="w-[11%]" />
-              <col className="w-[14%]" />
-              <col className="w-[19%]" />
-              <col className="w-[9%]" />
-              <col className="w-[9%]" />
-            </colgroup>
-            <thead className="bg-white">
-              <tr className="border-b border-[var(--border-hairline)] text-left">
-                <TableHeader>ID</TableHeader>
-                <TableHeader>Use case</TableHeader>
-                <TableHeader>Stage</TableHeader>
-                <TableHeader>Stage owner</TableHeader>
-                <TableHeader>Status</TableHeader>
-                <TableHeader align="right">Priority</TableHeader>
-                <TableHeader align="right">Due</TableHeader>
-              </tr>
-            </thead>
-            <tbody>
-              {column.cards.map((row) => (
-                <UseCaseTableRow key={row.id} row={row} />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+    // One table for the whole list: a sticky head, and each group announced by a
+    // row rather than wrapped in its own card.
+    <section className="no-scrollbar min-h-0 flex-1 overflow-auto">
+      <table className="w-full min-w-[980px] table-fixed border-collapse">
+        <colgroup>
+          <col className="w-[9%]" />
+          <col className="w-[30%]" />
+          <col className="w-[12%]" />
+          <col className="w-[15%]" />
+          <col className="w-[17%]" />
+          <col className="w-[8%]" />
+          <col className="w-[9%]" />
+        </colgroup>
+        <thead className="sticky top-0 z-10 bg-[var(--surface-muted)]">
+          <tr className="border-b border-[var(--border-default)] text-left">
+            <TableHeader>ID</TableHeader>
+            <TableHeader>Use case</TableHeader>
+            <TableHeader>Stage</TableHeader>
+            <TableHeader>Owner</TableHeader>
+            <TableHeader>Status</TableHeader>
+            <TableHeader align="right">Priority</TableHeader>
+            <TableHeader align="right">Due</TableHeader>
+          </tr>
+        </thead>
+        {visibleColumns.map((column) => (
+          <tbody key={column.title}>
+            <tr>
+              <th scope="colgroup" colSpan={7} className="border-y border-[var(--border-hairline)] bg-[var(--surface)] px-6 py-2.5 text-left">
+                <span className="flex items-baseline gap-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--text-label)]">{column.title}</span>
+                  <span className="text-[11px] tabular-nums text-[var(--text-muted)]">{column.cards.length}</span>
+                </span>
+              </th>
+            </tr>
+            {column.cards.map((row) => (
+              <UseCaseTableRow key={row.id} row={row} />
+            ))}
+          </tbody>
+        ))}
+      </table>
     </section>
   );
 }
@@ -739,75 +728,66 @@ function UseCaseTableRow({ row }: { row: UseCaseCard }) {
   const due = dueDate(row.due);
 
   return (
-    <tr className="group border-b border-[var(--border-hairline)] transition last:border-b-0 hover:bg-[var(--accent-hover-bg)]">
-      <td className="align-middle">
-        <TableLink href={row.href} className="pl-5 pr-3">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">{row.id}</span>
-        </TableLink>
+    <tr className="group h-[64px] border-b border-[var(--border-hairline)] transition last:border-b-0 hover:bg-[var(--accent-hover-bg)]">
+      <td className="px-6 align-middle">
+        <Link href={row.href} className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
+          {row.id}
+        </Link>
       </td>
-      <td className="align-middle">
-        <TableLink href={row.href} className="px-3">
-          <span
-            title={row.title}
-            className="truncate text-[14px] font-semibold leading-5 text-[var(--text-primary)] transition group-hover:text-[var(--accent-strong)]"
-          >
+      <td className="min-w-0 px-4 align-middle">
+        <Link href={row.href} className="block min-w-0">
+          <span className="block truncate text-[13px] font-semibold leading-5 text-[var(--text-primary)] transition group-hover:text-[var(--accent-strong)]">
             {row.title}
           </span>
-          <span className="mt-1 truncate text-[12px] leading-5 text-[var(--text-body)]">{row.description}</span>
-        </TableLink>
+          <span className="block truncate text-[12px] leading-4 text-[var(--text-muted)]">{row.description}</span>
+        </Link>
       </td>
-      <td className="align-middle">
-        <TableLink href={row.href} className="px-3">
-          {/* One line — the group header above already names the phase. */}
-          <span title={row.substage} className="truncate text-[13px] leading-5 text-[var(--text-body)]">
-            {shortStageLabel(row.substage)}
-          </span>
-        </TableLink>
+      <td className="px-4 align-middle">
+        {/* One line — the group row above already names the phase. */}
+        <span title={row.substage} className="block truncate text-[13px] text-[var(--text-body)]">
+          {shortStageLabel(row.substage)}
+        </span>
       </td>
-      <td className="align-middle">
-        <TableLink href={row.href} className="px-3">
-          <span className="flex min-w-0 items-center gap-1.5">
-            <span className="flex shrink-0 items-center">
-              <PersonAvatar name={row.owner} size={18} />
-              {row.coOwner ? (
-                <span className="-ml-1.5 rounded-full ring-2 ring-white">
-                  <PersonAvatar name={row.coOwner} size={18} />
-                </span>
-              ) : null}
-            </span>
-            <span className="min-w-0 truncate text-[13px] leading-5 text-[var(--text-body)]">
-              {row.coOwner ? `${formatStageOwner(row)} +1` : formatStageOwner(row)}
-            </span>
-          </span>
-        </TableLink>
-      </td>
-      <td className="align-middle">
-        <TableLink href={row.href} className="px-3">
-          <span className="flex min-w-0 flex-wrap items-center gap-1.5">
-            {lifecycleTag ? (
-              <span className={["rounded-full px-2 py-0.5 text-[11px] font-semibold", lifecycleTag].join(" ")}>{row.lifecycle}</span>
-            ) : null}
-            {row.gate ? <GateChip gate={row.gate} /> : null}
-            {row.needsAttention ? (
-              <span className="inline-flex w-fit items-center rounded-[6px] bg-[var(--accent-soft)] px-2 py-1 text-[11px] font-semibold leading-none text-[var(--accent-strong)]">
-                {getAttentionMessage(row)}
+      <td className="px-4 align-middle">
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span className="flex shrink-0 items-center">
+            <PersonAvatar name={row.owner} size={18} />
+            {row.coOwner ? (
+              <span className="-ml-1.5 rounded-full ring-2 ring-[var(--surface)]">
+                <PersonAvatar name={row.coOwner} size={18} />
               </span>
             ) : null}
-            {!lifecycleTag && !row.gate && !row.needsAttention ? (
-              <span className="text-[13px] text-[var(--text-muted)]">—</span>
-            ) : null}
           </span>
-        </TableLink>
+          <span
+            title={row.coOwner ? `${formatStageOwner(row)} and ${row.coOwner}` : formatStageOwner(row)}
+            className="min-w-0 truncate text-[13px] text-[var(--text-body)]"
+          >
+            {row.coOwner ? `${formatStageOwner(row)} +1` : formatStageOwner(row)}
+          </span>
+        </span>
       </td>
-      <td className="align-middle">
-        <TableLink href={row.href} className="px-3" align="right">
-          <PriorityCell card={row} />
-        </TableLink>
+      <td className="px-4 align-middle">
+        <span className="flex min-w-0 items-center gap-1.5">
+          {lifecycleTag ? (
+            <span className={["shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold", lifecycleTag].join(" ")}>{titleCaseTag(row.lifecycle)}</span>
+          ) : null}
+          {row.gate ? <GateChip gate={row.gate} /> : null}
+          {row.needsAttention ? (
+            <span
+              title={getAttentionMessage(row)}
+              className="min-w-0 shrink truncate rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-[11px] font-semibold text-[var(--accent-strong)]"
+            >
+              {getAttentionMessage(row)}
+            </span>
+          ) : null}
+          {!lifecycleTag && !row.gate && !row.needsAttention ? <span className="text-[13px] text-[var(--text-muted)]">—</span> : null}
+        </span>
       </td>
-      <td className="align-middle">
-        <TableLink href={row.href} className="pl-3 pr-5" align="right">
-          <span className="truncate text-[13px] leading-5 tabular-nums text-[var(--text-body)]">{due ?? "—"}</span>
-        </TableLink>
+      <td className="px-4 text-right align-middle">
+        <PriorityCell card={row} />
+      </td>
+      <td className="px-6 text-right align-middle">
+        <span className="text-[13px] tabular-nums text-[var(--text-body)]">{due ?? "—"}</span>
       </td>
     </tr>
   );
@@ -817,34 +797,12 @@ function TableHeader({ children, align = "left" }: { children: ReactNode; align?
   return (
     <th
       className={[
-        "h-10 px-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)] first:pl-5 last:pr-5",
+        "h-11 px-4 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-label)] first:pl-6 last:pr-6",
         align === "right" ? "text-right" : "text-left",
       ].join(" ")}
     >
       {children}
     </th>
-  );
-}
-
-function TableLink({
-  children,
-  className = "",
-  href,
-  align = "left",
-}: {
-  children: ReactNode;
-  className?: string;
-  href: string;
-  align?: "left" | "right";
-}) {
-  return (
-    <Link
-      href={href}
-      // One height for every row, whether or not it carries status chips.
-      className={["flex min-h-[64px] min-w-0 flex-col justify-center py-3 outline-none", align === "right" ? "items-end text-right" : "", className].join(" ")}
-    >
-      {children}
-    </Link>
   );
 }
 
@@ -867,9 +825,7 @@ function PriorityCell({ card }: { card: UseCaseCard }) {
         <span className={["h-1.5 w-1.5 shrink-0 rounded-full", PRIORITY_DOT[effective]].join(" ")} />
         {effective}
       </span>
-      {showFunctional ? (
-        <span className="mt-0.5 block truncate text-[11px] text-[var(--text-muted)]">fn {card.priority}</span>
-      ) : null}
+      {showFunctional ? <span className="mt-0.5 block truncate text-[11px] text-[var(--text-muted)]">fn {card.priority}</span> : null}
     </span>
   );
 }
@@ -905,7 +861,7 @@ function PhaseStagesHint({ members }: { members: string[] }) {
         ? createPortal(
             <div
               style={{ position: "fixed", left: coords.x, top: coords.y, width: coords.w }}
-              className="pointer-events-none z-[80] rounded-[14px] border border-[var(--border-input)] bg-[var(--surface-strong)] p-3 shadow-[0_10px_28px_rgba(12,10,9,0.14)]"
+              className="pointer-events-none z-[80] rounded-[14px] border border-[var(--border-input)] bg-[var(--surface-strong)] p-3 shadow-[var(--shadow-menu)]"
             >
               {members.map((member, index) => {
                 const owner = stageOwner(member);
@@ -946,12 +902,7 @@ function KanbanColumn({ column }: { column: BoardColumn }) {
 
   return (
     <section className="relative flex h-full min-h-0 flex-col">
-      <div
-        className={[
-          "sticky top-0 z-10 bg-white transition-shadow",
-          hasScrolled ? "shadow-[0_6px_10px_-10px_rgba(15,23,42,0.18)]" : "shadow-none",
-        ].join(" ")}
-      >
+      <div className={["sticky top-0 z-10 bg-[var(--surface)] transition-shadow", hasScrolled ? "" : ""].join(" ")}>
         <div className="flex items-baseline justify-between gap-2 px-1 pb-3 pt-5">
           <div className="flex items-baseline gap-1.5">
             <h2 className="text-[15px] font-medium text-[var(--text-primary)]">{column.title}</h2>
@@ -972,8 +923,8 @@ function KanbanColumn({ column }: { column: BoardColumn }) {
         ))}
       </div>
       {/* A card that runs past the bottom of the column dissolves rather than
-          being cut in half at rest. */}
-      <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-b from-transparent to-white" />
+ being cut in half at rest. */}
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-b from-transparent to-[var(--surface)]" />
     </section>
   );
 }
@@ -997,8 +948,10 @@ const LIFECYCLE_TAG: Record<Lifecycle, string | null> = {
 
 function GateChip({ gate }: { gate: { id: string; status: GateStatus } }) {
   return (
-    <span className={["inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", GATE_BADGE[gate.status]].join(" ")}>
-      {gate.id} · {gate.status}
+    <span
+      className={["inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", GATE_BADGE[gate.status]].join(" ")}
+    >
+      {gate.id} · {titleCaseTag(gate.status)}
     </span>
   );
 }
@@ -1023,9 +976,7 @@ function PriorityInline({ card }: { card: UseCaseCard }) {
         <span className={["h-1.5 w-1.5 shrink-0 rounded-full", PRIORITY_DOT[effective]].join(" ")} />
         {effective}
       </span>
-      {showFunctional ? (
-        <span className="mt-0.5 block truncate text-[11px] text-[var(--text-muted)]">functional: {card.priority}</span>
-      ) : null}
+      {showFunctional ? <span className="mt-0.5 block truncate text-[11px] text-[var(--text-muted)]">functional: {card.priority}</span> : null}
     </span>
   );
 }
@@ -1041,7 +992,10 @@ function OwnerInline({ card }: { card: UseCaseCard }) {
           </span>
         ) : null}
       </div>
-      <span className="min-w-0 truncate text-[12px] font-medium text-[var(--text-primary)]">
+      <span
+        title={card.coOwner ? `${formatStageOwner(card)} and ${card.coOwner}` : formatStageOwner(card)}
+        className="min-w-0 truncate text-[12px] font-medium text-[var(--text-primary)]"
+      >
         {card.coOwner ? `${formatStageOwner(card)} +1` : formatStageOwner(card)}
       </span>
     </div>
@@ -1053,15 +1007,13 @@ function UseCaseBoardCard({ card }: { card: UseCaseCard }) {
 
   return (
     <Link href={card.href} className="group block">
-      <div className="relative z-10 rounded-[10px] border border-[var(--border-default)] bg-white shadow-[0_1px_3px_rgba(15,23,42,0.05)] transition group-hover:border-[var(--accent-ring)] group-hover:bg-[var(--accent-hover-bg)]">
-        <div className="px-5 pb-4 pt-4">
+      <div className="relative z-10 rounded-[10px] border border-[var(--border-default)] bg-white transition group-hover:border-[var(--accent-ring)] group-hover:bg-[var(--accent-hover-bg)]">
+        <div className="px-5 pb-4 pt-4.5">
           <div className="flex items-center justify-between gap-2">
             <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">{card.id}</span>
             <div className="flex shrink-0 items-center gap-1.5">
               {lifecycleTag ? (
-                <span className={["rounded-full px-2 py-0.5 text-[11px] font-semibold", lifecycleTag].join(" ")}>
-                  {card.lifecycle}
-                </span>
+                <span className={["rounded-full px-2 py-0.5 text-[11px] font-semibold", lifecycleTag].join(" ")}>{card.lifecycle}</span>
               ) : null}
               {card.gate ? <GateChip gate={card.gate} /> : null}
             </div>
@@ -1069,7 +1021,7 @@ function UseCaseBoardCard({ card }: { card: UseCaseCard }) {
           <h3 className="mt-2.5 text-[15px] font-semibold leading-[1.35] text-[var(--text-primary)]">{card.title}</h3>
           <p className="mt-2 line-clamp-2 text-[12px] leading-[1.5] text-[var(--text-body)]">{card.description}</p>
         </div>
-        <div className="grid grid-cols-2 gap-x-5 gap-y-4 border-t border-[var(--border-hairline)] px-5 py-4">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-4 border-t border-[var(--border-hairline)] px-5 py-4">
           <MetaCell label="Stage">
             {/* The short lifecycle label — the full name doesn't fit a card column. */}
             <span title={card.substage} className="block truncate text-[12px] font-medium text-[var(--text-primary)]">
@@ -1088,7 +1040,7 @@ function UseCaseBoardCard({ card }: { card: UseCaseCard }) {
         </div>
       </div>
       {card.needsAttention ? (
-        <div className="-mt-2 rounded-b-[10px] bg-[var(--accent-soft)] px-5 pb-2.5 pt-4 text-[12px] font-semibold leading-5 text-[var(--accent-strong)] shadow-[0_1px_3px_rgba(15,23,42,0.05)] transition group-hover:bg-[#d3e9f0]">
+        <div className="-mt-2 rounded-b-[10px] bg-[var(--accent-soft)] px-5 pb-2.5 pt-4 text-[12px] font-semibold leading-5 text-[var(--accent-strong)] transition group-hover:bg-[#d3e9f0]">
           {getAttentionMessage(card)}
         </div>
       ) : null}

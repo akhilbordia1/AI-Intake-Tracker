@@ -5,9 +5,7 @@
 
 // Generic English filler only — domain words (model, data, risk, scope, date…)
 // are kept so those labels stay matchable.
-const STOPWORDS = new Set([
-  "the", "and", "for", "with", "from", "into", "this", "that", "your", "have", "will", "are", "our",
-]);
+const STOPWORDS = new Set(["the", "and", "for", "with", "from", "into", "this", "that", "your", "have", "will", "are", "our"]);
 
 const MULTI_KINDS = new Set(["chips", "cards"]);
 
@@ -78,17 +76,16 @@ function demo() {
     { label: "Sponsor", kind: "text", suggestion: "R. Shah" },
   ];
 
-  const out = extractStageFields(
-    "The business problem is backlog. PII is Present. Add citations required and retrieval-only answers.",
-    fields,
-    [],
-  );
+  const out = extractStageFields("The business problem is backlog. PII is Present. Add citations required and retrieval-only answers.", fields, []);
   const byLabel = Object.fromEntries(out.map((f) => [f.label, f]));
 
   // Choice field → stated option value (real).
   assert(byLabel["PII"]?.value === "Present" && byLabel["PII"].stated, "PII → stated Present");
   // Multi choice → all stated options as array.
-  assert(Array.isArray(byLabel["Grounding controls"]?.value) && (byLabel["Grounding controls"].value as string[]).length === 2, "multi → both options");
+  assert(
+    Array.isArray(byLabel["Grounding controls"]?.value) && (byLabel["Grounding controls"].value as string[]).length === 2,
+    "multi → both options",
+  );
   // Keyword-mentioned free text → suggestion draft (not stated).
   assert(byLabel["Business problem"]?.stated === false, "Business problem → draft");
   // Unmentioned field omitted → becomes a gap question.

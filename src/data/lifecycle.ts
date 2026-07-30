@@ -19,7 +19,10 @@ export const STAGES = [
     owner: "Priya N.",
     rows: [
       ["Idea name", "Protocol Digest Assistant"],
-      ["Problem statement", "Medical writers spend days reading 200+ page clinical trial protocols to extract endpoints, dosing, and inclusion/exclusion criteria - slow and inconsistent."],
+      [
+        "Problem statement",
+        "Medical writers spend days reading 200+ page clinical trial protocols to extract endpoints, dosing, and inclusion/exclusion criteria - slow and inconsistent.",
+      ],
       ["Objective", "Reduce protocol review time and improve extraction consistency."],
       ["Business owner", "Dr. Elena Martins"],
       ["Business function", "Research & Development"],
@@ -216,10 +219,46 @@ export type Gate = {
 // Assessment gates are first-class checkpoints, tracked separately from stage
 // progress — each carries its own status, approver, decision, and evidence.
 export const GATES: Gate[] = [
-  { id: "R1", name: "Screening gate", afterStage: "Triage", status: "Passed", approver: "Priya N.", decided: "Jun 22, 2026", artifacts: ["Screening record", "Prohibited-use scan"], conditions: [] },
-  { id: "R2", name: "Governance & investment", afterStage: "GTAC", status: "Passed", approver: "Victor H.", decided: "Jun 28, 2026", artifacts: ["Business case", "GTAC minutes", "Risk register"], conditions: ["PII redaction verified before deploy", "Multi-currency re-tested at R4"] },
-  { id: "R3", name: "Build review", afterStage: "Solutionise and Production", status: "In review", approver: "Noah R.", decided: null, artifacts: ["Eval report v3", "Red-team log"], conditions: [] },
-  { id: "R5", name: "Post-deploy review", afterStage: "Monitoring and tracking", status: "Not started", approver: "Marco B.", decided: null, artifacts: [], conditions: [] },
+  {
+    id: "R1",
+    name: "Screening gate",
+    afterStage: "Triage",
+    status: "Passed",
+    approver: "Priya N.",
+    decided: "Jun 22, 2026",
+    artifacts: ["Screening record", "Prohibited-use scan"],
+    conditions: [],
+  },
+  {
+    id: "R2",
+    name: "Governance & investment",
+    afterStage: "GTAC",
+    status: "Passed",
+    approver: "Victor H.",
+    decided: "Jun 28, 2026",
+    artifacts: ["Business case", "GTAC minutes", "Risk register"],
+    conditions: ["PII redaction verified before deploy", "Multi-currency re-tested at R4"],
+  },
+  {
+    id: "R3",
+    name: "Build review",
+    afterStage: "Solutionise and Production",
+    status: "In review",
+    approver: "Noah R.",
+    decided: null,
+    artifacts: ["Eval report v3", "Red-team log"],
+    conditions: [],
+  },
+  {
+    id: "R5",
+    name: "Post-deploy review",
+    afterStage: "Monitoring and tracking",
+    status: "Not started",
+    approver: "Marco B.",
+    decided: null,
+    artifacts: [],
+    conditions: [],
+  },
 ];
 
 export function gateForStage(stageName: string) {
@@ -236,6 +275,15 @@ export const GATE_TONE: Record<Gate["status"], { fg: string; bg: string; border:
 
 // Record-level metadata — shown in the Details sheet on /detail and as the key
 // dates on the overview.
+// The record's history — newest first. Read by the record's Activity tab, the
+// stage header's "updated" stamp, and the overview.
+export const RECORD_ACTIVITY: { icon: "moved" | "approved" | "updated" | "recorded"; title: string; when: string }[] = [
+  { icon: "moved", title: "Noah R. moved stage to Solutionise & Production", when: "Jul 6, 2026, 09:18" },
+  { icon: "approved", title: "Lena Osei approved risk & compliance sign-off", when: "Jul 5, 2026, 16:24" },
+  { icon: "updated", title: "Amara J. updated the business case", when: "Jul 3, 2026, 11:05" },
+  { icon: "recorded", title: "Victor H. recorded GTAC approval", when: "Jun 28, 2026, 14:30" },
+];
+
 export const RECORD_DETAILS: [string, string][] = [
   ["Use case ID", USE_CASE.id],
   ["Created by", "Mira Kapoor"],

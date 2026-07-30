@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, AtSign, Check, LoaderCircle } from "lucide-react";
+import { ArrowUp, AtSign, Check, LoaderCircle, Sparkles } from "lucide-react";
 import { useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 
 import { cn } from "@/lib/cn";
@@ -30,37 +30,32 @@ export function ChatTimeDivider() {
   );
 }
 
-// One line of a conversation. `activity` renders a work step (bold label +
-// muted detail), `notice` a completion strip, otherwise it's a message —
-// assistant as plain prose, user as a right-aligned bubble with its send time.
+// One line of a conversation. `activity` renders a work step (bold label + muted
+// detail); everything else is a message — the assistant as plain prose, the user
+// as a right-aligned bubble with its send time. There is no boxed variant: what
+// the agent says is a message, not a callout.
 export type ChatLineProps = {
   role?: "assistant" | "user";
   text: string;
   recap?: boolean;
   time?: string;
-  notice?: boolean;
   activity?: string;
   running?: boolean;
 };
 
-export function ChatLine({ role = "assistant", text, recap = false, time, notice = false, activity, running = false }: ChatLineProps) {
+export function ChatLine({ role = "assistant", text, recap = false, time, activity, running = false }: ChatLineProps) {
   if (activity) {
     return (
       <div className="bubble-in-left flex items-baseline gap-2 text-[12px] leading-[1.6]">
         <span className="mt-[3px] shrink-0 self-start text-[var(--text-muted)]">
-          {running ? <LoaderCircle size={13} className="animate-spin text-[var(--accent)]" /> : <Check size={13} className="text-[var(--status-success)]" />}
+          {running ? (
+            <LoaderCircle size={13} className="animate-spin text-[var(--accent)]" />
+          ) : (
+            <Check size={13} className="text-[var(--status-success)]" />
+          )}
         </span>
         <span className="font-medium text-[var(--text-primary)]">{activity}</span>
         <span className="min-w-0 text-[var(--text-muted)]">{text}</span>
-      </div>
-    );
-  }
-
-  if (notice) {
-    return (
-      <div className="bubble-in-left flex items-center gap-2 rounded-[10px] bg-[var(--surface-strong)] px-3 py-2 text-[12px] text-[var(--text-body)]">
-        <Check size={13} strokeWidth={2.5} className="shrink-0 text-[var(--status-success)]" />
-        {text}
       </div>
     );
   }
@@ -122,8 +117,8 @@ export function ChatComposer({
   const large = size === "lg";
   const canSend = Boolean(value.trim()) && !sendDisabled && !disabled;
   return (
-    <div className={cn("shrink-0", padded && "pb-3 pt-1.5")}>
-      <div className="rounded-[14px] border border-[var(--border-default)] bg-white px-3 pb-1.5 pt-2.5 transition focus-within:border-[var(--accent-ring)]">
+    <div className={cn("shrink-0", padded && "pt-1.5")}>
+      <div className="rounded-[14px] border border-[var(--border-default)] bg-[var(--surface)] px-2 pb-1.5 pt-2.5 transition focus-within:border-[var(--accent-ring)]">
         <textarea
           ref={inputRef}
           value={value}
@@ -133,13 +128,13 @@ export function ChatComposer({
           disabled={disabled}
           placeholder={placeholder}
           className={cn(
-            "no-scrollbar block w-full resize-none bg-transparent text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] disabled:opacity-60",
+            "no-scrollbar block w-full resize-none bg-transparent px-1 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] disabled:opacity-60",
             large ? "max-h-40 min-h-[62px] text-[15px] leading-6" : "max-h-32 min-h-[36px] text-[13px] leading-[20px]",
           )}
         />
         <div className="mt-0.5 flex items-center justify-between">
           {/* Starts a mention in the draft — the one left-hand control that has
-              something real to do without a backend. */}
+ something real to do without a backend. */}
           <button
             type="button"
             disabled={disabled}
@@ -196,6 +191,64 @@ function Collapsible({ text }: { text: string }) {
   );
 }
 
+// ── The start screen ──
+// What a conversation looks like before anything is said: a mark, a headline, a
+// lead line, suggestions, then the composer. Used by the registry rail, the
+// record rail and the New use case page, so all three read as the same product —
+// only the words and the suggestions differ.
+export function ChatStartScreen<T extends { id: string; label: string; icon?: ReactNode }>({
+  title,
+  lead,
+  starters,
+  onPick,
+  size = "sm",
+  children,
+}: {
+  title: string;
+  lead: string;
+  starters: T[];
+  onPick: (item: T) => void;
+  // `lg` is the full-page version; `sm` fits the 330px rail.
+  size?: "sm" | "lg";
+  // The composer, supplied by the caller so it keeps its own state and handlers.
+  children: ReactNode;
+}) {
+  const large = size === "lg";
+  return (
+    <div className="mx-auto flex min-h-0 w-full max-w-[720px] flex-1 flex-col">
+      <div
+        className={cn("no-scrollbar flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto text-center", large ? "pb-8" : "pb-5")}
+      >
+        <span
+          className={cn(
+            "grid shrink-0 place-items-center rounded-[10px] bg-[var(--accent-soft)] text-[var(--accent)]",
+            large ? "h-9 w-9" : "h-8 w-8",
+          )}
+        >
+          <Sparkles size={large ? 18 : 16} />
+        </span>
+        <h2 className={cn("font-display leading-tight text-[var(--text-primary)]", large ? "mt-4 text-[28px]" : "mt-3 text-[20px]")}>{title}</h2>
+        <p
+          className={cn(
+            "text-balance text-[var(--text-body)]",
+            large ? "mt-2 max-w-[52ch] text-[15px] leading-6" : "mt-1.5 max-w-[40ch] text-[13px] leading-[1.6]",
+          )}
+        >
+          {lead}
+        </p>
+        {/* The suggestions belong to the greeting, not to the input: they read as
+ one block here. (In a stage's chat they sit above the composer, because
+ there they're follow-ups to a conversation already in progress.) */}
+        <div className={cn("w-full", large ? "mt-5" : "mt-4")}>
+          <ChatStarters padded={false} align="center" items={starters} onPick={onPick} />
+        </div>
+      </div>
+      {/* Only the composer is docked, so the input is always at the bottom. */}
+      <div className="shrink-0">{children}</div>
+    </div>
+  );
+}
+
 // Tap-to-send openers, shown while a chat has no user input yet.
 export function ChatStarters<T extends { id: string; label: string; icon?: ReactNode }>({
   items,
@@ -215,9 +268,9 @@ export function ChatStarters<T extends { id: string; label: string; icon?: React
           key={item.id}
           type="button"
           onClick={() => onPick(item)}
-          className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border-default)] bg-white py-1.5 pl-2.5 pr-3 text-[12px] font-medium text-[var(--text-body)] transition hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)] hover:text-[var(--text-primary)]"
+          className="inline-flex max-w-full items-start gap-1.5 whitespace-normal rounded-[14px] border border-[var(--border-default)] bg-[var(--surface)] px-3 py-1.5 text-left text-[12px] font-medium leading-[1.45] text-[var(--text-body)] transition hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)] hover:text-[var(--text-primary)]"
         >
-          {item.icon ? <span className="shrink-0 text-[var(--accent)]">{item.icon}</span> : null}
+          {item.icon ? <span className="mt-[2px] shrink-0 text-[var(--accent)]">{item.icon}</span> : null}
           {item.label}
         </button>
       ))}

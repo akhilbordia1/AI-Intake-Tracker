@@ -3,56 +3,45 @@
 import { USE_CASE } from "@/data/document-workflow-form-schema";
 import {
   GATE_TONE,
-  GATES,
   OUTCOME_ROW,
-  RECORD_DETAILS,
+  RECORD_ACTIVITY,
   SHORT_STAGE_LABELS,
   STAGE_INTROS,
   STAGES,
   firstName,
   gateForStage,
-  phaseForStage,
-  type Gate,
   type StageItem,
 } from "@/data/lifecycle";
-import { ProgressRing, Tag } from "@/components/ui/kit";
+import { GateBadge, RecordDetailsSheet } from "@/components/document-record/record-details-sheet";
+import { ProgressRing, Tag, titleCaseTag } from "@/components/ui/kit";
 import { cn } from "@/lib/cn";
-import { ArrowUp, Ban, Check, MessageCircle, ChevronDown, ChevronLeft, ChevronRight, Clock, CornerUpLeft, FileText, Info, LayoutDashboard, LayoutList, Lock, Pencil, RotateCcw, ShieldCheck, Sparkles, X } from "lucide-react";
+import {
+  Ban,
+  Check,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  CornerUpLeft,
+  FileText,
+  Info,
+  Lock,
+  Pencil,
+  RotateCcw,
+  ShieldCheck,
+  Sparkles,
+  X,
+} from "lucide-react";
 import { createPortal } from "react-dom";
 
-import {
-  ChatComposer,
-  ChatDock,
-  ChatLine,
-  ChatStarters,
-  ChatTimeDivider,
-  formatChatTime,
-} from "@/components/chat/chat-ui";
+import { ChatComposer, ChatDock, ChatLine, ChatStarters, ChatTimeDivider, formatChatTime } from "@/components/chat/chat-ui";
 import { useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from "react";
 
 import { PersonAvatar, ProfileSwitcher, initials } from "@/components/profile";
-import {
-  AppShell,
-  AppTopBar,
-  ContentPanel,
-  PanelBreadcrumb,
-  PanelTabs,
-  RailHeader,
-  TabBarToggle,
-  shellButton,
-  useRailMode,
-} from "@/components/app-shell";
+import { AppShell, ContentPanel, PanelBreadcrumb, RailHeader, TabBarToggle, shellButton, useRailMode } from "@/components/app-shell";
 import { extractStageFields, isFieldEmpty } from "@/lib/stage-chat";
 
-import {
-  CardMultiSelect,
-  ChipMultiSelect,
-  CurrencyField,
-  DateField,
-  LevelSlider,
-  RatingStepper,
-  SearchableSelect,
-} from "@/components/forms/fields";
+import { CardMultiSelect, ChipMultiSelect, CurrencyField, DateField, LevelSlider, RatingStepper, SearchableSelect } from "@/components/forms/fields";
 
 // Hybrid: most stages use the generic editable form; a few high-value stages
 // get bespoke widgets ported from the reference (squad picker, milestone rail,
@@ -61,42 +50,17 @@ const BESPOKE_STAGE_FORMS: Record<string, () => ReactElement> = {
   "Plan & KPI": () => <PlanStageForm />,
 };
 
-const RECORD_COMMENTS: { by: string; when: string; text: string }[] = [
-  { by: "Lena Osei", when: "2d ago", text: "Flagged one compliance check (GxP/GCP CSV) — tracking to close before build." },
-  { by: "Amara J.", when: "5d ago", text: "Business case looks solid; payback under a year. Recommending to GTAC." },
-  { by: "Priya N.", when: "1w ago", text: "Intake looks complete — routing to full assessment given GxP relevance." },
-];
-
-const RECORD_ACTIVITY: { icon: "moved" | "approved" | "updated" | "recorded"; title: string; when: string }[] = [
-  { icon: "moved", title: "Noah R. moved stage to Solutionise & Production", when: "Jul 6, 2026, 09:18" },
-  { icon: "approved", title: "Lena Osei approved risk & compliance sign-off", when: "Jul 5, 2026, 16:24" },
-  { icon: "updated", title: "Amara J. updated the business case", when: "Jul 3, 2026, 11:05" },
-  { icon: "recorded", title: "Victor H. recorded GTAC approval", when: "Jun 28, 2026, 14:30" },
-];
-
-const ACTIVITY_ICON: Record<(typeof RECORD_ACTIVITY)[number]["icon"], ReactNode> = {
-  moved: <Check size={16} />,
-  approved: <ShieldCheck size={16} />,
-  updated: <RotateCcw size={16} />,
-  recorded: <FileText size={16} />,
-};
-
 const defaultStageIndex = STAGES.findIndex((stage) => stage.name === "Ideation");
 
 type Kickback = { to: number; from: number; reason: string; by: string };
 type Rejection = { index: number; reason: string; by: string };
-type StatusNote =
-  | { kind: "returned"; reason: string; fromName: string; by: string }
-  | { kind: "rejected"; reason: string; by: string };
+type StatusNote = { kind: "returned"; reason: string; fromName: string; by: string } | { kind: "rejected"; reason: string; by: string };
 
-export function DetailRecordPage({ initialStageIndex }: { initialStageIndex?: number }) {
+export function DetailRecordPage({ initialStageIndex, initialIdea }: { initialStageIndex?: number; initialIdea?: string }) {
   // Deep link from the overview (`/detail?stage=n`): land on that stage with
   // everything before it already recorded. Without it the record starts fresh
   // at Ideation, which is what the guided flow demos.
-  const deepLink =
-    typeof initialStageIndex === "number" && initialStageIndex > 0 && initialStageIndex < STAGES.length
-      ? initialStageIndex
-      : null;
+  const deepLink = typeof initialStageIndex === "number" && initialStageIndex > 0 && initialStageIndex < STAGES.length ? initialStageIndex : null;
   const [stageIndex, setStageIndex] = useState(deepLink ?? defaultStageIndex);
   const [completedStageIndexes, setCompletedStageIndexes] = useState<number[]>(() =>
     deepLink === null ? [] : Array.from({ length: deepLink }, (_, index) => index),
@@ -114,7 +78,6 @@ export function DetailRecordPage({ initialStageIndex }: { initialStageIndex?: nu
   const [detailsOpen, setDetailsOpen] = useState(false);
   // The record name stays hidden until the user has given some context — a
   // deep-linked stage already has that context.
-  const [started, setStarted] = useState(deepLink !== null);
 
   const currentStage = STAGES[stageIndex] ?? STAGES[0];
   const isCurrentComplete = completedStageIndexes.includes(stageIndex);
@@ -155,9 +118,7 @@ export function DetailRecordPage({ initialStageIndex }: { initialStageIndex?: nu
   function toggleCurrentStageComplete() {
     if (!canComplete) return;
     const wasComplete = completedStageIndexes.includes(stageIndex);
-    setCompletedStageIndexes((indexes) =>
-      wasComplete ? indexes.filter((index) => index !== stageIndex) : [...indexes, stageIndex],
-    );
+    setCompletedStageIndexes((indexes) => (wasComplete ? indexes.filter((index) => index !== stageIndex) : [...indexes, stageIndex]));
     // Completing records data for this stage (kept even after reopening).
     if (!wasComplete) setDataStageIndexes((indexes) => (indexes.includes(stageIndex) ? indexes : [...indexes, stageIndex]));
     setKickbacks((current) => current.filter((kickback) => kickback.to !== stageIndex));
@@ -178,7 +139,6 @@ export function DetailRecordPage({ initialStageIndex }: { initialStageIndex?: nu
         currentUser={currentUser}
         onUserChange={setCurrentUser}
         lockedOwner={lockedOwner}
-        recordName={started ? USE_CASE.name : null}
         detailsOpen={detailsOpen}
         onOpenDetails={() => setDetailsOpen((v) => !v)}
         stageIndex={stageIndex}
@@ -188,39 +148,18 @@ export function DetailRecordPage({ initialStageIndex }: { initialStageIndex?: nu
         isComplete={isCurrentComplete}
         onMarkComplete={toggleCurrentStageComplete}
         onEditBlocked={showToast}
-        onStarted={() => setStarted(true)}
+        initialIdea={initialIdea}
         banner={statusNote ? <StageStatusBanner note={statusNote} canClear={canComplete} onClear={clearCurrentStatus} /> : null}
       />
       {toast ? (
         <div className="pointer-events-none fixed bottom-6 left-1/2 z-[60] -translate-x-1/2">
-          <div className="flex items-center gap-2 rounded-[10px] bg-[var(--text-primary)] px-3.5 py-2.5 text-[13px] font-medium text-white shadow-lg">
+          <div className="flex items-center gap-2 rounded-[10px] bg-[var(--text-primary)] px-3.5 py-2.5 text-[13px] font-medium text-white ">
             <Lock size={14} className="shrink-0 opacity-80" />
             {toast}
           </div>
         </div>
       ) : null}
     </>
-  );
-}
-
-function GateBadge({ gate }: { gate: Gate }) {
-  const tone = GATE_TONE[gate.status];
-  return (
-    <span className="flex items-center gap-2 text-[13px] leading-5">
-      <span
-        title={`${gate.id} · ${gate.name}`}
-        className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold"
-        style={{ color: tone.fg, background: tone.bg, borderColor: tone.border }}
-      >
-        <ShieldCheck size={11} />
-        {gate.id} · {gate.status}
-      </span>
-      <span className="hidden items-center gap-1.5 text-[var(--text-label)] lg:flex">
-        Approver
-        <PersonAvatar name={gate.approver} size={20} />
-        <span className="font-medium text-[var(--text-primary)]">{gate.approver}</span>
-      </span>
-    </span>
   );
 }
 
@@ -245,7 +184,10 @@ function StageColumnHeader({ stage, currentUser, action }: { stage: StageItem; c
   );
 
   return (
-    <div className="flex min-h-[52px] shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-[var(--border-soft)] px-7 py-2" aria-label={`${stage.name} stage header`}>
+    <div
+      className="flex min-h-[52px] shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-[var(--border-soft)] px-7 py-2"
+      aria-label={`${stage.name} stage header`}
+    >
       <div className="flex min-w-0 items-center gap-3">
         <h2 className="font-display min-w-0 truncate text-[20px] leading-7 text-[var(--text-primary)]">{stage.name}</h2>
         {action ? (
@@ -277,10 +219,7 @@ function StageStatusBanner({ note, canClear, onClear }: { note: StatusNote; canC
     : { fg: "var(--tone-warning-fg)", bg: "var(--tone-warning-bg)", border: "var(--tone-warning-border)", icon: <CornerUpLeft size={18} /> };
 
   return (
-    <div
-      className="flex shrink-0 items-center gap-3 border-b px-7 py-3"
-      style={{ background: palette.bg, borderColor: palette.border }}
-    >
+    <div className="flex shrink-0 items-center gap-3 border-b px-7 py-3" style={{ background: palette.bg, borderColor: palette.border }}>
       <span
         className="grid h-9 w-9 shrink-0 place-items-center rounded-full border bg-white"
         style={{ borderColor: palette.border, color: palette.fg }}
@@ -319,13 +258,17 @@ const STATUS_LABEL_RE = /(decision|outcome|verdict|recommendation|tier|ready|sig
 
 function statusTone(value: string) {
   const v = value.toLowerCase();
-  if (/(block|reject|upheld|no-?go|blocked|fail|high|serious|critical)/.test(v)) return { fg: "var(--tone-danger-fg)", bg: "var(--tone-danger-bg)", border: "var(--tone-danger-border)" };
-  if (/(condition|watch|pending|partial|needs|revise|minor|standard|medium|reindex|re-index)/.test(v)) return { fg: "var(--tone-warning-fg)", bg: "var(--tone-warning-bg)", border: "var(--tone-warning-border)" };
-  if (/(go\b|approve|cleared|committed|continue|proceed|recommend|locked|full|resolved|ready|yes|confirmed|complete|low|spawned)/.test(v)) return { fg: "var(--tone-success-fg)", bg: "var(--tone-success-bg)", border: "var(--tone-success-border)" };
+  if (/(block|reject|upheld|no-?go|blocked|fail|high|serious|critical)/.test(v))
+    return { fg: "var(--tone-danger-fg)", bg: "var(--tone-danger-bg)", border: "var(--tone-danger-border)" };
+  if (/(condition|watch|pending|partial|needs|revise|minor|standard|medium|reindex|re-index)/.test(v))
+    return { fg: "var(--tone-warning-fg)", bg: "var(--tone-warning-bg)", border: "var(--tone-warning-border)" };
+  if (/(go\b|approve|cleared|committed|continue|proceed|recommend|locked|full|resolved|ready|yes|confirmed|complete|low|spawned)/.test(v))
+    return { fg: "var(--tone-success-fg)", bg: "var(--tone-success-bg)", border: "var(--tone-success-border)" };
   return { fg: "var(--text-body)", bg: "var(--surface-muted)", border: "var(--border-default)" };
 }
 
-const TAG_LABEL_RE = /(archetype|function|delivery|sensitivity|exposure|reversibility|basis|users|complexity|path|department|team|country|window|cohort)/i;
+const TAG_LABEL_RE =
+  /(archetype|function|delivery|sensitivity|exposure|reversibility|basis|users|complexity|path|department|team|country|window|cohort)/i;
 
 function ScaleReadValue({ value }: { value: string }) {
   const [score, total] = value.split("/").map(Number);
@@ -333,10 +276,7 @@ function ScaleReadValue({ value }: { value: string }) {
     <span className="inline-flex items-center gap-2.5">
       <span className="flex items-center gap-1">
         {Array.from({ length: total }).map((_, index) => (
-          <span
-            key={index}
-            className={cn("h-1.5 w-1.5 rounded-full", index < score ? "bg-[var(--accent)]" : "bg-[var(--border-default)]")}
-          />
+          <span key={index} className={cn("h-1.5 w-1.5 rounded-full", index < score ? "bg-[var(--accent)]" : "bg-[var(--border-default)]")} />
         ))}
       </span>
       <span className="text-[14px] font-semibold tabular-nums text-[var(--text-primary)]">{value}</span>
@@ -360,10 +300,15 @@ function ReadValue({ label, value }: { label: string; value: string }) {
       <div className="max-w-[280px]">
         <div className="flex items-baseline justify-between gap-3 text-[13px]">
           <span className="font-semibold text-[var(--text-primary)] tabular-nums">{current}%</span>
-          <span className="text-[12px] text-[var(--text-muted)] tabular-nums">target {target}% · {reached}% reached</span>
+          <span className="text-[12px] text-[var(--text-muted)] tabular-nums">
+            target {target}% · {reached}% reached
+          </span>
         </div>
         <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-[var(--surface-strong)]">
-          <div className={cn("h-full rounded-full", hit ? "bg-[var(--tone-success-fg)]" : "bg-[var(--accent)]")} style={{ width: `${Math.min(100, reached)}%` }} />
+          <div
+            className={cn("h-full rounded-full", hit ? "bg-[var(--tone-success-fg)]" : "bg-[var(--accent)]")}
+            style={{ width: `${Math.min(100, reached)}%` }}
+          />
         </div>
       </div>
     );
@@ -535,7 +480,8 @@ function computeRiskTier(values: Record<string, string | string[]>) {
   const risk = dims.includes("High") ? "High" : dims.includes("Medium") ? "Medium" : dims.includes("Low") ? "Low" : "";
 
   if (risk === "High") return { tier: "Full", fg: "var(--tone-danger-fg)", bg: "var(--tone-danger-bg)", border: "var(--tone-danger-border)" };
-  if (risk === "Medium") return { tier: "Standard", fg: "var(--tone-warning-fg)", bg: "var(--tone-warning-bg)", border: "var(--tone-warning-border)" };
+  if (risk === "Medium")
+    return { tier: "Standard", fg: "var(--tone-warning-fg)", bg: "var(--tone-warning-bg)", border: "var(--tone-warning-border)" };
   if (risk === "Low") return { tier: "Light", fg: "var(--tone-success-fg)", bg: "var(--tone-success-bg)", border: "var(--tone-success-border)" };
   return null;
 }
@@ -572,6 +518,9 @@ type StageFieldsState = {
   suggestingAll: boolean;
   draftDurationMs: number;
   fillNow: (label: string, value: string | string[], delay: number) => void;
+  // Labels that have been answered — by the chat or by hand. A toggle's default
+  // selection doesn't count.
+  captured: string[];
 };
 
 // Shared field state for an editable stage. Both the form grid and the chat
@@ -591,6 +540,9 @@ function useStageFields(stage: StageItem, prefill: boolean): StageFieldsState {
     ),
   );
 
+  const [captured, setCaptured] = useState<string[]>(() => (prefill ? fields.map((field) => field.label) : []));
+  const markCaptured = (label: string) => setCaptured((current) => (current.includes(label) ? current : [...current, label]));
+
   // AI-suggest is mocked, so we fake generation latency: fields shimmer, then
   // fill. "Suggest all" fills them one after another for a drafting feel.
   const [suggestingAll, setSuggestingAll] = useState(false);
@@ -601,12 +553,14 @@ function useStageFields(stage: StageItem, prefill: boolean): StageFieldsState {
 
   function setField(label: string, value: string | string[]) {
     setValues((current) => ({ ...current, [label]: value }));
+    markCaptured(label);
   }
 
   function fillAfter(label: string, value: string | string[], delay: number) {
     setLoadingFields((current) => (current.includes(label) ? current : [...current, label]));
     const timer = setTimeout(() => {
       setValues((current) => ({ ...current, [label]: value }));
+      markCaptured(label);
       setLoadingFields((current) => current.filter((entry) => entry !== label));
     }, delay);
     timers.current.push(timer);
@@ -632,7 +586,7 @@ function useStageFields(stage: StageItem, prefill: boolean): StageFieldsState {
     fillAfter(label, value, delay);
   }
 
-  return { fields, values, loadingFields, setField, suggestField, suggestAll, suggestingAll, draftDurationMs, fillNow };
+  return { fields, values, loadingFields, setField, suggestField, suggestAll, suggestingAll, draftDurationMs, fillNow, captured };
 }
 
 // Only free-text inputs show the "Generating…" loader; choice + currency fields just fill.
@@ -641,7 +595,19 @@ const LOADER_KINDS = new Set(["text", "long"]);
 // A document-style field: the value reads as prose (like the read-only record).
 // Empty fields show a quiet placeholder — the value fills in once it's answered
 // in the chat. Clicking a value swaps to the editable control.
-function DocumentField({ field, s, readOnly, onBlockedEdit, forceEdit = false }: { field: FieldSpec; s: StageFieldsState; readOnly: boolean; onBlockedEdit?: () => void; forceEdit?: boolean }) {
+function DocumentField({
+  field,
+  s,
+  readOnly,
+  onBlockedEdit,
+  forceEdit = false,
+}: {
+  field: FieldSpec;
+  s: StageFieldsState;
+  readOnly: boolean;
+  onBlockedEdit?: () => void;
+  forceEdit?: boolean;
+}) {
   const value = s.values[field.label];
   const loading = s.loadingFields.includes(field.label);
   const empty = isFieldEmpty(value);
@@ -651,12 +617,7 @@ function DocumentField({ field, s, readOnly, onBlockedEdit, forceEdit = false }:
   if (!readOnly && forceEdit) {
     return (
       <div className="relative w-full min-w-0">
-        <StageField
-          spec={field}
-          value={value}
-          onChange={(next) => s.setField(field.label, next)}
-          onSuggest={() => s.suggestField(field)}
-        />
+        <StageField spec={field} value={value} onChange={(next) => s.setField(field.label, next)} onSuggest={() => s.suggestField(field)} />
         {loading && LOADER_KINDS.has(field.kind) ? <FieldGenerating tall={field.kind === "long"} /> : null}
       </div>
     );
@@ -683,7 +644,11 @@ function DocumentField({ field, s, readOnly, onBlockedEdit, forceEdit = false }:
       <button
         type="button"
         onClick={onBlockedEdit}
-        className={cn(readBox, "transition hover:border-[var(--border-soft)] hover:bg-[var(--surface-muted)]", empty && "text-[14px] leading-6 text-[var(--text-muted)]/50")}
+        className={cn(
+          readBox,
+          "transition hover:border-[var(--border-soft)] hover:bg-[var(--surface-muted)]",
+          empty && "text-[14px] leading-6 text-[var(--text-muted)]/50",
+        )}
       >
         {empty ? "—" : <ReadValue label={field.label} value={text!} />}
       </button>
@@ -723,73 +688,28 @@ function StageStatusPill({
   );
 }
 
-// Compact capture meter: a ring plus "n/m". Deliberately small — the stage's
-// progress is a glance, not a strip across the form.
-function CaptureProgress({ captured, total, complete }: { captured: number; total: number; complete: boolean }) {
-  const done = complete ? total : captured;
-  return (
-    <span
-      title={`${done} of ${total} details captured`}
-      className="inline-flex items-center gap-1.5 text-[12px] font-medium tabular-nums text-[var(--text-muted)]"
-    >
-      <ProgressRing ratio={total > 0 ? done / total : 0} complete={complete} />
-      {done}/{total}
-      <span className="hidden xl:inline">captured</span>
-    </span>
-  );
-}
-
-// Whose move it is — the one cue that says whether to act or wait.
-function TurnCue({
-  isComplete,
-  canEdit,
-  owner,
-  gate,
+function StageFieldsGrid({
+  stage,
+  s,
   currentUser,
+  canEdit,
+  isComplete = false,
+  embedded = false,
+  onBlockedEdit,
+  editAll = false,
+  heading,
 }: {
-  isComplete: boolean;
-  canEdit: boolean;
-  owner: string;
-  gate?: Gate;
+  stage: StageItem;
+  s: StageFieldsState;
   currentUser: string;
+  canEdit: boolean;
+  isComplete?: boolean;
+  embedded?: boolean;
+  onBlockedEdit?: () => void;
+  editAll?: boolean;
+  heading?: ReactNode;
 }) {
-  const awaitingGate = gate && (gate.status === "In review" || gate.status === "Not started");
-  let label: string;
-  let mine: boolean;
-  if (!isComplete && canEdit) {
-    label = "Your turn";
-    mine = true;
-  } else if (!isComplete) {
-    label = `Waiting on ${owner}`;
-    mine = false;
-  } else if (awaitingGate && gate.approver === currentUser) {
-    label = `${gate.id} needs your decision`;
-    mine = true;
-  } else if (awaitingGate) {
-    label = `Waiting on ${gate.approver} for ${gate.id}`;
-    mine = false;
-  } else {
-    return null;
-  }
-
-  // A tag, not a call to action — the action bar at the foot of the panel is the
-  // thing you press, so this only has to say whose move it is.
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1.5 text-[12px] font-medium",
-        mine ? "text-[var(--accent-strong)]" : "text-[var(--text-muted)]",
-      )}
-    >
-      {mine ? <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" /> : <Clock size={12} />}
-      {label}
-    </span>
-  );
-}
-
-function StageFieldsGrid({ stage, s, currentUser, canEdit, isComplete = false, embedded = false, onBlockedEdit, editAll = false, heading }: { stage: StageItem; s: StageFieldsState; currentUser: string; canEdit: boolean; isComplete?: boolean; embedded?: boolean; onBlockedEdit?: () => void; editAll?: boolean; heading?: ReactNode }) {
   // editAll (whole form editable) is controlled by the action bar.
-  const stageNo = STAGES.findIndex((item) => item.name === stage.name) + 1;
   const readOnly = !canEdit;
   const ownedByMe = stage.owner === currentUser;
   const riskTier = canEdit && stage.name === "Assessment - Risk & Compliance" ? computeRiskTier(s.values) : null;
@@ -798,35 +718,35 @@ function StageFieldsGrid({ stage, s, currentUser, canEdit, isComplete = false, e
   // A stage you own can still be held back by its own checklist (compliance
   // checks, production readiness) — that reads as blocked, not simply active.
   const blockedReason = canEdit ? stageGateReason(stage.name, s.values) : null;
-  const captured = s.fields.filter((field) => !isFieldEmpty(s.values[field.label])).length;
+  // While a stage is being filled from the chat, only captured details are shown;
+  // in edit mode the whole form is available so nothing is unreachable.
+  const visibleFields = canEdit && !editAll ? s.fields.filter((field) => s.captured.includes(field.label)) : s.fields;
 
   return (
     // embedded → a plain block inside a shared scroll (stacked stages); otherwise
     // its own scroll container.
-    <section className={cn(embedded ? "px-6 pb-10 pt-6 xl:px-12" : "no-scrollbar min-h-0 flex-1 overflow-y-auto px-8 pb-12 pt-6")} aria-label={`${stage.name} stage`}>
-      {/* Stage header. Line 1 is the state sentence: the stage name (which opens
-          the stage path), where it sits, and how much of it is captured. Line 2
-          says what the stage is for. Line 3 is who it needs. */}
+    <section
+      className={cn(embedded ? "px-6 pb-10 pt-6 xl:px-12" : "no-scrollbar min-h-0 flex-1 overflow-y-auto px-8 pb-12 pt-6")}
+      aria-label={`${stage.name} stage`}
+    >
+      {/* Stage header. Line 1: the stage name (which opens the stage path) and its
+ state. Line 2: what the stage is for. Line 3: who it needs and when it
+ last moved. The phase is in the panel breadcrumb and capture progress is
+ in the action bar, so neither is repeated here. */}
       <div className="min-w-0">
         <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
           {heading ?? <h2 className="font-display text-[18px] leading-tight text-[var(--text-primary)]">{stage.name}</h2>}
           <StageStatusPill isComplete={isComplete} canEdit={canEdit} owner={stage.owner} blockedReason={blockedReason} />
-          <span className="ml-auto shrink-0">
-            <CaptureProgress captured={captured} total={s.fields.length} complete={isComplete} />
-          </span>
         </div>
         {STAGE_INTROS[stage.name] ? (
-          <p className={cn("mt-2.5 max-w-[68ch] leading-6 text-[var(--text-muted)]", embedded ? "text-[14px]" : "text-[15px]")}>{STAGE_INTROS[stage.name]}</p>
+          <p className={cn("mt-2.5 max-w-[68ch] leading-6 text-[var(--text-muted)]", embedded ? "text-[14px]" : "text-[15px]")}>
+            {STAGE_INTROS[stage.name]}
+          </p>
         ) : null}
         <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] text-[var(--text-muted)]">
-          <span className="inline-flex items-center gap-1.5">
-            <LayoutList size={12} />
-            {phaseForStage(stage.name)}
-          </span>
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border-default)] bg-white py-1 pl-1 pr-2.5">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border-default)] bg-[var(--surface)] py-1 pl-1 pr-2.5">
             <PersonAvatar name={stage.owner} size={20} highlight={ownedByMe} />
             <span className={cn("text-[var(--text-primary)]", ownedByMe && "font-semibold")}>{stage.owner}</span>
-            <span className="text-[var(--text-muted)]">{gate ? "prepares" : "owns"}</span>
           </span>
           {gate && gateTone ? (
             <>
@@ -836,7 +756,7 @@ function StageFieldsGrid({ stage, s, currentUser, canEdit, isComplete = false, e
                 style={{ color: gateTone.fg, background: gateTone.bg, borderColor: gateTone.border }}
               >
                 <ShieldCheck size={12} />
-                {gate.id} · {gate.status}
+                {gate.id} · {titleCaseTag(gate.status)}
               </span>
               <span className="inline-flex items-center gap-1.5">
                 Approver
@@ -854,28 +774,26 @@ function StageFieldsGrid({ stage, s, currentUser, canEdit, isComplete = false, e
               {riskTier.tier} tier
             </span>
           ) : null}
-          {/* What the stage still needs, named — the ring gives the count, this
-              says which details it is waiting on. */}
-          {!isComplete && captured < s.fields.length ? (
-            <span className="inline-flex min-w-0 items-center gap-1.5">
-              <Pencil size={12} />
-              <span className="min-w-0 truncate">
-                Left to capture · {listWithMore(s.fields.filter((field) => isFieldEmpty(s.values[field.label])).map((field) => humanizeLabel(field.label)), 3)}
-              </span>
-            </span>
-          ) : null}
           <span className="inline-flex items-center gap-1.5">
             <Clock size={12} />
             Updated {RECORD_ACTIVITY[0].when.split(",").slice(0, 2).join(",")}
           </span>
-          <TurnCue isComplete={isComplete} canEdit={canEdit} owner={stage.owner} gate={gate} currentUser={currentUser} />
         </div>
       </div>
 
+      {/* An open stage only shows what the conversation has captured — an empty
+ form of 13 labelled blanks tells the user nothing. Completed and
+ read-only stages show everything, because it's all filled. */}
+      {visibleFields.length === 0 ? (
+        <p className="mt-8 text-[13px] leading-6 text-[var(--text-muted)]">
+          Nothing captured yet — answer in the chat and each detail will appear here as it lands.
+        </p>
+      ) : null}
+
       {/* Two-column grid: pairs of fields share a row so their labels line up
-          across the form. Long text / multi-selects take the full width. */}
+ across the form. Long text / multi-selects take the full width. */}
       <div className={cn("mt-8 grid grid-cols-1 items-start gap-y-9 sm:grid-cols-2", embedded ? "gap-x-8" : "gap-x-12")}>
-        {s.fields.map((field, index) => {
+        {visibleFields.map((field) => {
           // Long text and multi-selects need the full width; the rest pair up.
           const wide = ["long", "cards", "chips"].includes(field.kind);
           // Reserve each control's height so switching read ↔ edit doesn't change
@@ -883,11 +801,11 @@ function StageFieldsGrid({ stage, s, currentUser, canEdit, isComplete = false, e
           const reserve = wide ? undefined : field.kind === "level" ? 50 : 40;
           return (
             <div key={field.label} className={cn("min-w-0", wide && "sm:col-span-2")}>
-              <label className="flex items-baseline gap-2 text-[13px] font-semibold text-[var(--text-primary)]">
-                <span className="text-[var(--text-muted)]">{stageNo}.{index + 1}</span>
-                {field.label}
-              </label>
-              <div className={cn("mt-2 min-w-0", reserve && !editAll && "flex items-center")} style={reserve && !editAll ? { minHeight: reserve } : undefined}>
+              <label className="block text-[13px] font-semibold text-[var(--text-primary)]">{field.label}</label>
+              <div
+                className={cn("mt-2 min-w-0", reserve && !editAll && "flex items-center")}
+                style={reserve && !editAll ? { minHeight: reserve } : undefined}
+              >
                 <DocumentField field={field} s={s} readOnly={readOnly} onBlockedEdit={onBlockedEdit} forceEdit={editAll} />
               </div>
             </div>
@@ -895,151 +813,6 @@ function StageFieldsGrid({ stage, s, currentUser, canEdit, isComplete = false, e
         })}
       </div>
     </section>
-  );
-}
-
-// Record details modal — the use case's metadata, gates, comments, and activity.
-function RecordDetailsSheet({ onClose }: { onClose: () => void }) {
-  const [tab, setTab] = useState<"details" | "gates" | "comments" | "activity">("details");
-  // ponytail: comment list is local prototype state — no persistence.
-  const [comments, setComments] = useState(RECORD_COMMENTS);
-  const [draft, setDraft] = useState("");
-  const addComment = () => {
-    const text = draft.trim();
-    if (!text) return;
-    setComments((prev) => [{ by: "You", when: "just now", text }, ...prev]);
-    setDraft("");
-  };
-  const tabs: { key: typeof tab; label: string; count?: number }[] = [
-    { key: "details", label: "Details" },
-    { key: "gates", label: "Gates", count: GATES.length },
-    { key: "comments", label: "Comments", count: comments.length },
-    { key: "activity", label: "Activity", count: RECORD_ACTIVITY.length },
-  ];
-  return (
-    <aside className="sheet-in-right flex min-h-0 flex-col overflow-hidden rounded-t-[10px] border border-b-0 border-[var(--border-default)] bg-white shadow-[var(--shadow-card)]">
-        <div className="flex shrink-0 items-center gap-2 border-b border-[var(--border-soft)] pl-4 pr-2 pt-2.5">
-          <div className="no-scrollbar flex min-w-0 flex-1 items-center gap-4 overflow-x-auto">
-            {tabs.map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                onClick={() => setTab(t.key)}
-                className={cn(
-                  "-mb-px flex shrink-0 items-center gap-1.5 border-b-2 py-2.5 text-[13px] font-medium transition",
-                  tab === t.key ? "border-[var(--accent)] text-[var(--text-primary)]" : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]",
-                )}
-              >
-                {t.label}
-                {t.count != null ? (
-                  <span
-                    className="grid h-[18px] min-w-[18px] place-items-center rounded-full px-1 text-[11px] font-semibold tabular-nums"
-                    style={tab === t.key
-                      ? { background: "color-mix(in srgb, var(--accent) 12%, white)", color: "var(--accent)" }
-                      : { background: "var(--surface-muted)", color: "var(--text-muted)" }}
-                  >
-                    {t.count}
-                  </span>
-                ) : null}
-              </button>
-            ))}
-          </div>
-          <button type="button" onClick={onClose} aria-label="Close" className="mb-1 grid h-8 w-8 shrink-0 place-items-center rounded-[8px] text-[var(--text-muted)] transition hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)]">
-            <X size={16} />
-          </button>
-        </div>
-        <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto">
-          {tab === "details" ? (
-            <dl className="divide-y divide-[var(--border-hairline)]">
-              {RECORD_DETAILS.map(([label, value]) => (
-                <div key={label} className="flex items-center justify-between gap-6 px-5 py-3">
-                  <dt className="text-[13px] text-[var(--text-muted)]">{label}</dt>
-                  <dd className="text-right text-[14px] font-semibold text-[var(--text-primary)]">{value}</dd>
-                </div>
-              ))}
-            </dl>
-          ) : null}
-          {tab === "gates" ? (
-            <div className="divide-y divide-[var(--border-hairline)]">
-              {GATES.map((gate) => {
-                const tone = GATE_TONE[gate.status];
-                return (
-                  <div key={gate.id} className="flex items-center justify-between gap-3 px-5 py-3.5">
-                    <div className="min-w-0">
-                      <p className="truncate text-[14px] font-semibold text-[var(--text-primary)]">
-                        <span className="text-[var(--accent)]">{gate.id}</span> {gate.name}
-                      </p>
-                      <p className="mt-1 flex items-center gap-1.5 text-[12px] text-[var(--text-muted)]">
-                        <PersonAvatar name={gate.approver} size={18} /> {gate.approver}
-                        <span>·</span>
-                        {gate.decided ?? "Pending"}
-                      </p>
-                    </div>
-                    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold" style={{ color: tone.fg, background: tone.bg, borderColor: tone.border }}>
-                      <span className="h-1.5 w-1.5 rounded-full" style={{ background: tone.fg }} />
-                      {gate.status}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          ) : null}
-          {tab === "comments" ? (
-            <div className="flex min-h-full flex-col">
-              <div className="flex-1 divide-y divide-[var(--border-hairline)]">
-                {comments.map((c, i) => (
-                  <div key={i} className="flex gap-3 px-5 py-3">
-                    <PersonAvatar name={c.by} size={26} />
-                    <div className="min-w-0">
-                      <p className="text-[13px]"><span className="font-semibold text-[var(--text-primary)]">{c.by}</span> <span className="text-[var(--text-muted)]">· {c.when}</span></p>
-                      <p className="mt-0.5 text-[13px] leading-5 text-[var(--text-body)]">{c.text}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="sticky bottom-0 flex min-h-[64px] items-center gap-2 border-t border-[var(--border-soft)] bg-white px-4 py-3">
-                <textarea
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      addComment();
-                    }
-                  }}
-                  rows={1}
-                  placeholder="Add a comment…"
-                  className="no-scrollbar max-h-24 min-h-9 flex-1 resize-none rounded-[10px] border border-[var(--border-soft)] bg-[var(--surface-muted)] px-3 py-2 text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]"
-                />
-                <button
-                  type="button"
-                  onClick={addComment}
-                  disabled={!draft.trim()}
-                  className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[var(--accent)] text-white transition hover:bg-[var(--accent-strong)] disabled:bg-[var(--surface-strong)] disabled:text-[var(--text-muted)]"
-                  aria-label="Post comment"
-                >
-                  <ArrowUp size={16} strokeWidth={2.5} />
-                </button>
-              </div>
-            </div>
-          ) : null}
-          {tab === "activity" ? (
-            <div className="divide-y divide-[var(--border-hairline)]">
-              {RECORD_ACTIVITY.map((a, i) => (
-                <div key={i} className="flex gap-3 px-5 py-3.5">
-                  <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full border border-[var(--border-soft)] text-[var(--text-muted)]">
-                    {ACTIVITY_ICON[a.icon]}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-[14px] font-semibold text-[var(--text-primary)]">{a.title}</p>
-                    <p className="mt-0.5 text-[13px] text-[var(--text-muted)]">{a.when}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </div>
-    </aside>
   );
 }
 
@@ -1123,7 +896,12 @@ function StagePathMenu({
           open ? "bg-[var(--accent-soft)]" : "hover:bg-[var(--surface-muted)]",
         )}
       >
-        <span className={cn("font-display min-w-0 truncate text-[18px] leading-tight", open ? "text-[var(--accent-strong)]" : "text-[var(--text-primary)]")}>
+        <span
+          className={cn(
+            "font-display min-w-0 truncate text-[18px] leading-tight",
+            open ? "text-[var(--accent-strong)]" : "text-[var(--text-primary)]",
+          )}
+        >
           {STAGES[activeIndex].name}
         </span>
         <span className="shrink-0 whitespace-nowrap text-[11px] font-medium tabular-nums text-[var(--text-muted)]">
@@ -1225,7 +1003,19 @@ function readOnlyStageState(stage: StageItem): StageFieldsState {
   const fields = stage.rows.map(([label, value]) => buildFieldSpec(label, value));
   const values = Object.fromEntries(fields.map((field) => [field.label, field.suggestion]));
   const noop = () => {};
-  return { fields, values, loadingFields: [], setField: noop, suggestField: noop, suggestAll: noop, suggestingAll: false, draftDurationMs: 0, fillNow: noop };
+  return {
+    fields,
+    values,
+    loadingFields: [],
+    setField: noop,
+    suggestField: noop,
+    suggestAll: noop,
+    suggestingAll: false,
+    draftDurationMs: 0,
+    fillNow: noop,
+    // Read-only stages are fully recorded by definition.
+    captured: fields.map((field) => field.label),
+  };
 }
 
 // Split stage view (artifact-style): the chat on the left drives the form on the
@@ -1237,7 +1027,6 @@ function SplitStageView({
   currentUser,
   onUserChange,
   lockedOwner,
-  recordName,
   detailsOpen,
   onOpenDetails,
   stageIndex,
@@ -1247,14 +1036,13 @@ function SplitStageView({
   isComplete,
   onMarkComplete,
   onEditBlocked,
-  onStarted,
+  initialIdea,
   banner,
 }: {
   stage: StageItem;
   currentUser: string;
   onUserChange: (user: string) => void;
   lockedOwner: string | null;
-  recordName: string | null;
   detailsOpen: boolean;
   onOpenDetails: () => void;
   stageIndex: number;
@@ -1264,7 +1052,8 @@ function SplitStageView({
   isComplete: boolean;
   onMarkComplete: () => void;
   onEditBlocked: (message: string) => void;
-  onStarted?: () => void;
+  // What the user described on the way in, used as the chat's opening message.
+  initialIdea?: string;
   // Full-width notice under the top bar (a returned / rejected stage).
   banner?: ReactNode;
 }) {
@@ -1283,6 +1072,8 @@ function SplitStageView({
   const chatScrollElement = useRef<HTMLElement | null>(null);
   // Put away / full width — one mode, so the two can't both be on.
   const railMode = useRailMode();
+  // Bumping this remounts the conversation — "start a new chat" for this stage.
+  const [chatKey, setChatKey] = useState(0);
   // Form panel shows a loading bar while the guided Ideation flow is seeding.
   const [formBusy, setFormBusy] = useState(false);
 
@@ -1296,12 +1087,18 @@ function SplitStageView({
   if (guided) {
     // Ideation uses the scripted question-card flow; other guided stages keep
     // the conversational paragraph flow.
-    chat = stage.name === "Ideation" ? <GuidedQuestions stage={stage} s={s} onStarted={onStarted} onBusyChange={setFormBusy} /> : <ChatPanel stage={stage} s={s} />;
+    chat =
+      stage.name === "Ideation" ? (
+        <GuidedQuestions stage={stage} s={s} idea={initialIdea} onBusyChange={setFormBusy} />
+      ) : (
+        <ChatPanel stage={stage} s={s} />
+      );
   } else {
     let intro: string;
     let editNote: string | undefined;
     if (!isComplete && !owned) {
-      intro = `${STAGE_BRIEFS[stage.name] ?? ""} ${stage.owner} owns this one, so recording changes needs their profile — but ask me anything about it.`.trim();
+      intro =
+        `${STAGE_BRIEFS[stage.name] ?? ""} ${stage.owner} owns this one, so recording changes needs their profile — but ask me anything about it.`.trim();
       editNote = `Switch to ${stage.owner} up top to edit.`;
     } else if (!isComplete) {
       intro = `Here's the ${stage.name} so far — set the details on the form to the right, then submit.`;
@@ -1365,15 +1162,6 @@ function SplitStageView({
   return (
     <AppShell
       banner={banner}
-      topBar={
-        // Row 1 owns the record's identity: its name and nothing else — the
-        // stage, its status and its people all live further down.
-        <AppTopBar
-          title={recordName ?? "Untitled use case"}
-          titleHref="/overview"
-          profile={<ProfileSwitcher currentUser={currentUser} onUserChange={onUserChange} lockedBy={lockedOwner ?? undefined} compact />}
-        />
-      }
       railExpanded={railMode.expanded}
       railCollapsed={railMode.collapsed}
       railHeader={
@@ -1385,20 +1173,7 @@ function SplitStageView({
           onToggleExpand={railMode.toggleExpand}
           collapsed={railMode.collapsed}
           onToggleCollapse={railMode.toggleCollapse}
-        />
-      }
-      tabs={
-        <PanelTabs
-          activeId="workflow"
-          tabs={[
-            { id: "overview", label: "Overview", href: "/overview", icon: <LayoutDashboard size={14} /> },
-            { id: "workflow", label: "Workflow", icon: <LayoutList size={14} /> },
-          ]}
-          right={
-            // The record's details, gates, comments and activity — one toggle,
-            // sitting with the other view controls.
-            <TabBarToggle label="Details" icon={<MessageCircle size={15} />} active={detailsOpen} onClick={onOpenDetails} />
-          }
+          onNewChat={() => setChatKey((key) => key + 1)}
         />
       }
       rail={
@@ -1410,6 +1185,7 @@ function SplitStageView({
             setChatScrolled(element.scrollTop > 4);
           }}
           className="mx-auto flex min-h-0 w-full max-w-[720px] flex-1 flex-col overflow-hidden"
+          key={chatKey}
         >
           {chat}
         </div>
@@ -1417,47 +1193,60 @@ function SplitStageView({
       aside={detailsOpen ? <RecordDetailsSheet onClose={onOpenDetails} /> : undefined}
     >
       {/* Row 3 names the view and where in the lifecycle it sits; the stage's own
-          title, status, progress, owner and gate live in the stage header below. */}
+ title, status, progress, owner and gate live in the stage header below. */}
       <ContentPanel
-        icon={<LayoutList size={17} />}
-        title="Workflow"
-        breadcrumb={<PanelBreadcrumb source={USE_CASE.id} item={phaseForStage(stage.name)} icon={<FileText size={13} />} />}
+        breadcrumb={
+          <PanelBreadcrumb
+            items={[
+              { label: "All use cases", href: "/" },
+              { label: USE_CASE.id, href: "/overview", icon: <FileText size={13} />, title: USE_CASE.name },
+              { label: stage.name },
+            ]}
+          />
+        }
+        controls={
+          <>
+            <TabBarToggle label="Details" icon={<Info size={15} />} active={detailsOpen} onClick={onOpenDetails} />
+            <ProfileSwitcher currentUser={currentUser} onUserChange={onUserChange} lockedBy={lockedOwner ?? undefined} compact />
+          </>
+        }
         scroll={false}
         footer={
           <>
-            {submitHint ? <span className="min-w-0 truncate text-[12px] text-[var(--text-muted)]">{submitHint}</span> : null}
+            {submitHint ? (
+              <span className="flex min-w-0 items-center gap-2 text-[12px] text-[var(--text-muted)]">
+                <ProgressRing ratio={capturedTotal > 0 ? capturedDone / capturedTotal : 0} size={18} stroke={2} />
+                <span className="min-w-0 truncate">{submitHint}</span>
+              </span>
+            ) : null}
             <span className="ml-auto flex shrink-0 items-center gap-2">
-            {isComplete && owned ? (
-              <button
-                type="button"
-                onClick={onMarkComplete}
-                className={shellButton()}
-              >
-                <RotateCcw size={13} />
-                Reopen
-              </button>
-            ) : guided ? (
-              <button
-                type="button"
-                onClick={() => setEditAll((v) => !v)}
-                className={cn(shellButton(), editAll && "border-[var(--accent-border)] bg-[var(--accent-soft)] text-[var(--accent-strong)]")}
-              >
-                {editAll ? <Check size={13} /> : <Pencil size={13} />}
-                {editAll ? "Save" : "Edit"}
-              </button>
-            ) : null}
-            {showSubmit ? (
-              <button
-                type="button"
-                onClick={onMarkComplete}
-                disabled={!submitReady}
-                title={submitReady ? undefined : submitHint}
-                className={shellButton("primary")}
-              >
-                <Check size={13} />
-                Submit {stage.name === "GTAC" ? "decision" : "stage"}
-              </button>
-            ) : null}
+              {isComplete && owned ? (
+                <button type="button" onClick={onMarkComplete} className={shellButton()}>
+                  <RotateCcw size={13} />
+                  Reopen
+                </button>
+              ) : guided ? (
+                <button
+                  type="button"
+                  onClick={() => setEditAll((v) => !v)}
+                  className={cn(shellButton(), editAll && "border-[var(--accent-border)] bg-[var(--accent-soft)] text-[var(--accent-strong)]")}
+                >
+                  {editAll ? <Check size={13} /> : <Pencil size={13} />}
+                  {editAll ? "Save" : "Edit"}
+                </button>
+              ) : null}
+              {showSubmit ? (
+                <button
+                  type="button"
+                  onClick={onMarkComplete}
+                  disabled={!submitReady}
+                  title={submitReady ? undefined : submitHint}
+                  className={shellButton("primary")}
+                >
+                  <Check size={13} />
+                  Submit {stage.name === "GTAC" ? "decision" : "stage"}
+                </button>
+              ) : null}
             </span>
           </>
         }
@@ -1493,8 +1282,7 @@ const STAGE_BRIEFS: Record<string, string> = {
     "The deep review. We work through what data the model touches, where it's hosted, how it could fail, and the ethical exposure — then land an overall risk rating and the conditions that have to hold before anything gets built.",
   "Business Case":
     "Time for the numbers. We take today's review volume and cost, project what the assistant saves, and set that against the investment. Payback and three-year value are what the GTAC board will actually debate.",
-  GTAC:
-    "The board decision. I'll record the go/no-go, the recommendation it rests on, and any conditions attached to the funding. This is the gate that releases delivery.",
+  GTAC: "The board decision. I'll record the go/no-go, the recommendation it rests on, and any conditions attached to the funding. This is the gate that releases delivery.",
   "Plan & KPI":
     "Funding's approved, so now we line up delivery: the squad, the milestones, and the KPIs we'll be held to. Locking targets here is what monitoring measures against once it's live.",
   "Solution blue print":
@@ -1592,7 +1380,7 @@ function ghostFor(labels: string[], fieldByLabel: Map<string, FieldSpec>): strin
     .join("; ");
 }
 
-type ChatMessage = { id: number; role: "assistant" | "user"; text: string; recap?: boolean; time?: string; notice?: boolean; activity?: string; running?: boolean };
+type ChatMessage = { id: number; role: "assistant" | "user"; text: string; recap?: boolean; time?: string; activity?: string; running?: boolean };
 
 // Keeps a scroll container pinned to the bottom as its content grows (new
 // messages, or the tall prior-stage history laying out over several frames), so
@@ -1630,7 +1418,19 @@ function useBottomPinnedScroll() {
 // A non-guided stage chat (locked / bespoke / completed): the chat stays open so
 // every stage keeps its composer. It opens with `intro`, shows an optional
 // `footer` (summary / actions), and answers any message with a canned `reply`.
-function AsideChat({ stage, intro, editNote, footer, complete = false }: { stage: StageItem; intro: string; editNote?: string; footer?: ReactNode; complete?: boolean }) {
+function AsideChat({
+  stage,
+  intro,
+  editNote,
+  footer,
+  complete = false,
+}: {
+  stage: StageItem;
+  intro: string;
+  editNote?: string;
+  footer?: ReactNode;
+  complete?: boolean;
+}) {
   const { scrollRef, contentRef } = useBottomPinnedScroll();
   const data = useMemo(() => readOnlyStageState(stage), [stage]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -1655,7 +1455,10 @@ function AsideChat({ stage, intro, editNote, footer, complete = false }: { stage
   function respond(text: string): string {
     const lower = text.toLowerCase();
     const field = data.fields.find((f) =>
-      f.label.toLowerCase().split(/[^a-z0-9]+/).some((w) => w.length >= 4 && lower.includes(w)),
+      f.label
+        .toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .some((w) => w.length >= 4 && lower.includes(w)),
     );
     if (field && !isFieldEmpty(data.values[field.label])) {
       const v = data.values[field.label];
@@ -1686,7 +1489,9 @@ function AsideChat({ stage, intro, editNote, footer, complete = false }: { stage
   const signature = signatureField(data.fields);
   const starters: Starter[] = [
     // The stage's own questions first, then the role-aware and catch-up chips.
-    ...specStarters(STAGE_STARTERS[stage.name]?.viewer ?? [{ icon: "doc", label: `What's in ${short}?`, read: data.fields.map((f) => f.label).slice(0, 5) }]),
+    ...specStarters(
+      STAGE_STARTERS[stage.name]?.viewer ?? [{ icon: "doc", label: `What's in ${short}?`, read: data.fields.map((f) => f.label).slice(0, 5) }],
+    ),
     complete
       ? { id: "signoff", icon: <ShieldCheck size={13} />, label: `Who signed off ${short}?` }
       : { id: "open", icon: <Info size={13} />, label: `What's left for ${firstName(stage.owner)}?` },
@@ -1711,11 +1516,16 @@ function AsideChat({ stage, intro, editNote, footer, complete = false }: { stage
       return;
     }
     if (item.id === "why") {
-      sayLines([`${STAGE_BRIEFS[stage.name] ?? STAGE_INTROS[stage.name] ?? `${stage.name} is the first step in the lifecycle.`} ${stage.owner} owns it.${editNote ? ` ${editNote}` : ""}`]);
+      sayLines([
+        `${STAGE_BRIEFS[stage.name] ?? STAGE_INTROS[stage.name] ?? `${stage.name} is the first step in the lifecycle.`} ${stage.owner} owns it.${editNote ? ` ${editNote}` : ""}`,
+      ]);
       return;
     }
     if (item.id === "signoff") {
-      const headline = signature && !isFieldEmpty(data.values[signature.label]) ? ` The ${humanizeLabel(signature.label)} was ${suggestionText(data.values[signature.label])}.` : "";
+      const headline =
+        signature && !isFieldEmpty(data.values[signature.label])
+          ? ` The ${humanizeLabel(signature.label)} was ${suggestionText(data.values[signature.label])}.`
+          : "";
       sayLines([`${stage.name} was completed by ${stage.owner} and signed off at its gate.${headline}${editNote ? ` ${editNote}` : ""}`]);
       return;
     }
@@ -1771,13 +1581,37 @@ type ScriptQuestion = { text: string; field: string; answer: string };
 // The Ideation intake script (from the Figma flow) — each question maps to an
 // Ideation field it fills, and carries an example answer (prefilled, editable).
 const IDEATION_SCRIPT: ScriptQuestion[] = [
-  { text: "Who is the business owner for this idea? Could you share their full name and title?", field: "Business owner", answer: "Dr. Sarah Mitchell — Senior Director, Clinical Operations" },
-  { text: "Roughly how many people would be using this day-to-day, and in which teams?", field: "Target users", answer: "~450 users globally — Clinical Operations Managers, CRAs, Clinical Project Managers, and Medical Writers." },
+  {
+    text: "Who is the business owner for this idea? Could you share their full name and title?",
+    field: "Business owner",
+    answer: "Dr. Sarah Mitchell — Senior Director, Clinical Operations",
+  },
+  {
+    text: "Roughly how many people would be using this day-to-day, and in which teams?",
+    field: "Target users",
+    answer: "~450 users globally — Clinical Operations Managers, CRAs, Clinical Project Managers, and Medical Writers.",
+  },
   { text: "Would this roll out at a single site, across a specific region, or globally?", field: "Geography", answer: "Globally." },
-  { text: "Where do the source documents currently live — a document management system, shared drive, or somewhere else?", field: "Data sources", answer: "Enterprise CTMS and a document management system (Veeva Vault), plus some legacy protocols on secure SharePoint." },
-  { text: "Do these documents contain any patient-level, genomic, or personally identifiable information, or are they document-level content only?", field: "Data sensitivity", answer: "Primarily document-level content only — no patient-level data or PII, though some sensitive study design details need secure handling." },
-  { text: "What's the core AI capability you're expecting — summarization, retrieval Q&A, classification?", field: "AI capability", answer: "LLM summarization with retrieval Q&A over the protocol documents." },
-  { text: "Could the outputs ever feed into a regulated or compliance-critical process — such as a GxP submission or regulatory review?", field: "GxP impact", answer: "Yes — they support GxP-regulated clinical operations, so human review and approval are mandatory before any compliance-critical use." },
+  {
+    text: "Where do the source documents currently live — a document management system, shared drive, or somewhere else?",
+    field: "Data sources",
+    answer: "Enterprise CTMS and a document management system (Veeva Vault), plus some legacy protocols on secure SharePoint.",
+  },
+  {
+    text: "Do these documents contain any patient-level, genomic, or personally identifiable information, or are they document-level content only?",
+    field: "Data sensitivity",
+    answer: "Primarily document-level content only — no patient-level data or PII, though some sensitive study design details need secure handling.",
+  },
+  {
+    text: "What's the core AI capability you're expecting — summarization, retrieval Q&A, classification?",
+    field: "AI capability",
+    answer: "LLM summarization with retrieval Q&A over the protocol documents.",
+  },
+  {
+    text: "Could the outputs ever feed into a regulated or compliance-critical process — such as a GxP submission or regulatory review?",
+    field: "GxP impact",
+    answer: "Yes — they support GxP-regulated clinical operations, so human review and approval are mandatory before any compliance-critical use.",
+  },
   { text: "Do you have a target timeline in mind for delivery?", field: "Timeline", answer: "Around 6 months." },
   { text: "And is there a budget envelope for this work?", field: "Budget", answer: "~$750K." },
 ];
@@ -1785,7 +1619,10 @@ const IDEATION_SCRIPT: ScriptQuestion[] = [
 // Opening exchange shown before the follow-up questions (Ideation): the idea the
 // user described on the Create page, then the AI's bridge into the follow-ups.
 const IDEATION_SEED: { role: "assistant" | "user"; text: string }[] = [
-  { role: "user", text: "We want to build an AI assistant that helps our Clinical Operations team summarize clinical trial protocols. Today the team manually reads long protocol documents to pull out objectives, eligibility criteria, endpoints and safety information — hours per protocol, and often inconsistent. The solution should generate a concise summary and let users ask follow-up questions. The idea is called Clinical Trial Protocol Summarizer." },
+  {
+    role: "user",
+    text: "We want to build an AI assistant that helps our Clinical Operations team summarize clinical trial protocols. Today the team manually reads long protocol documents to pull out objectives, eligibility criteria, endpoints and safety information — hours per protocol, and often inconsistent. The solution should generate a concise summary and let users ask follow-up questions. The idea is called Clinical Trial Protocol Summarizer.",
+  },
   { role: "assistant", text: "That's really helpful — just a few more things to round this out!\n\nSome quick follow-ups:" },
 ];
 // Fields the opening idea description already establishes (filled up front) —
@@ -1836,46 +1673,74 @@ function QuestionCard({
   onClose: () => void;
 }) {
   return (
-    <div className="shrink-0 px-3 pb-3 pt-1.5">
-      <div className="rounded-[14px] border border-[var(--border-default)] bg-white p-4">
-        <div className="flex items-start justify-between gap-3">
-          <p className="text-[14px] font-semibold leading-[1.5] text-[var(--text-primary)]">{question}</p>
-          <div className="flex shrink-0 items-center gap-1 text-[12px] font-medium tabular-nums text-[var(--text-muted)]">
-            <button type="button" onClick={onPrev} disabled={index === 0} aria-label="Previous question" className="grid h-6 w-6 place-items-center rounded-[6px] transition hover:bg-[var(--surface-muted)] disabled:opacity-30">
-              <ChevronLeft size={16} />
-            </button>
-            {index + 1} of {total}
-            <button type="button" onClick={onNext} disabled={index === total - 1} aria-label="Next question" className="grid h-6 w-6 place-items-center rounded-[6px] transition hover:bg-[var(--surface-muted)] disabled:opacity-30">
-              <ChevronRight size={16} />
-            </button>
-            <button type="button" onClick={onClose} aria-label="Close" className="ml-0.5 grid h-6 w-6 place-items-center rounded-[6px] text-[var(--text-muted)] transition hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)]">
-              <X size={16} />
-            </button>
-          </div>
+    <div className="shrink-0 pt-1.5">
+      {/* Built like the composer it replaces — same box, same insets — so the
+ guided flow doesn't introduce a second input shape. */}
+      <div className="rounded-[14px] border border-[var(--border-default)] bg-[var(--surface)] px-2 pb-1.5 pt-2">
+        <div className="flex items-center gap-0.5 px-1 text-[11px] font-medium tabular-nums text-[var(--text-muted)]">
+          <button
+            type="button"
+            onClick={onPrev}
+            disabled={index === 0}
+            aria-label="Previous question"
+            className="grid h-5 w-5 place-items-center rounded-[6px] transition hover:bg-[var(--surface-hover)] disabled:opacity-30"
+          >
+            <ChevronLeft size={14} />
+          </button>
+          {index + 1} of {total}
+          <button
+            type="button"
+            onClick={onNext}
+            disabled={index === total - 1}
+            aria-label="Next question"
+            className="grid h-5 w-5 place-items-center rounded-[6px] transition hover:bg-[var(--surface-hover)] disabled:opacity-30"
+          >
+            <ChevronRight size={14} />
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close the questions"
+            className="ml-auto grid h-5 w-5 place-items-center rounded-[6px] transition hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
+          >
+            <X size={14} />
+          </button>
         </div>
-        <div className="mt-3 flex items-center gap-2 rounded-[10px] bg-[var(--surface-muted)] px-2.5 py-1.5">
-          <Pencil size={14} className="shrink-0 text-[var(--text-muted)]" />
-          <input
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                onSubmit();
-              }
-            }}
-            placeholder="Write answer here"
-            className="min-w-0 flex-1 bg-transparent text-[13px] leading-[20px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
-          />
-          {value.trim() ? (
-            <button type="button" onClick={onSubmit} className="shrink-0 rounded-[8px] bg-[var(--accent)] px-3 py-1.5 text-[12px] font-semibold text-white transition hover:bg-[var(--accent-strong)]">
-              Save
-            </button>
-          ) : (
-            <button type="button" onClick={onSkip} className="shrink-0 rounded-[8px] border border-[var(--border-default)] bg-white px-3 py-1.5 text-[12px] font-medium text-[var(--text-body)] transition hover:border-[var(--accent-ring)] hover:bg-[var(--accent-hover-bg)]">
-              Skip
-            </button>
-          )}
+
+        <p className="mt-1 px-1 text-[13px] font-semibold leading-[1.45] text-[var(--text-primary)]">{question}</p>
+
+        {/* The answer is typed straight into the card — no inset field, so the
+ card reads as one input rather than a form. */}
+        <textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              onSubmit();
+            }
+          }}
+          rows={1}
+          placeholder="Write your answer"
+          className="field-sizing-content no-scrollbar mt-1.5 block max-h-28 w-full resize-none bg-transparent px-1 text-[13px] leading-[19px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
+        />
+
+        <div className="mt-1 flex items-center justify-end gap-1">
+          <button
+            type="button"
+            onClick={onSkip}
+            className="h-7 rounded-[8px] px-2 text-[12px] font-medium text-[var(--text-label)] transition hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
+          >
+            Skip
+          </button>
+          <button
+            type="button"
+            onClick={onSubmit}
+            disabled={!value.trim()}
+            className="h-7 rounded-[8px] bg-[var(--accent)] px-2.5 text-[12px] font-semibold text-white transition hover:bg-[var(--accent-strong)] disabled:opacity-40"
+          >
+            Save
+          </button>
         </div>
       </div>
     </div>
@@ -1886,7 +1751,17 @@ function QuestionCard({
 // QuestionCard, records each answer into the shared field state, and keeps a
 // running transcript above. Once through (or dismissed), it hands off to a plain
 // composer so the user can still tweak details conversationally.
-function GuidedQuestions({ stage, s, onStarted, onBusyChange }: { stage: StageItem; s: StageFieldsState; onStarted?: () => void; onBusyChange?: (busy: boolean) => void }) {
+function GuidedQuestions({
+  stage,
+  s,
+  idea,
+  onBusyChange,
+}: {
+  stage: StageItem;
+  s: StageFieldsState;
+  idea?: string;
+  onBusyChange?: (busy: boolean) => void;
+}) {
   const questions = useMemo(() => scriptFor(stage, s.fields), [stage, s.fields]);
   const fieldByLabel = useMemo(() => new Map(s.fields.map((f) => [f.label, f])), [s.fields]);
 
@@ -1907,7 +1782,6 @@ function GuidedQuestions({ stage, s, onStarted, onBusyChange }: { stage: StageIt
   const pushAssistant = (text: string) => setMessages((m) => [...m, { id: bump(), role: "assistant", text }]);
   const pushUser = (text: string) => setMessages((m) => [...m, { id: bump(), role: "user", text, time: formatChatTime() }]);
   const pushActivity = (activity: string, text: string) => setMessages((m) => [...m, { id: bump(), role: "assistant", text, activity }]);
-  const pushNotice = (text: string) => setMessages((m) => [...m, { id: bump(), role: "assistant", text, notice: true }]);
 
   // The agent "thinks" between the user's idea and its bridge reply.
   const [thinking, setThinking] = useState(false);
@@ -1928,7 +1802,12 @@ function GuidedQuestions({ stage, s, onStarted, onBusyChange }: { stage: StageIt
   useEffect(() => () => timers.current.forEach((t) => clearTimeout(t)), []);
   useEffect(() => {
     // 1. the idea the user described (from Create) appears first.
-    timers.current.push(window.setTimeout(() => setMessages((cur) => [...cur, { id: bump(), role: "user", text: IDEATION_SEED[0].text, time: formatChatTime() }]), 300));
+    timers.current.push(
+      window.setTimeout(
+        () => setMessages((cur) => [...cur, { id: bump(), role: "user", text: idea?.trim() || IDEATION_SEED[0].text, time: formatChatTime() }]),
+        300,
+      ),
+    );
     // 2. the agent thinks…
     timers.current.push(window.setTimeout(() => setThinking(true), 600));
     // 3. …then recaps what it extracted and asks to confirm.
@@ -1940,7 +1819,6 @@ function GuidedQuestions({ stage, s, onStarted, onBusyChange }: { stage: StageIt
           { id: bump(), role: "assistant", text: seedSummary },
           { id: bump(), role: "assistant", text: "Shall I add these to the form on the right? Reply “yes” to confirm." },
         ]);
-        onStarted?.();
         setPhase("confirmSeed");
       }, 1900),
     );
@@ -2018,13 +1896,21 @@ function GuidedQuestions({ stage, s, onStarted, onBusyChange }: { stage: StageIt
       if (a && fieldByLabel.has(q.field)) s.fillNow(q.field, a, 300 + d++ * 200);
     });
     timers.current.push(window.setTimeout(() => onBusyChange?.(false), 300 + d * 200 + 400));
-    const filled = new Set([...IDEATION_SEED_FIELDS, ...questions.filter((_, i) => !resultRef.current.skipped[i] && (resultRef.current.answers[i] ?? "").trim()).map((q) => q.field)]);
+    const filled = new Set([
+      ...IDEATION_SEED_FIELDS,
+      ...questions.filter((_, i) => !resultRef.current.skipped[i] && (resultRef.current.answers[i] ?? "").trim()).map((q) => q.field),
+    ]);
     const stillOpen = s.fields.filter((f) => isFieldEmpty(s.values[f.label]) && !filled.has(f.label));
     pushActivity("Adding", "your answers to the form");
     if (stillOpen.length) {
-      pushAssistant(`Done — it's on the form now. Still to capture: ${listWithMore(stillOpen.map((f) => humanizeLabel(f.label)), 4)}. Tell me and I'll add them.`);
+      pushAssistant(
+        `Done — it's on the form now. Still to capture: ${listWithMore(
+          stillOpen.map((f) => humanizeLabel(f.label)),
+          4,
+        )}. Tell me and I'll add them.`,
+      );
     } else {
-      pushNotice("Every detail is captured — submit the stage when it looks right.");
+      pushAssistant("Every detail is captured — submit the stage when it looks right.");
     }
     setPhase("done");
   }
@@ -2068,15 +1954,15 @@ function GuidedQuestions({ stage, s, onStarted, onBusyChange }: { stage: StageIt
       <ChatDock>
         {phase === "questions" ? (
           <QuestionCard
-          question={questions[idx].text}
-          index={idx}
-          total={questions.length}
-          value={answers[idx] ?? ""}
-          onChange={(v) => setAnswers((a) => ({ ...a, [idx]: v }))}
-          onSubmit={saveCurrent}
-          onSkip={skipCurrent}
-          onPrev={() => setIdx((i) => Math.max(0, i - 1))}
-          onNext={() => setIdx((i) => Math.min(questions.length - 1, i + 1))}
+            question={questions[idx].text}
+            index={idx}
+            total={questions.length}
+            value={answers[idx] ?? ""}
+            onChange={(v) => setAnswers((a) => ({ ...a, [idx]: v }))}
+            onSubmit={saveCurrent}
+            onSkip={skipCurrent}
+            onPrev={() => setIdx((i) => Math.max(0, i - 1))}
+            onNext={() => setIdx((i) => Math.min(questions.length - 1, i + 1))}
             onClose={() => {
               setPhase("done");
               pushAssistant("No problem — fill in whatever's left on the form and submit when ready.");
@@ -2084,18 +1970,18 @@ function GuidedQuestions({ stage, s, onStarted, onBusyChange }: { stage: StageIt
           />
         ) : (
           <ChatComposer
-          inputRef={inputRef}
-          value={input}
-          onChange={setInput}
-          onSend={handleSend}
-          sendDisabled={!input.trim()}
-          placeholder={
-            phase === "confirmSeed" || phase === "confirm"
-              ? "“Yes” to confirm, or say what to change…"
-              : done
-                ? "Ask me to change any detail, or submit on the form…"
-                : "Type a message…"
-          }
+            inputRef={inputRef}
+            value={input}
+            onChange={setInput}
+            onSend={handleSend}
+            sendDisabled={!input.trim()}
+            placeholder={
+              phase === "confirmSeed" || phase === "confirm"
+                ? "“Yes” to confirm, or say what to change…"
+                : done
+                  ? "Ask me to change any detail, or submit on the form…"
+                  : "Type a message…"
+            }
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
@@ -2139,7 +2025,12 @@ const STAGE_STARTERS: Record<string, { owner: StarterSpec[]; viewer: StarterSpec
   },
   Qualification: {
     owner: [
-      { icon: "shield", label: "Is this a prohibited use?", reply: "No — it's document summarisation with a human reviewing every output, so it stays inside policy. Nothing here is an automated decision about a person." },
+      {
+        icon: "shield",
+        label: "Is this a prohibited use?",
+        reply:
+          "No — it's document summarisation with a human reviewing every output, so it stays inside policy. Nothing here is an automated decision about a person.",
+      },
       { icon: "spark", label: "Set oversight and decision impact", fill: ["Human oversight", "Decision impact", "Data sensitivity"] },
     ],
     viewer: [
@@ -2179,7 +2070,11 @@ const STAGE_STARTERS: Record<string, { owner: StarterSpec[]; viewer: StarterSpec
   },
   "Business Case": {
     owner: [
-      { icon: "spark", label: "Estimate the savings", fill: ["Current annual volume", "Current cost per review", "Projected time savings", "Projected annual savings"] },
+      {
+        icon: "spark",
+        label: "Estimate the savings",
+        fill: ["Current annual volume", "Current cost per review", "Projected time savings", "Projected annual savings"],
+      },
       { icon: "info", label: "Work out the payback", fill: ["Investment", "Payback period", "3-year net value"] },
     ],
     viewer: [
@@ -2368,7 +2263,12 @@ function ChatPanel({ stage, s }: { stage: StageItem; s: StageFieldsState }) {
       setGating(true);
       pushAssistant(`${g}\nTell me which ones are signed off, or say "all cleared".`);
     } else {
-      sayLines(["That's everything I need. Take a quick look at the form on the right — everything should be filled in. When it looks right, hit Submit at the bottom."], () => setDone(true));
+      sayLines(
+        [
+          "That's everything I need. Take a quick look at the form on the right — everything should be filled in. When it looks right, hit Submit at the bottom.",
+        ],
+        () => setDone(true),
+      );
     }
   }
 
@@ -2382,10 +2282,20 @@ function ChatPanel({ stage, s }: { stage: StageItem; s: StageFieldsState }) {
   useEffect(() => {
     const first = firstOpenGroup(initialHandled);
     const needs = openLabels();
-    const brief = [STAGE_BRIEFS[stage.name] ?? STAGE_INTROS[stage.name], needs.length ? `To get through it I need the ${listWithMore(needs.map(humanizeLabel), 4)}.` : ""]
+    const brief = [
+      STAGE_BRIEFS[stage.name] ?? STAGE_INTROS[stage.name],
+      needs.length ? `To get through it I need the ${listWithMore(needs.map(humanizeLabel), 4)}.` : "",
+    ]
       .filter(Boolean)
       .join(" ");
-    sayLines([brief, first ? groupQuestion(first, groupRemaining(first, initialHandled), false) : "Everything's already filled — review the form and submit when it looks right."].filter(Boolean));
+    sayLines(
+      [
+        brief,
+        first
+          ? groupQuestion(first, groupRemaining(first, initialHandled), false)
+          : "Everything's already filled — review the form and submit when it looks right.",
+      ].filter(Boolean),
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -2395,7 +2305,15 @@ function ChatPanel({ stage, s }: { stage: StageItem; s: StageFieldsState }) {
     open.forEach((field, index) => s.fillNow(field.label, field.suggestion, 450 + index * 250));
     const drafted = [...handled, ...open.map((f) => f.label)];
     setHandled(drafted);
-    sayLines([`I've drafted the ${listWithMore(open.map((f) => humanizeLabel(f.label)), 4)} from what the earlier stages recorded — check the form and tweak anything that's off.`], finish);
+    sayLines(
+      [
+        `I've drafted the ${listWithMore(
+          open.map((f) => humanizeLabel(f.label)),
+          4,
+        )} from what the earlier stages recorded — check the form and tweak anything that's off.`,
+      ],
+      finish,
+    );
   }
 
   // Owner starters, worded from this stage: what it's called, what it's about,
@@ -2426,7 +2344,12 @@ function ChatPanel({ stage, s }: { stage: StageItem; s: StageFieldsState }) {
       const targets = spec.fill.map((label) => fieldByLabel.get(label)).filter((f): f is FieldSpec => Boolean(f));
       const toFill = targets.filter((f) => isFieldEmpty(s.values[f.label]));
       if (!toFill.length) {
-        sayLines([`Already recorded:\n\n${capturedAnswer(targets.map((f) => f.label), s.values)}`]);
+        sayLines([
+          `Already recorded:\n\n${capturedAnswer(
+            targets.map((f) => f.label),
+            s.values,
+          )}`,
+        ]);
         return;
       }
       toFill.forEach((field, index) => s.fillNow(field.label, field.suggestion, 450 + index * 250));
@@ -2436,7 +2359,12 @@ function ChatPanel({ stage, s }: { stage: StageItem; s: StageFieldsState }) {
       sayLines(
         [
           `Set the ${joinList(toFill.map((f) => humanizeLabel(f.label)))} on the form — tweak anything that's off.${
-            stillOpen.length ? ` Still open: ${listWithMore(stillOpen.map((f) => humanizeLabel(f.label)), 3)}.` : ""
+            stillOpen.length
+              ? ` Still open: ${listWithMore(
+                  stillOpen.map((f) => humanizeLabel(f.label)),
+                  3,
+                )}.`
+              : ""
           }`,
         ],
         stillOpen.length ? undefined : finish,
@@ -2471,7 +2399,9 @@ function ChatPanel({ stage, s }: { stage: StageItem; s: StageFieldsState }) {
       return;
     }
     if (item.id === "why") {
-      sayLines([`${STAGE_BRIEFS[stage.name] ?? STAGE_INTROS[stage.name] ?? `${stage.name} is the first step in the lifecycle.`} You own it, so it's yours to record.`]);
+      sayLines([
+        `${STAGE_BRIEFS[stage.name] ?? STAGE_INTROS[stage.name] ?? `${stage.name} is the first step in the lifecycle.`} You own it, so it's yours to record.`,
+      ]);
       return;
     }
     if (item.id === "needs") {
@@ -2522,7 +2452,9 @@ function ChatPanel({ stage, s }: { stage: StageItem; s: StageFieldsState }) {
         sayLines([`Thanks. Still open: ${joinList(stillOpen)}. Let me know once those are signed off.`]);
       } else {
         setGating(false);
-        sayLines(["Perfect — every compliance check is cleared. Review the form on the right and hit Submit when it looks right."], () => setDone(true));
+        sayLines(["Perfect — every compliance check is cleared. Review the form on the right and hit Submit when it looks right."], () =>
+          setDone(true),
+        );
       }
       return;
     }
@@ -2598,7 +2530,13 @@ function ChatPanel({ stage, s }: { stage: StageItem; s: StageFieldsState }) {
           onChange={setInput}
           onSend={() => send()}
           sendDisabled={!input.trim()}
-          placeholder={done ? "Ask me to change any detail, or submit on the form…" : gating ? "Reply to clear the remaining checks…" : ghost || "Describe it in your own words…"}
+          placeholder={
+            done
+              ? "Ask me to change any detail, or submit on the form…"
+              : gating
+                ? "Reply to clear the remaining checks…"
+                : ghost || "Describe it in your own words…"
+          }
           onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault();
@@ -2628,12 +2566,7 @@ function FieldGenerating({ tall = false }: { tall?: boolean }) {
       )}
     >
       <span>Capturing…</span>
-      <span
-        className={cn(
-          "absolute right-2 grid h-6 w-6 place-items-center text-[var(--accent)]",
-          tall ? "top-2" : "top-1/2 -translate-y-1/2",
-        )}
-      >
+      <span className={cn("absolute right-2 grid h-6 w-6 place-items-center text-[var(--accent)]", tall ? "top-2" : "top-1/2 -translate-y-1/2")}>
         <Sparkles size={13} className="animate-pulse" />
       </span>
     </div>
@@ -2664,7 +2597,7 @@ function StageField({
   if (spec.kind === "currency") {
     const match = /^\s*(GBP|USD|EUR|£|\$|€)\s*(.*)$/.exec(text);
     const symbolToCode: Record<string, string> = { "£": "GBP", $: "USD", "€": "EUR" };
-    const currency = match ? symbolToCode[match[1]] ?? match[1] : "GBP";
+    const currency = match ? (symbolToCode[match[1]] ?? match[1]) : "GBP";
     const amount = match ? match[2] : text;
     return (
       <CurrencyField
@@ -2692,25 +2625,13 @@ function StageField({
 
   if (spec.kind === "cards") {
     return (
-      <CardMultiSelect
-        hideHeader
-        label={spec.label}
-        options={spec.options ?? []}
-        values={Array.isArray(value) ? value : []}
-        onChange={onChange}
-      />
+      <CardMultiSelect hideHeader label={spec.label} options={spec.options ?? []} values={Array.isArray(value) ? value : []} onChange={onChange} />
     );
   }
 
   if (spec.kind === "chips") {
     return (
-      <ChipMultiSelect
-        hideHeader
-        label={spec.label}
-        options={spec.options ?? []}
-        values={Array.isArray(value) ? value : []}
-        onChange={onChange}
-      />
+      <ChipMultiSelect hideHeader label={spec.label} options={spec.options ?? []} values={Array.isArray(value) ? value : []} onChange={onChange} />
     );
   }
 
@@ -2761,11 +2682,7 @@ const PLAN_MILESTONES = [
   { name: "Go-live", date: "2026-09-30" },
 ];
 
-const PLAN_METRICS = [
-  "Invoice triage time −60%",
-  "Auto-routing accuracy ≥95%",
-  "AP-team adoption ≥80% by go-live +60d",
-];
+const PLAN_METRICS = ["Invoice triage time −60%", "Auto-routing accuracy ≥95%", "AP-team adoption ≥80% by go-live +60d"];
 
 // Plan is rendered in the same label-left row layout as the generic stage
 // forms, so its bespoke widgets (squad, milestones, metrics) read as one system.
@@ -2986,7 +2903,8 @@ function choiceOptions(label: string, value: string) {
   if (lowerLabel.includes("readiness") || lowerLabel.includes("value to function")) return ["1/5", "2/5", "3/5", "4/5", "5/5"];
   if (lowerLabel.includes("delivery model")) return ["In-house squad", "Vendor", "Hybrid"];
   // New field vocabulary.
-  if (lowerLabel.includes("business value") || lowerLabel.includes("feasibility") || lowerLabel.includes("strategic alignment")) return ["1/5", "2/5", "3/5", "4/5", "5/5"];
+  if (lowerLabel.includes("business value") || lowerLabel.includes("feasibility") || lowerLabel.includes("strategic alignment"))
+    return ["1/5", "2/5", "3/5", "4/5", "5/5"];
   if (lowerLabel.includes("complexity")) return ["Low", "Medium", "High"];
   if (lowerLabel.includes("oversight")) return ["Always", "On exceptions", "None"];
   if (lowerLabel.includes("sensitivity")) return ["Public", "Internal", "Confidential", "Restricted"];
@@ -2999,7 +2917,21 @@ function choiceOptions(label: string, value: string) {
 
 function isChecklistField(label: string) {
   const lowerLabel = label.toLowerCase();
-  return ["controls", "conditions", "scope", "sources", "guardrails", "integrations", "evidence", "interventions", "metrics", "milestones", "improvements", "pipeline", "compliance checks"].some((token) => lowerLabel.includes(token));
+  return [
+    "controls",
+    "conditions",
+    "scope",
+    "sources",
+    "guardrails",
+    "integrations",
+    "evidence",
+    "interventions",
+    "metrics",
+    "milestones",
+    "improvements",
+    "pipeline",
+    "compliance checks",
+  ].some((token) => lowerLabel.includes(token));
 }
 
 function listItems(value: string) {
@@ -3008,4 +2940,3 @@ function listItems(value: string) {
     .map((item) => item.trim())
     .filter(Boolean);
 }
-

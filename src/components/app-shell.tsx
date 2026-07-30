@@ -1,14 +1,6 @@
 "use client";
 
-import {
-  ChevronRight,
-  Maximize2,
-  Minimize2,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Search,
-  Sparkles,
-} from "lucide-react";
+import { ChevronRight, Maximize2, Minimize2, PanelLeftClose, MessageSquarePlus, PanelLeftOpen } from "lucide-react";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 
@@ -17,87 +9,19 @@ import { cn } from "@/lib/cn";
 
 // ── The app shell ──
 // Three rows of chrome, shared by every route:
-//   1. a global top bar on the canvas — product mark, title, search, the user;
-//   2. a rail + tab bar — the chat rail's header and its two controls on the
-//      left, the panel's views (and any panel toggle) on the right;
-//   3. the content panel's own header — object icon, title, breadcrumb, and the
-//      view's own controls.
+// 1. a global top bar on the canvas — product mark, title, search, the user;
+// 2. a rail + tab bar — the chat rail's header and its two controls on the
+// left, the panel's views (and any panel toggle) on the right;
+// 3. the content panel's own header — object icon, title, breadcrumb, and the
+// view's own controls.
 // Routes supply data (title, tabs, breadcrumb, controls), never their own chrome.
 
-// ── Row 1: the global top bar ──
-
-export function AppTopBar({
-  title,
-  titleHref,
-  search,
-  profile,
-}: {
-  // The thing you're in: the app on the tracker, the record on a record route.
-  title: string;
-  // Where the title points when it isn't already the page you're on.
-  titleHref?: string;
-  // Wired search (the tracker). Routes without their own search send you to the
-  // one that has it rather than showing a dead field.
-  search?: { value: string; onChange: (value: string) => void; placeholder?: string };
-  // The user menu — ProfileSwitcher in compact (avatar + chevron) form.
-  profile?: ReactNode;
-}) {
-  return (
-    <header className="grid h-14 shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-2 px-4">
-      <div className="flex min-w-0 items-center gap-2">
-      <Link
-        href="/"
-        title="All use cases"
-        aria-label="All use cases"
-        className="grid h-7 w-7 shrink-0 place-items-center rounded-[8px] bg-[var(--accent)] text-white transition hover:bg-[var(--accent-hover)]"
-      >
-        <Sparkles size={15} />
-      </Link>
-      {titleHref ? (
-        <Link
-          href={titleHref}
-          className="min-w-0 truncate px-0.5 text-[15px] font-medium text-[var(--text-primary)] transition hover:text-[var(--accent-strong)]"
-        >
-          {title}
-        </Link>
-      ) : (
-        <span className="min-w-0 truncate px-0.5 text-[15px] font-medium text-[var(--text-primary)]">{title}</span>
-      )}
-      </div>
-
-      <div className="hidden w-[min(430px,42vw)] md:block">
-        <div className="relative">
-          <Search aria-hidden size={14} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-          {search ? (
-            <input
-              value={search.value}
-              onChange={(event) => search.onChange(event.target.value)}
-              placeholder={search.placeholder ?? "Search…"}
-              className="h-9 w-full rounded-full border border-[var(--border-default)] bg-[var(--surface-muted)] pl-9 pr-4 text-[13px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] focus:bg-white focus:ring-2 focus:ring-[var(--accent-muted)]"
-            />
-          ) : (
-            <Link
-              href="/"
-              title="Search every use case"
-              className="flex h-9 w-full items-center rounded-full border border-[var(--border-default)] bg-[var(--surface-muted)] pl-9 pr-4 text-[13px] text-[var(--text-muted)] transition hover:border-[var(--accent-ring)] hover:text-[var(--text-body)]"
-            >
-              Search use cases…
-            </Link>
-          )}
-        </div>
-      </div>
-
-      <div className="flex shrink-0 items-center justify-end gap-1">{profile}</div>
-    </header>
-  );
-}
-
-// ── Row 2, left: the chat rail's header ──
-// The rail's only header. The divider appears once the conversation scrolls
-// under it, so a short chat still reads as one surface.
+// ── The rail's header ──
+// Sits at the top of the rail itself. The divider appears once the conversation
+// scrolls under it, so a short chat still reads as one surface.
 
 export function RailHeader({
-  label = "Chat",
+  label = "AI Factory",
   scrolled = false,
   onJumpToTop,
   canJumpToTop = false,
@@ -105,6 +29,7 @@ export function RailHeader({
   onToggleExpand,
   collapsed = false,
   onToggleCollapse,
+  onNewChat,
 }: {
   label?: string;
   scrolled?: boolean;
@@ -117,15 +42,13 @@ export function RailHeader({
   // Rail hidden: only this header's toggle is left, as a slim strip.
   collapsed?: boolean;
   onToggleCollapse: () => void;
+  // Clears the conversation and starts again from the empty state.
+  onNewChat?: () => void;
 }) {
   // Collapsed, the header *is* the way back — it keeps its place in the row so
   // the control never moves out from under the pointer.
   const toggle = (
-    <IconButton
-      label={collapsed ? `Show ${label.toLowerCase()}` : `Hide ${label.toLowerCase()}`}
-      onClick={onToggleCollapse}
-      size={28}
-    >
+    <IconButton label={collapsed ? `Show ${label.toLowerCase()}` : `Hide ${label.toLowerCase()}`} onClick={onToggleCollapse} size={28}>
       {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
     </IconButton>
   );
@@ -135,19 +58,26 @@ export function RailHeader({
   }
 
   return (
-    <div className={cn("flex h-11 shrink-0 items-center gap-1 border-b px-1 transition-colors", scrolled ? "border-[var(--border-hairline)]" : "border-transparent")}>
+    <div
+      className={cn(
+        "flex h-11 shrink-0 items-center gap-1 border-b px-1 transition-colors",
+        scrolled ? "border-[var(--border-hairline)]" : "border-transparent",
+      )}
+    >
       {toggle}
-      <span className="text-[14px] font-medium text-[var(--text-primary)]">{label}</span>
+      <Link href="/" title="All use cases" className="text-[14px] font-medium text-[var(--text-primary)] transition hover:text-[var(--accent-strong)]">
+        {label}
+      </Link>
       <span className="ml-auto flex items-center gap-0.5">
+        {onNewChat ? (
+          <IconButton label="New chat" onClick={onNewChat} size={28}>
+            <MessageSquarePlus size={15} />
+          </IconButton>
+        ) : null}
         <IconButton label="Jump to first message" onClick={onJumpToTop} disabled={!canJumpToTop} size={28}>
           <ArrowUpGlyph />
         </IconButton>
-        <IconButton
-          label={expanded ? "Restore the split view" : "Expand chat to full width"}
-          onClick={onToggleExpand}
-          active={expanded}
-          size={28}
-        >
+        <IconButton label={expanded ? "Restore the split view" : "Expand chat to full width"} onClick={onToggleExpand} active={expanded} size={28}>
           {expanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
         </IconButton>
       </span>
@@ -169,14 +99,25 @@ export function useRailMode() {
 
 function ArrowUpGlyph() {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
       <path d="M12 19V5" />
       <path d="m5 12 7-7 7 7" />
     </svg>
   );
 }
 
-// ── Row 2, right: the panel's views ──
+// ── The panel's views ──
+// Rendered inside the panel header, next to the breadcrumb.
 
 export type PanelTab = {
   id: string;
@@ -191,35 +132,47 @@ export function PanelTabs({
   activeId,
   onSelect,
   right,
+  compact = false,
 }: {
   tabs: PanelTab[];
   activeId: string;
   onSelect?: (id: string) => void;
   // Trailing control for the row (e.g. the record's details sheet toggle).
   right?: ReactNode;
+  // Icon-only, where the icons already carry the meaning (board / table).
+  compact?: boolean;
 }) {
   return (
-    <div className="no-scrollbar flex h-11 shrink-0 items-center gap-1 overflow-x-auto">
+    <div className="no-scrollbar flex shrink-0 items-center gap-1 overflow-x-auto">
       {tabs.map((tab) => {
         const active = tab.id === activeId;
         const shape = cn(
-          "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[10px] px-2.5 text-[13px] transition",
+          "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[10px] text-[13px] transition",
+          compact ? "w-8 justify-center" : "px-2.5",
           active
-            ? "border border-[var(--border-default)] bg-white font-semibold text-[var(--text-primary)] shadow-[var(--shadow-sm)]"
+            ? "border border-[var(--border-default)] bg-white font-semibold text-[var(--text-primary)] "
             : "text-[var(--text-body)] hover:bg-[var(--surface-hover)]",
         );
         const inner = (
           <>
             {tab.icon ? <span className={cn("shrink-0", active ? "text-[var(--accent)]" : "text-[var(--text-muted)]")}>{tab.icon}</span> : null}
-            {tab.label}
+            {compact ? null : tab.label}
           </>
         );
         return tab.href && !active ? (
-          <Link key={tab.id} href={tab.href} className={shape}>
+          <Link key={tab.id} href={tab.href} title={tab.label} aria-label={tab.label} className={shape}>
             {inner}
           </Link>
         ) : (
-          <button key={tab.id} type="button" onClick={() => onSelect?.(tab.id)} aria-current={active ? "page" : undefined} className={shape}>
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => onSelect?.(tab.id)}
+            aria-current={active ? "page" : undefined}
+            title={tab.label}
+            aria-label={tab.label}
+            className={shape}
+          >
             {inner}
           </button>
         );
@@ -247,33 +200,60 @@ export function TabBarToggle({ label, icon, active = false, onClick }: { label: 
 
 // ── Row 3: the content panel ──
 
-// Subtle chip group: where the content comes from › what you're looking at.
-// `trailing` carries a real dropdown where the route has one (no chevron
-// otherwise, so the chip never advertises an affordance it doesn't have).
-export function PanelBreadcrumb({ source, item, icon, trailing }: { source: string; item?: string; icon?: ReactNode; trailing?: ReactNode }) {
+// Where you are, as a path you can walk back up: All use cases › the record › the
+// view. The last crumb is the page you're on.
+export type Crumb = { label: string; href?: string; icon?: ReactNode; title?: string };
+
+export function PanelBreadcrumb({ items }: { items: Crumb[] }) {
   return (
-    <span className="hidden min-w-0 items-center gap-1.5 rounded-[8px] bg-[var(--surface-muted)] px-2 py-1 md:inline-flex">
-      {icon ? <span className="shrink-0 text-[var(--accent)]">{icon}</span> : null}
-      <span className="min-w-0 truncate text-[13px] font-medium text-[var(--accent-strong,var(--accent))]">{source}</span>
-      {item || trailing ? <ChevronRight size={13} className="shrink-0 text-[var(--text-muted)]" /> : null}
-      {item ? <span className="min-w-0 truncate text-[13px] text-[var(--text-body)]">{item}</span> : null}
-      {trailing}
-    </span>
+    <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 text-[14px]">
+      {items.map((crumb, index) => {
+        const last = index === items.length - 1;
+        const body = (
+          <span
+            title={crumb.title}
+            className={cn("inline-flex min-w-0 items-center gap-1.5", last ? "font-medium text-[var(--accent-strong)]" : "text-[var(--text-label)]")}
+          >
+            {crumb.icon ? <span className="shrink-0 text-[var(--text-muted)]">{crumb.icon}</span> : null}
+            <span className="min-w-0 truncate">{crumb.label}</span>
+          </span>
+        );
+        return (
+          <span key={crumb.label} className="flex min-w-0 items-center gap-1.5">
+            {crumb.href && !last ? (
+              <Link href={crumb.href} className="min-w-0 rounded-[6px] transition hover:text-[var(--text-primary)]">
+                {body}
+              </Link>
+            ) : (
+              body
+            )}
+            {last ? null : <ChevronRight size={14} className="shrink-0 text-[var(--text-muted)]" />}
+          </span>
+        );
+      })}
+    </nav>
   );
 }
 
 export function ContentPanel({
   icon,
   title,
+  titleMeta,
   breadcrumb,
+  tabs,
   controls,
   footer,
   scroll = true,
   children,
 }: {
   icon?: ReactNode;
-  title: string;
+  // Omitted on routes whose header leads with a breadcrumb instead.
+  title?: string;
+  // A count or short qualifier that belongs to the title.
+  titleMeta?: ReactNode;
   breadcrumb?: ReactNode;
+  // The route's views (Overview / Workflow, Board / Table).
+  tabs?: ReactNode;
   // The view's own real controls — filters and toggles, pushed to the right edge
   // so the left side stays the object's identity.
   controls?: ReactNode;
@@ -283,11 +263,13 @@ export function ContentPanel({
   children: ReactNode;
 }) {
   return (
-    <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-t-[10px] border border-b-0 border-[var(--border-default)] bg-white shadow-[var(--shadow-card)]">
+    <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[12px] border border-[var(--border-default)] bg-[var(--surface)] ">
       <div className="flex min-h-[52px] shrink-0 flex-wrap items-center gap-x-2.5 gap-y-1.5 border-b border-[var(--border-hairline)] px-4 py-2">
         {icon ? <span className="shrink-0 text-[var(--accent)]">{icon}</span> : null}
-        <h1 className="font-display min-w-0 shrink-0 truncate text-[18px] leading-tight text-[var(--text-primary)]">{title}</h1>
+        {title ? <h1 className="font-display min-w-0 shrink-0 truncate text-[18px] leading-tight text-[var(--text-primary)]">{title}</h1> : null}
+        {titleMeta}
         {breadcrumb}
+        {tabs ? <div className="ml-3 shrink-0">{tabs}</div> : null}
         {controls ? <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-1.5">{controls}</div> : null}
       </div>
       {/* Content scrolls inside the panel; nothing bleeds past its rounded edge. */}
@@ -304,22 +286,18 @@ export function ContentPanel({
 // and the panel. Whitespace — not a divider — separates rail from panel.
 
 export function AppShell({
-  topBar,
   banner,
   railHeader,
   rail,
-  tabs,
   aside,
   railExpanded = false,
   railCollapsed = false,
   children,
 }: {
-  topBar: ReactNode;
-  // Full-width strip under the top bar (e.g. a returned / rejected notice).
+  // Full-width strip above everything (e.g. a returned / rejected notice).
   banner?: ReactNode;
   railHeader: ReactNode;
   rail: ReactNode;
-  tabs: ReactNode;
   // Optional third column (the record's details sheet).
   aside?: ReactNode;
   // The chat takes the whole content area; the panel (and sheet) step aside.
@@ -328,36 +306,27 @@ export function AppShell({
   railCollapsed?: boolean;
   children: ReactNode;
 }) {
-  // A narrow side rail, not a half-split. Fixed at 330px so it reads the same
-  // whether or not the details sheet is open (~23% / ~17% of a 1440 row) and the
-  // composer, starter chips and user bubbles keep a deliberate measure. Collapsed
-  // it becomes a 36px strip — just wide enough to hold the toggle that reopens it.
-  const railTrack = railCollapsed ? "36px" : "330px";
-  const columns = railExpanded
-    ? "minmax(0,1fr)"
-    : aside
-      ? `${railTrack} minmax(0,62fr) minmax(0,38fr)`
-      : `${railTrack} minmax(0,1fr)`;
+  // A narrow side rail, not a half-split. Fixed at 364px so it reads the same
+  // whether or not the details sheet is open, and the composer, starter chips and
+  // user bubbles keep a deliberate measure. Collapsed it becomes a 36px strip —
+  // just wide enough to hold the toggle that reopens it.
+  const railTrack = railCollapsed ? "36px" : "364px";
+  const columns = railExpanded ? "minmax(0,1fr)" : aside ? `${railTrack} minmax(0,62fr) minmax(0,38fr)` : `${railTrack} minmax(0,1fr)`;
   return (
+    // One row of content: the rail and the panel, each carrying its own header.
     <main className="flex h-screen flex-col overflow-hidden bg-[var(--shell-canvas)] text-[var(--text-primary)]">
-      {topBar}
       {banner}
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-3">
-        <div className="grid shrink-0 gap-x-3" style={{ gridTemplateColumns: columns }}>
-          <div className="min-w-0">{railHeader}</div>
-          {railExpanded ? null : <div className="min-w-0">{tabs}</div>}
-        </div>
-        <div className="grid min-h-0 flex-1 gap-x-3" style={{ gridTemplateColumns: columns }}>
-          {/* The rail's grid item always renders: a display:none item is skipped
-              by auto-placement, which would slide the panel into the rail's
-              track. The conversation inside is hidden instead, so putting the
-              rail away and bringing it back doesn't lose it. */}
-          <section className="flex min-h-0 min-w-0 flex-col overflow-hidden">
-            <div className={cn("flex min-h-0 flex-1 flex-col", railCollapsed && "hidden")}>{rail}</div>
-          </section>
-          {railExpanded ? null : <div className="flex min-h-0 min-w-0 flex-col">{children}</div>}
-          {railExpanded ? null : aside}
-        </div>
+      <div className="grid min-h-0 min-w-0 flex-1 gap-x-3 overflow-hidden px-3 py-3" style={{ gridTemplateColumns: columns }}>
+        {/* The rail's grid item always renders: a display:none item is skipped by
+ auto-placement, which would slide the panel into the rail's track. The
+ conversation inside is hidden instead, so putting the rail away and
+ bringing it back doesn't lose it. */}
+        <section className="flex min-h-0 min-w-0 flex-col overflow-hidden">
+          {railHeader}
+          <div className={cn("flex min-h-0 flex-1 flex-col", railCollapsed && "hidden")}>{rail}</div>
+        </section>
+        {railExpanded ? null : <div className="flex min-h-0 min-w-0 flex-col">{children}</div>}
+        {railExpanded ? null : aside}
       </div>
     </main>
   );

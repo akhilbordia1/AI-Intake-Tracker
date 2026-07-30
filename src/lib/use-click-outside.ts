@@ -2,11 +2,7 @@
 
 import { useEffect, type RefObject } from "react";
 
-export function useClickOutside<T extends HTMLElement>(
-  ref: RefObject<T | null>,
-  onOutsideClick: () => void,
-  active = true,
-) {
+export function useClickOutside<T extends HTMLElement>(ref: RefObject<T | null>, onOutsideClick: () => void, active = true) {
   useEffect(() => {
     if (!active) return;
 

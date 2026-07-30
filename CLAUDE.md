@@ -16,7 +16,7 @@ No test framework is set up. Verify changes with `npx tsc --noEmit`, `npm run li
 A **prototype/demo** UI (no backend, no persistence) for an enterprise AI use-case governance lifecycle. All data is hardcoded; "AI suggest", "save", and submit are mocked client-side. Three routes:
 
 - `/` (`src/app/page.tsx`) — intake tracker: kanban board + table views of use-case cards, grouped by stage/owner/priority/due, with scope + search filters.
-- `/intake` (`src/app/intake/page.tsx`) — new use-case submission form (AI-draft mode + manual mode). The only route that doesn't use the app shell.
+- `/intake` (`src/app/intake/page.tsx`) — "New use case": a full-screen chat, not a form. Describing the idea *is* the intake; sending hands it to `/detail?idea=…`, whose guided flow asks the follow-ups and fills Ideation. The only route that doesn't use the app shell.
 - `/overview` (`src/app/overview/page.tsx`) — a record's landing page: a compact state block, a role-aware "what you need to do" list (ordered yours-first, tagged with whose turn it is), and a lifecycle track — the four phases with per-phase progress, expanding one phase at a time into its stages (each linking to `/detail?stage=n`). Cards on `/` link here.
 - `/detail` (`src/components/document-record/detail-record.tsx`) — the workflow record: the 12-stage lifecycle with a stage-path dropdown, per-stage forms, a guided chat, and a Details/Gates/Comments/Activity side sheet. `?stage=n` deep-links a stage (and treats everything before it as complete).
 

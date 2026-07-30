@@ -1,38 +1,30 @@
 "use client";
 
-import { ArrowRight, FileText, LayoutDashboard, LayoutList, ShieldCheck } from "lucide-react";
+import { CalendarDays, FileText, Info, ShieldCheck } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState } from "react";
 
-import {
-  AppShell,
-  AppTopBar,
-  ContentPanel,
-  PanelBreadcrumb,
-  PanelTabs,
-  RailHeader,
-  useRailMode,
-} from "@/components/app-shell";
+import { AppShell, ContentPanel, PanelBreadcrumb, RailHeader, TabBarToggle, useRailMode } from "@/components/app-shell";
 import { MiniChatRail } from "@/components/chat/mini-chat-rail";
+import { RecordDetailsSheet } from "@/components/document-record/record-details-sheet";
 import { PersonAvatar, ProfileSwitcher } from "@/components/profile";
 import { USE_CASE } from "@/data/document-workflow-form-schema";
 import {
   ACTIVE_STAGE_INDEX,
   COMPLETED_STAGE_INDEXES,
-  GATE_TONE,
   GATES,
+  type Gate,
   RECORD_DETAILS,
   OUTCOME_ROW,
-  STAGE_GROUPS,
+  SUBSTAGE_TO_GROUP,
   STAGE_INTROS,
   STAGES,
   type StageItem,
   firstName,
   gateForStage,
-  phaseForStage,
   stageValue,
 } from "@/data/lifecycle";
-import { ProgressBar, StageNode } from "@/components/ui/kit";
+import { StageNode, Tag, titleCaseTag, type Tone } from "@/components/ui/kit";
 import { cn } from "@/lib/cn";
 
 // ── The record's landing page ──
@@ -64,6 +56,8 @@ type ActionItem = {
   // Whose turn it is (drives the avatar).
   who: string;
   mine: boolean;
+  // What the row does: the button label when it's yours, otherwise who it's on.
+  cta: string;
   tag: string;
   href: string;
   // 0 = yours now, 1 = someone else's move, 2 = not open yet.
@@ -82,7 +76,8 @@ function actionsFor(person: string): ActionItem[] {
     detail: `${active.rows.length} details still to capture — ${active.rows.map(([label]) => label).join(", ")}.`,
     who: active.owner,
     mine: activeIsMine,
-    tag: activeIsMine ? "Your turn" : `Waiting on ${active.owner}`,
+    cta: "Capture the details",
+    tag: activeIsMine ? "Your turn" : `Waiting on ${firstName(active.owner)}`,
     href: `/detail?stage=${ACTIVE_STAGE_INDEX}`,
     rank: activeIsMine ? 0 : 1,
   });
@@ -105,7 +100,8 @@ function actionsFor(person: string): ActionItem[] {
           : "Record the gate decision.",
       who: gate.approver,
       mine: mine && reached,
-      tag: !reached ? "Not open yet" : mine ? "Your review" : `Waiting on ${gate.approver}`,
+      cta: "Review and sign off",
+      tag: !reached ? `Opens after ${gate.afterStage}` : mine ? "Your review" : `Waiting on ${firstName(gate.approver)}`,
       href: gateStageIndex >= 0 ? `/detail?stage=${gateStageIndex}` : "/detail",
       rank: !reached ? 2 : mine ? 0 : 1,
     });
@@ -120,6 +116,7 @@ function actionsFor(person: string): ActionItem[] {
       detail: STAGE_INTROS[stage.name] ?? "",
       who: stage.owner,
       mine: false,
+      cta: "Open the stage",
       tag: "Not open yet",
       href: `/detail?stage=${index}`,
       rank: 2,
@@ -167,25 +164,24 @@ function answerAboutRecord(question: string, person: string, actions: ActionItem
 }
 
 export default function OverviewPage() {
-  const [currentUser, setCurrentUser] = useState("Priya N.");
+  // Default to whoever the record is actually waiting on, so the page opens in its
+  // "something needs you" state rather than a list of other people's work.
+  const [currentUser, setCurrentUser] = useState(STAGES[ACTIVE_STAGE_INDEX].owner);
   const [railScrolled, setRailScrolled] = useState(false);
   const railScrollRef = useRef<HTMLDivElement>(null);
   const railMode = useRailMode();
+  // Bumping this remounts the rail, which is exactly "start a new chat".
+  const [chatKey, setChatKey] = useState(0);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const actions = useMemo(() => actionsFor(currentUser), [currentUser]);
 
   const activeStage = STAGES[ACTIVE_STAGE_INDEX];
-  const nextStage = STAGES[ACTIVE_STAGE_INDEX + 1];
 
   return (
     <AppShell
-      topBar={
-        <AppTopBar
-          title={USE_CASE.name}
-          profile={<ProfileSwitcher currentUser={currentUser} onUserChange={setCurrentUser} compact />}
-        />
-      }
       railExpanded={railMode.expanded}
       railCollapsed={railMode.collapsed}
+      aside={detailsOpen ? <RecordDetailsSheet onClose={() => setDetailsOpen(false)} /> : undefined}
       railHeader={
         <RailHeader
           scrolled={railScrolled}
@@ -195,22 +191,16 @@ export default function OverviewPage() {
           onToggleExpand={railMode.toggleExpand}
           collapsed={railMode.collapsed}
           onToggleCollapse={railMode.toggleCollapse}
-        />
-      }
-      tabs={
-        <PanelTabs
-          activeId="overview"
-          tabs={[
-            { id: "overview", label: "Overview", icon: <LayoutDashboard size={14} /> },
-            { id: "workflow", label: "Workflow", href: "/detail", icon: <LayoutList size={14} /> },
-          ]}
+          onNewChat={() => setChatKey((key) => key + 1)}
         />
       }
       rail={
         <MiniChatRail
+          key={chatKey}
           scrollRef={railScrollRef}
           onScrolledChange={setRailScrolled}
           intro={`This is ${USE_CASE.name} (${USE_CASE.id}). It's at ${activeStage.name}, stage ${ACTIVE_STAGE_INDEX + 1} of ${STAGES.length}, with ${activeStage.owner} preparing it. Ask me anything, or open the workflow to record the next stage.`}
+          emptyTitle={`How can I help, ${firstName(currentUser)}?`}
           starters={["What's outstanding?", "Summarise the decisions so far", "Who owns the next stage?"]}
           answer={(question) => answerAboutRecord(question, currentUser, actions)}
           placeholder="Ask about this use case"
@@ -219,18 +209,26 @@ export default function OverviewPage() {
       }
     >
       <ContentPanel
-        icon={<LayoutDashboard size={17} />}
-        title="Overview"
-        breadcrumb={<PanelBreadcrumb source={USE_CASE.id} item={phaseForStage(activeStage.name)} icon={<FileText size={13} />} />}
+        breadcrumb={
+          <PanelBreadcrumb
+            items={[
+              { label: "All use cases", href: "/" },
+              { label: USE_CASE.id, icon: <FileText size={13} />, title: USE_CASE.name },
+            ]}
+          />
+        }
+        controls={
+          <>
+            <TabBarToggle label="Details" icon={<Info size={15} />} active={detailsOpen} onClick={() => setDetailsOpen((open) => !open)} />
+            <ProfileSwitcher currentUser={currentUser} onUserChange={setCurrentUser} compact />
+          </>
+        }
       >
         <RecordSummary activeStage={activeStage} currentUser={currentUser} />
-        <Section title="What you need to do" hint={`As ${currentUser}`}>
-          <ActionList actions={actions} currentUser={currentUser} />
-        </Section>
-        {/* The hint carries the one fact the track itself can't: what comes next. */}
-        <Section title="The lifecycle" hint={nextStage ? `Next · ${nextStage.name} (${nextStage.owner})` : undefined}>
-          <LifecycleTrack currentUser={currentUser} />
-        </Section>
+        {/* Two columns: the work on the left, where it needs the reading width;
+ the lifecycle on the right as a vertical rail, which fills the column
+ instead of leaving a band of dead space under a thin strip. */}
+        <LifecycleTable currentUser={currentUser} />
       </ContentPanel>
     </AppShell>
   );
@@ -241,9 +239,26 @@ export default function OverviewPage() {
 // in the panel breadcrumb and the gate is an action row below, so neither is
 // repeated here.
 
+// Risk and gate wording map onto the product's four tones — no bespoke colours.
+function riskTone(risk?: string): Tone {
+  const value = (risk ?? "").toLowerCase();
+  if (value.includes("high") || value.includes("critical")) return "danger";
+  if (value.includes("medium")) return "warning";
+  if (value.includes("low")) return "success";
+  return "neutral";
+}
+
+function gateStatusTone(status: Gate["status"]): Tone {
+  if (status === "Passed") return "success";
+  if (status === "Blocked" || status === "Rejected") return "danger";
+  if (status === "In review") return "warning";
+  return "neutral";
+}
+
 function RecordSummary({ activeStage, currentUser }: { activeStage: StageItem; currentUser: string }) {
   const tier = stageValue("Triage", "Risk governance tier");
   const overallRisk = stageValue("Assessment - Risk & Compliance", "Overall risk");
+  const gateOnActive = gateForStage(activeStage.name);
   const ownedByMe = activeStage.owner === currentUser;
 
   return (
@@ -252,33 +267,39 @@ function RecordSummary({ activeStage, currentUser }: { activeStage: StageItem; c
         <h2 className="font-display text-[20px] leading-tight text-[var(--text-primary)]">{USE_CASE.name}</h2>
         <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--accent-muted)] px-2.5 py-1 text-[11px] font-semibold text-[var(--accent-strong)]">
           <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-strong)]" />
-          In delivery
+          {titleCaseTag("In delivery")}
         </span>
         <span className="text-[13px] text-[var(--text-muted)]">
           {activeStage.name} · stage {ACTIVE_STAGE_INDEX + 1} of {STAGES.length}
         </span>
       </div>
 
-      <p className="mt-3 max-w-[82ch] text-[14px] leading-6 text-[var(--text-body)]">
-        {stageValue("Ideation", "Problem statement")}
-      </p>
+      <p className="mt-3 max-w-[82ch] text-[14px] leading-6 text-[var(--text-body)]">{stageValue("Ideation", "Problem statement")}</p>
 
-      <div className="mt-4 flex flex-wrap items-center gap-x-7 gap-y-2 text-[13px]">
-        <Fact label="Stage owner">
-          <span className="inline-flex items-center gap-1.5">
-            <PersonAvatar name={activeStage.owner} size={20} highlight={ownedByMe} />
-            <span className={cn("text-[var(--text-primary)]", ownedByMe && "font-semibold")}>{activeStage.owner}</span>
-          </span>
-        </Fact>
-        <Fact label="Risk tier">
-          <span className="text-[var(--text-primary)]">
-            {tier ?? "—"}
-            {overallRisk ? <span className="text-[var(--text-muted)]"> ({overallRisk.toLowerCase()} risk)</span> : null}
-          </span>
-        </Fact>
-        <Fact label="Target go-live">
-          <span className="text-[var(--text-primary)]">{recordDetail("Target go-live") ?? "—"}</span>
-        </Fact>
+      {/* Facts as chips: an icon carries the label, so the row reads at a glance
+ instead of as three `label · value` pairs. */}
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border-default)] bg-[var(--surface)] py-1 pl-1 pr-2.5 text-[13px]">
+          <PersonAvatar name={activeStage.owner} size={20} highlight={ownedByMe} />
+          <span className={cn("text-[var(--text-primary)]", ownedByMe && "font-semibold")}>{activeStage.owner}</span>
+        </span>
+
+        {tier ? (
+          <Tag tone={riskTone(overallRisk)} icon={<ShieldCheck size={12} />} className="px-2.5 py-1 text-[12px]">
+            {`${tier} assessment${overallRisk ? ` · ${overallRisk.toLowerCase()} risk` : ""}`}
+          </Tag>
+        ) : null}
+
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border-default)] bg-[var(--surface)] px-2.5 py-1 text-[13px] text-[var(--text-primary)]">
+          <CalendarDays size={12} className="text-[var(--text-muted)]" />
+          Go-live {recordDetail("Target go-live") ?? "—"}
+        </span>
+
+        {gateOnActive ? (
+          <Tag tone={gateStatusTone(gateOnActive.status)} icon={<ShieldCheck size={12} />} className="px-2.5 py-1 text-[12px]">
+            {gateOnActive.id} · {gateOnActive.status}
+          </Tag>
+        ) : null}
       </div>
 
       <p className="mt-3 text-[12px] text-[var(--text-muted)]">
@@ -288,222 +309,88 @@ function RecordSummary({ activeStage, currentUser }: { activeStage: StageItem; c
   );
 }
 
-function Fact({ label, children }: { label: string; children: ReactNode }) {
+// ── The lifecycle, as a table ──
+// Every stage on one row: where it is, whose it is, what came out of it. The rows
+// link into the workflow at that stage.
+
+function LifecycleTable({ currentUser }: { currentUser: string }) {
   return (
-    <span className="inline-flex items-center gap-1.5">
-      <span className="text-[var(--text-label)]">{label}</span>
-      <span className="text-[var(--text-muted)]">·</span>
-      {children}
-    </span>
-  );
-}
-
-function Section({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
-  return (
-    <section className="border-b border-[var(--border-hairline)] px-7 py-6 last:border-b-0">
-      <div className="flex items-baseline justify-between gap-3">
-        <h3 className="font-display text-[18px] leading-tight text-[var(--text-primary)]">{title}</h3>
-        {hint ? <span className="shrink-0 text-[12px] text-[var(--text-muted)]">{hint}</span> : null}
-      </div>
-      <div className="mt-4">{children}</div>
-    </section>
-  );
-}
-
-// ── What you need to do ──
-// One list, yours first. Each row's tag names whose turn it is; the title never
-// repeats the verb, and the detail line says what the move actually is.
-
-function ActionList({ actions, currentUser }: { actions: ActionItem[]; currentUser: string }) {
-  const nothingMine = !actions.some((action) => action.mine);
-
-  return (
-    <div>
-      {nothingMine ? (
-        <p className="text-[13px] leading-6 text-[var(--text-muted)]">
-          Nothing needs {currentUser} right now — here&rsquo;s what the record is waiting on.
-        </p>
-      ) : null}
-      <ul className={cn("space-y-2", nothingMine && "mt-3")}>
-        {actions.map((action) => (
-          <li key={action.key}>
-            <Link
-              href={action.href}
-              className={cn(
-                "flex items-start gap-3 rounded-[10px] border px-3.5 py-3 transition",
-                action.mine
-                  ? "border-[var(--accent-border)] bg-[var(--accent-soft)]/50 hover:border-[var(--accent)]"
-                  : action.rank === 2
-                    ? "border-dashed border-[var(--border-default)] hover:bg-[var(--surface-muted)]"
-                    : "border-[var(--border-default)] hover:bg-[var(--surface-muted)]",
-              )}
-            >
-              <span className="mt-0.5 shrink-0">
-                <PersonAvatar name={action.who} size={22} highlight={action.mine} />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="flex flex-wrap items-center gap-2">
-                  <span className="text-[13px] font-semibold text-[var(--text-primary)]">{action.title}</span>
-                  <span
-                    className={cn(
-                      "rounded-full px-2 py-0.5 text-[11px] font-semibold",
-                      action.mine
-                        ? "bg-[var(--accent)] text-white"
-                        : action.rank === 2
-                          ? "text-[var(--text-muted)]"
-                          : "bg-[var(--surface-strong)] text-[var(--text-label)]",
-                    )}
-                  >
-                    {action.tag}
-                  </span>
-                </span>
-                <span className="mt-1 block text-[12px] leading-5 text-[var(--text-body)]">{action.detail}</span>
-              </span>
-              <ArrowRight size={14} className="mt-1 shrink-0 text-[var(--text-muted)]" />
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-// ── The lifecycle ──
-// Four phases in one line, each with its own progress; only the phase you're
-// looking at lists its stages. Same node + connector language as the record's
-// stage-path dropdown, so it reads as the same rail — just folded up.
-
-type Phase = {
-  name: string;
-  stages: { index: number; stage: StageItem }[];
-  done: number;
-  total: number;
-  isCurrent: boolean;
-};
-
-const PHASES: Phase[] = Object.entries(STAGE_GROUPS).map(([name, stageNames]) => {
-  const stages = stageNames
-    .map((stageName) => ({ index: STAGES.findIndex((stage) => stage.name === stageName), stage: STAGES.find((stage) => stage.name === stageName)! }))
-    .filter((entry) => entry.index >= 0);
-  return {
-    name,
-    stages,
-    done: stages.filter((entry) => stateOf(entry.index) === "complete").length,
-    total: stages.length,
-    isCurrent: stages.some((entry) => entry.index === ACTIVE_STAGE_INDEX),
-  };
-});
-
-function LifecycleTrack({ currentUser }: { currentUser: string }) {
-  const currentPhase = PHASES.find((phase) => phase.isCurrent)?.name ?? PHASES[0].name;
-  const [openPhase, setOpenPhase] = useState<string>(currentPhase);
-  const openIndex = PHASES.findIndex((phase) => phase.name === openPhase);
-  const open = PHASES[openIndex] ?? PHASES[0];
-
-  return (
-    <div className="min-w-0">
-      {/* The phase rail: four nodes on one connected line. The line is the
-          lifecycle; the tint marks how far along it the record is. */}
-      <div className="relative grid grid-cols-4 gap-2">
-        <span aria-hidden className="absolute inset-x-[12.5%] top-[10px] h-px bg-[var(--border-default)]" />
-        {PHASES.map((phase, index) => {
-          const complete = phase.done === phase.total;
-          const isOpen = index === openIndex;
-          return (
-            <button
-              key={phase.name}
-              type="button"
-              onClick={() => setOpenPhase(phase.name)}
-              aria-expanded={isOpen}
-              className="group relative min-w-0 rounded-[8px] px-1 pb-2 pt-0 text-left"
-            >
-              <span className="relative flex justify-center">
-                <span className="rounded-full bg-[var(--surface)] p-0.5">
-                  <StageNode state={complete ? "complete" : phase.isCurrent ? "active" : "upcoming"} size={20} />
-                </span>
-              </span>
-              <span
+    <div className="no-scrollbar min-w-0 overflow-auto">
+      <table className="w-full min-w-[820px] table-fixed border-collapse">
+        <colgroup>
+          <col className="w-[30%]" />
+          <col className="w-[17%]" />
+          <col className="w-[18%]" />
+          <col className="w-[35%]" />
+        </colgroup>
+        <thead className="sticky top-0 z-10 bg-[var(--surface-muted)]">
+          <tr className="border-b border-[var(--border-default)] text-left">
+            <th scope="col" className="px-6 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--text-label)]">
+              Stage
+            </th>
+            <th scope="col" className="px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--text-label)]">
+              Phase
+            </th>
+            <th scope="col" className="px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--text-label)]">
+              Owner
+            </th>
+            <th scope="col" className="px-6 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--text-label)]">
+              Outcome
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {STAGES.map((stage, index) => {
+            const state = stateOf(index);
+            const outcome = stage.rows.find(([label]) => OUTCOME_ROW.test(label)) ?? stage.rows[0];
+            const ownedByMe = stage.owner === currentUser;
+            return (
+              <tr
+                key={stage.name}
                 className={cn(
-                  "mt-2 block truncate text-center text-[13px] transition",
-                  isOpen ? "font-semibold text-[var(--accent-strong)]" : "font-medium text-[var(--text-body)] group-hover:text-[var(--text-primary)]",
+                  "group h-[52px] border-b border-[var(--border-hairline)] transition last:border-b-0",
+                  state === "active" ? "bg-[var(--accent-soft)]/50" : "hover:bg-[var(--accent-hover-bg)]",
                 )}
               >
-                {phase.name}
-              </span>
-              <span className="mt-1.5 block text-center text-[11px] tabular-nums text-[var(--text-muted)]">
-                {phase.done}/{phase.total} stages
-              </span>
-              <ProgressBar ratio={phase.done / phase.total} complete={complete} className="mt-1.5" />
-            </button>
-          );
-        })}
-      </div>
-
-      {/* The open phase's stages, anchored to the phase they belong to: a notch
-          under the selected node, then the stage rail inside a tinted panel — so
-          it reads as that phase opened up, not as a second unrelated row. */}
-      <div className="relative mt-3">
-        <span
-          aria-hidden
-          className="absolute -top-[7px] h-3 w-3 rotate-45 border-l border-t border-[var(--accent-border)] bg-[var(--accent-soft)]"
-          style={{ left: `calc(${(openIndex + 0.5) * 25}% - 6px)` }}
-        />
-        <div className="rounded-[10px] border border-[var(--accent-border)] bg-[var(--accent-soft)]/45 p-3">
-          <div className="flex items-baseline justify-between gap-3">
-            <span className="text-[13px] font-semibold text-[var(--text-primary)]">{open.name}</span>
-            <span className="text-[11px] tabular-nums text-[var(--text-muted)]">
-              {open.done} of {open.total} stages complete
-            </span>
-          </div>
-          <ol className="mt-2.5 min-w-0 space-y-1">
-            {open.stages.map((entry, position) => {
-              const state = stateOf(entry.index);
-              const gate = gateForStage(entry.stage.name);
-              const gateTone = gate ? GATE_TONE[gate.status] : null;
-              const ownedByMe = entry.stage.owner === currentUser;
-              const last = position === open.stages.length - 1;
-              return (
-                <li key={entry.stage.name} className="relative">
-                  {/* The connector continues the rail down through the stages. */}
-                  {last ? null : <span aria-hidden className="absolute left-[21px] top-[30px] bottom-[-6px] w-px bg-[var(--border-default)]" />}
-                  <Link
-                    href={`/detail?stage=${entry.index}`}
-                    className={cn(
-                      "flex min-w-0 items-center gap-2.5 rounded-[8px] border px-2.5 py-2 transition",
-                      state === "active"
-                        ? "border-[var(--accent-border)] bg-[var(--surface)] shadow-[var(--shadow-sm)]"
-                        : "border-transparent bg-[var(--surface)]/70 hover:border-[var(--accent-ring)] hover:bg-[var(--surface)]",
-                    )}
-                  >
-                    <StageNode state={state} index={entry.index + 1} size={20} />
+                <th scope="row" className="min-w-0 px-6 text-left align-middle font-normal">
+                  <Link href={`/detail?stage=${index}`} className="flex min-w-0 items-center gap-2.5">
+                    <StageNode state={state} index={index + 1} size={18} />
                     <span
                       className={cn(
-                        "min-w-0 flex-1 truncate text-[13px]",
-                        state === "active" ? "font-semibold text-[var(--accent-strong)]" : "font-medium text-[var(--text-body)]",
+                        "min-w-0 truncate text-[13px] transition",
+                        state === "active"
+                          ? "font-semibold text-[var(--accent-strong)]"
+                          : "font-medium text-[var(--text-primary)] group-hover:text-[var(--accent-strong)]",
                       )}
                     >
-                      {entry.stage.name}
-                    </span>
-                    {gate && gateTone ? (
-                      <span
-                        title={`${gate.id} · ${gate.name} — approver ${gate.approver}`}
-                        className="inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] font-semibold"
-                        style={{ color: gateTone.fg, background: gateTone.bg, borderColor: gateTone.border }}
-                      >
-                        <ShieldCheck size={10} />
-                        {gate.id}
-                      </span>
-                    ) : null}
-                    <span className={cn("shrink-0 text-[11px] text-[var(--text-muted)]", ownedByMe && "font-semibold text-[var(--text-body)]")}>
-                      {firstName(entry.stage.owner)}
+                      {stage.name}
                     </span>
                   </Link>
-                </li>
-              );
-            })}
-          </ol>
-        </div>
-      </div>
+                </th>
+                <td className="px-3 align-middle text-[12px] text-[var(--text-muted)]">{SUBSTAGE_TO_GROUP[stage.name] ?? "—"}</td>
+                <td className="min-w-0 px-3 align-middle">
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <PersonAvatar name={stage.owner} size={18} highlight={ownedByMe} />
+                    <span
+                      className={cn("min-w-0 truncate text-[12px] text-[var(--text-body)]", ownedByMe && "font-semibold text-[var(--text-primary)]")}
+                    >
+                      {ownedByMe ? "You" : stage.owner}
+                    </span>
+                  </span>
+                </td>
+                <td className="min-w-0 px-6 align-middle">
+                  <span
+                    title={state === "upcoming" ? undefined : outcome?.[1]}
+                    className={cn("block truncate text-[12px]", state === "upcoming" ? "text-[var(--text-muted)]" : "text-[var(--text-body)]")}
+                  >
+                    {state === "upcoming" ? "Not recorded yet" : (outcome?.[1] ?? "—")}
+                  </span>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }

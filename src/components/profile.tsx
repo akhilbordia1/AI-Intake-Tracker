@@ -97,7 +97,11 @@ export function ProfileSwitcher({
       </button>
 
       {open ? (
-        <div className="absolute right-0 top-11 z-50 w-60 rounded-[10px] border border-[var(--border-default)] bg-white p-1.5 shadow-[var(--shadow-menu)]" role="menu" aria-label="Switch profile">
+        <div
+          className="absolute right-0 top-11 z-50 w-60 rounded-[10px] border border-[var(--border-default)] bg-white p-1.5 shadow-[var(--shadow-menu)]"
+          role="menu"
+          aria-label="Switch profile"
+        >
           <div className="px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--text-muted)]">Switch profile</div>
           {PEOPLE.map((person) => {
             const isCurrent = person.name === currentUser;

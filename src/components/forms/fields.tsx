@@ -185,10 +185,7 @@ export function SearchableSelect({
   const menuRef = useRef<HTMLDivElement>(null);
   useClickOutside(menuRef, () => setOpen(false), open);
 
-  const filtered = useMemo(
-    () => options.filter((option) => option.toLowerCase().includes(query.trim().toLowerCase())),
-    [options, query],
-  );
+  const filtered = useMemo(() => options.filter((option) => option.toLowerCase().includes(query.trim().toLowerCase())), [options, query]);
 
   return (
     <div className="min-w-0">
@@ -215,7 +212,10 @@ export function SearchableSelect({
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search…"
-                className={cn("h-8 w-full rounded-[6px] border border-[var(--border-default)] bg-white pl-8 pr-2 text-[12px] text-[var(--text-primary)] outline-none", FOCUS_RING)}
+                className={cn(
+                  "h-8 w-full rounded-[6px] border border-[var(--border-default)] bg-white pl-8 pr-2 text-[12px] text-[var(--text-primary)] outline-none",
+                  FOCUS_RING,
+                )}
               />
             </div>
             <div className="max-h-[200px] overflow-y-auto">
@@ -232,7 +232,9 @@ export function SearchableSelect({
                     }}
                     className={cn(
                       "flex h-8 w-full items-center justify-between gap-2 rounded-[6px] px-2.5 text-left text-[12px] font-medium transition",
-                      value === option ? "bg-[var(--accent-soft)] text-[var(--accent-strong)]" : "text-[var(--text-body)] hover:bg-[var(--shell-canvas)] hover:text-[var(--text-primary)]",
+                      value === option
+                        ? "bg-[var(--accent-soft)] text-[var(--accent-strong)]"
+                        : "text-[var(--text-body)] hover:bg-[var(--shell-canvas)] hover:text-[var(--text-primary)]",
                     )}
                   >
                     <span className="truncate">{option}</span>
@@ -313,7 +315,11 @@ export function SegmentedToggle({
   return (
     <div className="min-w-0">
       {hideHeader ? null : <FieldHeader label={label} required={required} hint={hint} />}
-      <div className="inline-flex flex-wrap gap-1 rounded-[10px] border border-[var(--border-default)] bg-[var(--surface-muted)] p-1" role="radiogroup" aria-label={label}>
+      <div
+        className="inline-flex flex-wrap gap-1 rounded-[10px] border border-[var(--border-default)] bg-[var(--surface-muted)] p-1"
+        role="radiogroup"
+        aria-label={label}
+      >
         {options.map((option) => {
           const selected = value === option;
           return (
@@ -435,7 +441,12 @@ export function CurrencyField({
   return (
     <div className="group min-w-0">
       {hideHeader ? null : <FieldHeader label={label} required={required} hint={hint} />}
-      <div className={cn("flex h-9 max-w-[360px] items-stretch overflow-hidden rounded-[8px] border bg-white transition focus-within:border-[var(--accent-ring)] focus-within:ring-2 focus-within:ring-[var(--accent-soft)]", borderClass(error))}>
+      <div
+        className={cn(
+          "flex h-9 max-w-[360px] items-stretch overflow-hidden rounded-[8px] border bg-white transition focus-within:border-[var(--accent-ring)] focus-within:ring-2 focus-within:ring-[var(--accent-soft)]",
+          borderClass(error),
+        )}
+      >
         <div className="relative shrink-0 border-r border-[var(--border-default)] bg-[var(--shell-canvas)]">
           <select
             value={currency}
@@ -534,9 +545,7 @@ export function DateField({
   const parsed = parseISODate(value);
   const now = new Date();
   const todayISO = toISODate(now.getFullYear(), now.getMonth(), now.getDate());
-  const [view, setView] = useState(() =>
-    parsed ? { year: parsed.year, month: parsed.month } : { year: now.getFullYear(), month: now.getMonth() },
-  );
+  const [view, setView] = useState(() => (parsed ? { year: parsed.year, month: parsed.month } : { year: now.getFullYear(), month: now.getMonth() }));
 
   // Position the popover with fixed coords so it escapes any scroll/overflow
   // clipping, and flips up / shifts left when it would run off-screen.
@@ -609,10 +618,20 @@ export function DateField({
                   {MONTH_FULL[view.month]} {view.year}
                 </div>
                 <div className="flex items-center gap-1">
-                  <button type="button" aria-label="Previous month" onClick={() => shiftMonth(-1)} className="grid h-7 w-7 place-items-center rounded-[6px] text-[var(--text-muted)] transition hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">
+                  <button
+                    type="button"
+                    aria-label="Previous month"
+                    onClick={() => shiftMonth(-1)}
+                    className="grid h-7 w-7 place-items-center rounded-[6px] text-[var(--text-muted)] transition hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
+                  >
                     <ChevronLeft size={16} />
                   </button>
-                  <button type="button" aria-label="Next month" onClick={() => shiftMonth(1)} className="grid h-7 w-7 place-items-center rounded-[6px] text-[var(--text-muted)] transition hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">
+                  <button
+                    type="button"
+                    aria-label="Next month"
+                    onClick={() => shiftMonth(1)}
+                    className="grid h-7 w-7 place-items-center rounded-[6px] text-[var(--text-muted)] transition hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
+                  >
                     <ChevronRight size={16} />
                   </button>
                 </div>
@@ -860,7 +879,10 @@ export function LevelSlider({
           {options.map((_, index) => (
             <span
               key={index}
-              className={cn("absolute h-2 w-2 -translate-x-1/2 rounded-full", selected >= 0 && index <= selected ? "bg-[var(--accent)]" : "bg-[var(--border-input)]")}
+              className={cn(
+                "absolute h-2 w-2 -translate-x-1/2 rounded-full",
+                selected >= 0 && index <= selected ? "bg-[var(--accent)]" : "bg-[var(--border-input)]",
+              )}
               style={{ left: `calc(10px + (100% - 20px) * ${index / (count - 1)})` }}
             />
           ))}
