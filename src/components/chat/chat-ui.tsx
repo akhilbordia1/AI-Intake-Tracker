@@ -100,11 +100,11 @@ export function JumpToTop({ visible, onClick }: { visible: boolean; onClick: () 
 export function ChatDock({ children }: { children: ReactNode }) {
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-0">
-      {/* Tinted to continue the window's .chat-glow rather than covering it, so
-          the dock doesn't read as a rectangle laid on top. No side padding: the
-          composer keeps the full width of the rail. */}
-      <div className="h-24 bg-[image:var(--composer-wash-top)]" />
-      <div className="pointer-events-auto bg-[image:var(--composer-wash)]">{children}</div>
+      {/* Both halves paint the window's own glow with a viewport-anchored
+          background, so the dock continues it seamlessly instead of laying a
+          rectangle over it. Messages dissolve as the ramp turns opaque. */}
+      <div className="chat-glow-band h-24" />
+      <div className="chat-glow-band pointer-events-auto">{children}</div>
     </div>
   );
 }
@@ -283,7 +283,9 @@ export function ChatStarters<T extends { id: string; label: string; icon?: React
 }) {
   return (
     <div className={cn("flex shrink-0 flex-wrap gap-1.5", align === "center" ? "justify-center" : "justify-start", padded && "pb-1.5")}>
-      {items.map((item) => (
+      {/* Three at most: a fourth pill pushed the composer down the rail and read
+          as a menu rather than a nudge. */}
+      {items.slice(0, 3).map((item) => (
         <button
           key={item.id}
           type="button"

@@ -61,6 +61,12 @@
   --accent-ring: #9cb890;
   --accent-hover-bg: #f5f8f2;
 
+  /* Fields are filled shapes, not boxed ones — a soft fill says "editable"
+     without drawing a hairline around every answer on the page. The border is
+     kept, transparent, so an error can colour it without moving anything. */
+  --field-fill: #f8f7f5;
+  --field-fill-hover: #f3f2ef;
+
   /* Choice surfaces (radio cards / selectable tiles) */
   --choice-selected-border: #c8c4bf;
   --choice-selected-bg: #f7f6f4;
@@ -167,14 +173,12 @@
      into, then the band the input sits on. Mixed from --accent, so it follows
      the brand.
 
-     One ramp, three places: the window paints it (.chat-glow), then the dock's
-     fade and band continue it at the same mixes. Change a stop and change all
-     three, or the dock reappears as a rectangle. */
+     One gradient, painted twice — by the window and by the composer dock — both
+     anchored to the viewport (.chat-glow / .chat-glow-band), so the dock has no
+     edge of its own. */
   --glow-near: color-mix(in srgb, var(--accent) 7%, var(--shell-canvas));
   --glow-mid: color-mix(in srgb, var(--accent) 4%, var(--shell-canvas));
   --composer-glow: linear-gradient(to top, var(--glow-near) 0%, var(--glow-mid) 38%, transparent 100%);
-  --composer-wash-top: linear-gradient(to bottom, transparent, var(--glow-mid));
-  --composer-wash: linear-gradient(to bottom, var(--glow-mid), var(--glow-near));
 }
 
 @theme inline {
@@ -260,11 +264,21 @@ input[type="date"] {
 
 /* Light rising off the bottom of a chat window — under the composer, behind the
    rail's gutters, present on every route rather than only where a dock is. */
-.chat-glow {
+.chat-glow,
+.chat-glow-band {
   background-image: var(--composer-glow);
   background-repeat: no-repeat;
   background-position: bottom center;
   background-size: 100% 280px;
+}
+
+/* Anchored to the viewport, not to the element. The composer dock is inset from
+   the window (the shell pads the rail), so painting the ramp inside the dock's own
+   box drew a rectangle whose edges didn't line up with the window's glow. Fixed
+   attachment makes both paint the same pixels at the same height, so the dock has
+   no edges at all. */
+.chat-glow-band {
+  background-attachment: fixed;
 }
 
 /* ── Editorial display type (Fraunces, optical-sized) ── */
@@ -1121,4 +1135,31 @@ input[type="date"] {
    the one thing read mode isn't — hide them without collapsing their space. */
 .read-field svg:not(.ai-field-loading svg) {
   visibility: hidden;
+}
+
+/* Read mode for a choice field. The control is the same object either way, so
+   only colour may change: the options you didn't pick fade back to the page and
+   the chosen one goes quiet, and switching to Edit brings the alternatives — and
+   the accent — back. Nothing here touches a metric, so nothing moves. */
+.read-choice [aria-pressed="false"],
+.read-choice [aria-checked="false"] {
+  background-color: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  color: var(--text-faint) !important;
+}
+.read-choice [aria-pressed="false"] svg,
+.read-choice [aria-checked="false"] svg {
+  opacity: 0.4;
+}
+/* The picked option keeps whatever shape it has — a filled pill stays a pill, a
+   radio stays a dot — just desaturated, so a settled answer doesn't shout in
+   accent green. Painting a fill here instead would put a grey rectangle behind
+   controls that never had one. */
+.read-choice [aria-pressed="true"],
+.read-choice [aria-checked="true"] {
+  filter: saturate(0.5);
+  /* The lift and hairline that mark the live control would otherwise leave one
+     empty-looking box floating where the faded options used to be. */
+  box-shadow: none !important;
 }

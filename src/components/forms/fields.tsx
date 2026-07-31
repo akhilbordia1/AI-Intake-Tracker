@@ -11,14 +11,23 @@ import { useClickOutside } from "@/lib/use-click-outside";
 // inline validation (error ring + message), an optional "why this matters"
 // tooltip, and an optional AI "Suggest" button that fills a context draft.
 
-const FOCUS_RING = "focus:border-[var(--border-input)] focus:ring-2 focus:ring-[var(--accent-soft)]";
+// ── One shape for every control ──
+// A field is a soft-filled shape rather than a hairline box: the fill carries
+// "you can edit this", so a form of ten answers isn't ten outlines. The border
+// stays in the class list but transparent, so an error can colour it without
+// changing a single metric — and so read mode (`.read-field`, which clears fill
+// and border) measures identically to edit mode.
+const FIELD_FILL = "bg-[var(--field-fill)] hover:bg-[var(--field-fill-hover)]";
+const FOCUS_RING = "focus:ring-2 focus:ring-[var(--accent-ring)]";
+const FOCUS_RING_VISIBLE = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]";
 const BASE_INPUT = cn(
-  "h-9 w-full rounded-[8px] border bg-white px-3 text-[15px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)]",
+  "h-10 w-full rounded-[10px] border px-3.5 text-[15px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)]",
+  FIELD_FILL,
   FOCUS_RING,
 );
 
 function borderClass(error?: string) {
-  return error ? "border-[var(--tone-danger-border)]" : "border-[var(--border-default)]";
+  return error ? "border-[var(--tone-danger-border)]" : "border-transparent";
 }
 
 // ── Field chrome ──────────────────────────────────────────────────────────
@@ -143,7 +152,8 @@ export function SmartTextarea({
           maxLength={maxLength}
           aria-invalid={Boolean(error)}
           className={cn(
-            "w-full resize-none rounded-[8px] border bg-white py-2.5 pl-3 text-[15px] leading-[1.6] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)]",
+            "w-full resize-none rounded-[12px] border py-2.5 pl-3.5 text-[15px] leading-[1.6] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)]",
+            FIELD_FILL,
             FOCUS_RING,
             borderClass(error),
             onSuggest ? "pr-10" : "pr-3",
@@ -280,10 +290,11 @@ export function Segmented({
               aria-pressed={selected}
               onClick={() => onChange(option)}
               className={cn(
-                "h-9 rounded-[8px] border px-3 text-[15px] font-normal transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-soft)]",
+                "h-9 rounded-[10px] border border-transparent px-3 text-[15px] transition",
+                FOCUS_RING_VISIBLE,
                 selected
-                  ? "border-[var(--accent)] bg-white text-[var(--accent-strong)] shadow-[inset_0_0_0_1px_var(--accent)]"
-                  : "border-[var(--border-default)] bg-white text-[var(--text-primary)] hover:border-[var(--accent-border)] hover:bg-[var(--surface-hover)]",
+                  ? "bg-[var(--surface)] font-medium text-[var(--text-primary)] shadow-[var(--shadow-btn-raised)] ring-1 ring-[var(--border-default)]"
+                  : cn(FIELD_FILL, "text-[var(--text-body)]"),
               )}
             >
               {option}
@@ -315,11 +326,9 @@ export function SegmentedToggle({
   return (
     <div className="min-w-0">
       {hideHeader ? null : <FieldHeader label={label} required={required} hint={hint} />}
-      <div
-        className="inline-flex flex-wrap gap-1 rounded-[10px] border border-[var(--border-default)] bg-[var(--surface-muted)] p-1"
-        role="radiogroup"
-        aria-label={label}
-      >
+      {/* A filled track with a white pill riding in it — the track is the field's
+          fill, so the toggle belongs to the same family as the text boxes. */}
+      <div className="inline-flex flex-wrap gap-1 rounded-full border border-transparent bg-[var(--field-fill)] p-1" role="radiogroup" aria-label={label}>
         {options.map((option) => {
           const selected = value === option;
           return (
@@ -330,9 +339,10 @@ export function SegmentedToggle({
               aria-checked={selected}
               onClick={() => onChange(option)}
               className={cn(
-                "rounded-[6px] px-3 py-1.5 text-[15px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-soft)]",
+                "rounded-full px-3.5 py-1.5 text-[15px] transition",
+                FOCUS_RING_VISIBLE,
                 selected
-                  ? "bg-white text-[var(--text-primary)] shadow-[0_1px_2px_rgba(12,10,9,0.12)]"
+                  ? "bg-[var(--surface)] font-medium text-[var(--text-primary)] shadow-[var(--shadow-btn-raised)]"
                   : "text-[var(--text-label)] hover:text-[var(--text-primary)]",
               )}
             >
@@ -379,10 +389,9 @@ export function ChipMultiSelect({
               aria-pressed={selected}
               onClick={() => toggle(option)}
               className={cn(
-                "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[13px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-soft)]",
-                selected
-                  ? "border-[var(--accent)] bg-[var(--accent)] text-white"
-                  : "border-[var(--border-default)] bg-white text-[var(--text-body)] hover:border-[var(--accent-border)] hover:bg-[var(--surface-hover)]",
+                "inline-flex h-8 items-center gap-1.5 rounded-full border border-transparent px-3 text-[13px] font-medium transition",
+                FOCUS_RING_VISIBLE,
+                selected ? "bg-[var(--accent)] text-white" : cn(FIELD_FILL, "text-[var(--text-body)]"),
               )}
             >
               {selected ? <Check size={13} /> : null}
@@ -429,10 +438,9 @@ export function ChipSelect({
               aria-checked={selected}
               onClick={() => onChange(option)}
               className={cn(
-                "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[13px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-soft)]",
-                selected
-                  ? "border-[var(--accent)] bg-[var(--accent)] text-white"
-                  : "border-[var(--border-default)] bg-white text-[var(--text-body)] hover:border-[var(--accent-border)] hover:bg-[var(--surface-hover)]",
+                "inline-flex h-8 items-center gap-1.5 rounded-full border border-transparent px-3 text-[13px] font-medium transition",
+                FOCUS_RING_VISIBLE,
+                selected ? "bg-[var(--accent)] text-white" : cn(FIELD_FILL, "text-[var(--text-body)]"),
               )}
             >
               {selected ? <Check size={13} /> : null}
@@ -505,7 +513,7 @@ function CurrencyPicker({ currency, currencies, onCurrency }: { currency: string
   }, [open, currencies.length]);
 
   return (
-    <div ref={wrapRef} className="relative shrink-0 rounded-l-[7px] border-r border-[var(--border-default)] bg-[var(--shell-canvas)]">
+    <div ref={wrapRef} className="relative shrink-0 rounded-l-[9px] bg-[var(--field-fill-hover)]">
       <button
         ref={triggerRef}
         type="button"
@@ -513,7 +521,7 @@ function CurrencyPicker({ currency, currencies, onCurrency }: { currency: string
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label="Currency"
-        className="flex h-full items-center gap-1.5 rounded-l-[7px] pl-3 pr-2.5 text-[12px] font-medium text-[var(--text-label)] outline-none transition hover:text-[var(--text-primary)] focus-visible:ring-2 focus-visible:ring-[var(--accent-soft)]"
+        className="flex h-full items-center gap-1.5 rounded-l-[9px] pl-3 pr-2.5 text-[12px] font-medium text-[var(--text-label)] outline-none transition hover:text-[var(--text-primary)] focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
       >
         {currency}
         <ChevronDown size={13} className={cn("text-[var(--text-muted)] transition", open && "rotate-180")} />
@@ -589,7 +597,7 @@ export function CurrencyField({
       {hideHeader ? null : <FieldHeader label={label} required={required} hint={hint} />}
       <div
         className={cn(
-          "flex h-9 max-w-[360px] items-stretch rounded-[8px] border bg-white transition focus-within:border-[var(--border-input)] focus-within:ring-2 focus-within:ring-[var(--accent-soft)]",
+          "flex h-10 max-w-[360px] items-stretch rounded-[10px] border bg-[var(--field-fill)] transition focus-within:ring-2 focus-within:ring-[var(--accent-ring)]",
           borderClass(error),
         )}
       >
@@ -609,7 +617,7 @@ export function CurrencyField({
               aria-label={`Decrease by ${stepBy.toLocaleString()}`}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => onAmount(stepAmount(amount, -stepBy))}
-              className="flex items-center gap-0.5 border-l border-[var(--border-default)] px-2 font-mono text-[11px] font-medium text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
+              className="flex items-center gap-0.5 px-2 font-mono text-[11px] font-medium text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
             >
               <Minus size={11} />
               {stepLabel}
@@ -619,7 +627,7 @@ export function CurrencyField({
               aria-label={`Increase by ${stepBy.toLocaleString()}`}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => onAmount(stepAmount(amount, stepBy))}
-              className="flex items-center gap-0.5 border-l border-[var(--border-default)] px-2 font-mono text-[11px] font-medium text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
+              className="flex items-center gap-0.5 px-2 font-mono text-[11px] font-medium text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
             >
               <Plus size={11} />
               {stepLabel}
@@ -918,10 +926,8 @@ export function RatingStepper({
                   aria-pressed={step === current}
                   onClick={() => onChange(`${step}/${max}`)}
                   className={cn(
-                    "grid h-7 w-7 shrink-0 place-items-center rounded-full border-[1.5px] font-mono text-[11px] font-medium transition",
-                    filled
-                      ? "border-[var(--accent)] bg-[var(--accent)] text-white"
-                      : "border-[var(--border-input)] bg-white text-[var(--text-muted)] hover:border-[var(--accent-border)] hover:text-[var(--text-body)]",
+                    "grid h-7 w-7 shrink-0 place-items-center rounded-full font-mono text-[11px] font-medium transition",
+                    filled ? "bg-[var(--accent)] text-white" : cn(FIELD_FILL, "text-[var(--text-muted)] hover:text-[var(--text-body)]"),
                   )}
                 >
                   {step}

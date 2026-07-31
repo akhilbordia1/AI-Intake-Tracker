@@ -49,7 +49,9 @@ export function buttonClass(tone: ButtonTone = "secondary", size: ButtonSize = "
     "focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface)]",
     "active:translate-y-px active:shadow-[var(--shadow-btn-pressed)]",
     "disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none disabled:active:translate-y-0",
-    size === "sm" ? "h-8 px-3 text-[13px]" : "h-9 px-3.5 text-[14px]",
+    // Sized against the fields they sit beside: a 32px button next to a 40px input
+    // read as a control that hadn't finished loading.
+    size === "sm" ? "h-9 px-3.5 text-[13px]" : "h-10 px-4 text-[14px]",
     tone === "primary" &&
       "bg-[var(--accent)] text-white shadow-[var(--shadow-btn-primary)] hover:bg-[var(--accent-hover)] hover:shadow-[var(--shadow-btn-primary-hover)]",
     tone === "secondary" &&

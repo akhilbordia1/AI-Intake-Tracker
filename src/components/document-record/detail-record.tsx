@@ -618,6 +618,11 @@ function useStageFields(stage: StageItem, prefill: boolean): StageFieldsState {
 // lines and fill, so the value reads as text without the row changing height.
 const INPUT_KINDS = new Set<FieldKind>(["text", "long", "select", "currency", "date"]);
 
+// Fields the user picks from. In read the options they didn't choose fade out and
+// the chosen one goes neutral (`.read-choice`) — colour only, so a pill row is the
+// same size and in the same place either way.
+const CHOICE_KINDS = new Set<FieldKind>(["toggle", "tag", "segmented", "radio", "chips", "cards", "scale", "level"]);
+
 // A record field. Read and edit render the *same* control — editing only makes it
 // interactive — because a read view with its own shapes (a chip here, a dash there)
 // resized and moved every answer the moment the form was saved. Input-like fields
@@ -667,7 +672,10 @@ function DocumentField({
   }
 
   const read = (
-    <fieldset disabled className={cn(inset, "pointer-events-none", INPUT_KINDS.has(field.kind) && "read-field")}>
+    <fieldset
+      disabled
+      className={cn(inset, "pointer-events-none", INPUT_KINDS.has(field.kind) && "read-field", CHOICE_KINDS.has(field.kind) && "read-choice")}
+    >
       {control}
       {shimmer}
     </fieldset>
@@ -2744,9 +2752,11 @@ function StageField({
   // Free text (short or long) uses the growing editor so nothing truncates and
   // the box keeps the read view's metrics. A short answer gets a short box —
   // a two-word value in a column-wide field reads as a field that failed to fill.
+  // Only prose gets the suggest button: on a short box the sparkle crowded a
+  // two-word answer, and a name or a function is quicker to type than to draft.
   return (
     <div className={textBoxWidth(spec)}>
-      <GrowText value={text} onChange={onChange} onSuggest={onSuggest} label={spec.label} />
+      <GrowText value={text} onChange={onChange} onSuggest={spec.kind === "long" ? onSuggest : undefined} label={spec.label} />
     </div>
   );
 }
@@ -2763,7 +2773,17 @@ function textBoxWidth(spec: FieldSpec) {
 // Record free-text editor: grows with its content (never truncates a value to one
 // clipped line) and carries the same font, padding and inset as the read view, so
 // toggling Edit doesn't move anything on the page.
-function GrowText({ value, onChange, onSuggest, label }: { value: string; onChange: (value: string) => void; onSuggest: () => void; label: string }) {
+function GrowText({
+  value,
+  onChange,
+  onSuggest,
+  label,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onSuggest?: () => void;
+  label: string;
+}) {
   return (
     <div className="relative w-full min-w-0">
       <textarea
@@ -2775,17 +2795,22 @@ function GrowText({ value, onChange, onSuggest, label }: { value: string; onChan
         // The floor matches one line of text plus the box: `field-sizing: content`
         // collapses an empty field, and it collapses further once disabled, which
         // made a blank answer shorter when read than when edited.
-        className="field-sizing-content min-h-[38px] w-full resize-none rounded-[8px] border border-[var(--border-default)] bg-[var(--surface)] px-3 py-1.5 pr-9 text-[15px] leading-[1.6] text-[var(--text-primary)] outline-none transition focus:border-[var(--border-input)]"
+        className={cn(
+          "field-sizing-content min-h-[40px] w-full resize-none rounded-[10px] border border-transparent bg-[var(--field-fill)] px-3.5 py-2 text-[15px] leading-[1.6] text-[var(--text-primary)] outline-none transition hover:bg-[var(--field-fill-hover)] focus:ring-2 focus:ring-[var(--accent-ring)]",
+          onSuggest && "pr-9",
+        )}
       />
-      <button
-        type="button"
-        onClick={onSuggest}
-        aria-label={`Suggest ${label}`}
-        data-tip="Suggest"
-        className="absolute right-1 top-1 grid h-7 w-7 place-items-center rounded-[8px] text-[var(--text-muted)] transition hover:bg-[var(--surface-hover)] hover:text-[var(--accent-strong)]"
-      >
-        <Sparkles size={14} />
-      </button>
+      {onSuggest ? (
+        <button
+          type="button"
+          onClick={onSuggest}
+          aria-label={`Suggest ${label}`}
+          data-tip="Suggest"
+          className="absolute right-1 top-1 grid h-7 w-7 place-items-center rounded-[8px] text-[var(--text-muted)] transition hover:bg-[var(--surface-hover)] hover:text-[var(--accent-strong)]"
+        >
+          <Sparkles size={14} />
+        </button>
+      ) : null}
     </div>
   );
 }

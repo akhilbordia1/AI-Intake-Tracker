@@ -126,7 +126,8 @@ From `src/components/ui/kit.tsx`:
 
 - **`Button` / `ButtonLink` / `buttonClass(tone, size)`** — `primary` (the one
   action a view is for), `secondary`, `quiet` (header chrome), `danger`. Sizes
-  `sm` (h-8/13px, default) and `md` (h-9/14px). Every action button in the app is
+  `sm` (h-9/13px, default) and `md` (h-10/14px — sized against the 40px fields
+  they sit beside). Every action button in the app is
   one of these, so Submit stage and New use case are the same object. Press and
   focus are shared across tones — the resting lift (`--shadow-btn-raised` /
   `--shadow-btn-primary`) becomes `--shadow-btn-pressed` on `:active`, and focus
@@ -142,6 +143,13 @@ From `src/components/ui/kit.tsx`:
   one a `RadioGroup`; more than five options a `SearchableSelect`; ordinals a
   `LevelSlider`; `n/m` a `RatingStepper`; money a `CurrencyField` (code selector
   in the field, never full width). Only prose takes the column's full width.
+
+  Every control is a **soft-filled shape**, not a hairline box: `--field-fill`
+  carries "editable", so a ten-answer form isn't ten outlines. Boxes are 40px tall
+  at radius 10; pill rows and segmented tracks fill the same neutral; focus is a
+  ring, never a recoloured edge. The border stays in the class list but
+  transparent, so an error can colour it and `.read-field` can clear it without
+  moving a pixel.
 - **`StageNode`** — the lifecycle node: tick when complete, filled when current,
   hollow with its number when ahead. Every stage rail uses it.
 
@@ -183,8 +191,9 @@ to. Inside a boxed list, rows carry the side padding so hairlines run edge to
 edge.
 
 **Forms.** A field reads as the control that edits it: read mode renders the same
-control, inert (`fieldset disabled`), and typed fields lose the box's lines and
-fill (`.read-field`) while keeping its metrics. Nothing may change size or move
+control, inert (`fieldset disabled`). Typed fields lose the box's lines and fill
+(`.read-field`); a choice field fades the options you didn't pick and desaturates
+the one you did (`.read-choice`) — both rules touch colour only, never a metric. Nothing may change size or move
 between read and edit — no reserved heights on one side only, no negative inset on
 one kind of control. Everything left-aligns on the label's left edge: a box, a pill
 row, a radio's dot, a slider's track. Only prose takes the column's full width;
