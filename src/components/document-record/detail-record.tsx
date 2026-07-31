@@ -273,8 +273,8 @@ const LONG_LABELS = new Set([
   "Business problem",
   "Desired outcome",
   "Conditions",
-  "Triage notes",
-  "Board notes",
+  "Triage rationale and notes",
+  "Board conditions to proceed",
   "Assessment scope",
 ]);
 
@@ -322,7 +322,7 @@ function buildFieldSpec(label: string, value: string): FieldSpec {
 // Live governance tier, recomputed from the Assess answers as the user fills them.
 function computeRiskTier(values: Record<string, string | string[]>) {
   // Take the overall rating if set, else the highest of the risk dimensions.
-  const dims = ["Overall risk", "Model risk", "Ethical risk", "Data hosted risk"].map((k) => String(values[k] ?? ""));
+  const dims = ["Overall risk level", "Model risk level", "Ethical risk level", "Data hosting risk level"].map((k) => String(values[k] ?? ""));
   const risk = dims.includes("High") ? "High" : dims.includes("Medium") ? "Medium" : dims.includes("Low") ? "Low" : "";
 
   if (risk === "High") return { tier: "Full", fg: "var(--tone-danger-fg)", bg: "var(--tone-danger-bg)", border: "var(--tone-danger-border)" };
@@ -676,7 +676,10 @@ function StageFieldsGrid({
           // control, so the row is exactly as tall in both — a min-height that
           // applied to only one of them was itself the shift it meant to prevent.
           <div key={field.label} className="min-w-0">
-            <label className="block text-[13px] font-medium text-[var(--text-label)]">{field.label}</label>
+            {/* Quieter and a size below the value: at 13px in the label ramp the two
+                read as one run of text. 12px muted against a 15px primary value
+                separates the question from the answer. */}
+            <label className="block text-[12px] font-medium tracking-[0.01em] text-[var(--text-muted)]">{field.label}</label>
             <div className="mt-2 min-w-0">
               <DocumentField field={field} s={s} readOnly={readOnly} onBlockedEdit={onBlockedEdit} forceEdit={editAll} />
             </div>
@@ -1485,37 +1488,37 @@ type ScriptQuestion = { text: string; field: string; answer: string };
 const IDEATION_SCRIPT: ScriptQuestion[] = [
   {
     text: "Who is the business owner for this idea? Could you share their full name and title?",
-    field: "Business owner",
+    field: "Accountable business owner",
     answer: "Dr. Sarah Mitchell — Senior Director, Clinical Operations",
   },
   {
     text: "Roughly how many people would be using this day-to-day, and in which teams?",
-    field: "Target users",
+    field: "Target users and teams",
     answer: "~450 users globally — Clinical Operations Managers, CRAs, Clinical Project Managers, and Medical Writers.",
   },
-  { text: "Would this roll out at a single site, across a specific region, or globally?", field: "Geography", answer: "Globally." },
+  { text: "Would this roll out at a single site, across a specific region, or globally?", field: "Rollout geography", answer: "Globally." },
   {
     text: "Where do the source documents currently live — a document management system, shared drive, or somewhere else?",
-    field: "Data sources",
+    field: "Data sources and systems",
     answer: "Enterprise CTMS and a document management system (Veeva Vault), plus some legacy protocols on secure SharePoint.",
   },
   {
     text: "Do these documents contain any patient-level, genomic, or personally identifiable information, or are they document-level content only?",
-    field: "Data sensitivity",
+    field: "Data sensitivity class",
     answer: "Primarily document-level content only — no patient-level data or PII, though some sensitive study design details need secure handling.",
   },
   {
     text: "What's the core AI capability you're expecting — summarization, retrieval Q&A, classification?",
-    field: "AI capability",
+    field: "AI capability and approach",
     answer: "LLM summarization with retrieval Q&A over the protocol documents.",
   },
   {
     text: "Could the outputs ever feed into a regulated or compliance-critical process — such as a GxP submission or regulatory review?",
-    field: "GxP impact",
+    field: "GxP / regulated use impact",
     answer: "Yes — they support GxP-regulated clinical operations, so human review and approval are mandatory before any compliance-critical use.",
   },
-  { text: "Do you have a target timeline in mind for delivery?", field: "Timeline", answer: "Around 6 months." },
-  { text: "And is there a budget envelope for this work?", field: "Budget", answer: "~$750K." },
+  { text: "Do you have a target timeline in mind for delivery?", field: "Delivery timeline", answer: "Around 6 months." },
+  { text: "And is there a budget envelope for this work?", field: "Indicative budget envelope", answer: "~$750K." },
 ];
 
 // Opening exchange shown before the follow-up questions (Ideation): the idea the
@@ -1530,7 +1533,7 @@ const IDEATION_SEED: { role: "assistant" | "user"; text: string }[] = [
 // Fields the opening idea description already establishes (filled up front) —
 // including the ones the follow-up questions don't cover, so the stage can be
 // submitted once the flow is done.
-const IDEATION_SEED_FIELDS = ["Idea name", "Problem statement", "Objective", "AI capability", "Business function"];
+const IDEATION_SEED_FIELDS = ["Proposed use case name", "Problem statement", "Business objective", "AI capability and approach", "Business function or area"];
 // Anything that reads as a "go ahead" when the agent asks to confirm a fill.
 const YES_RE = /\b(yes|yep|yeah|yup|confirm|go ahead|do it|sure|ok|okay|proceed|fill|please)\b/i;
 
@@ -1956,12 +1959,12 @@ const STARTER_ICONS: Record<StarterSpec["icon"], ReactNode> = {
 const STAGE_STARTERS: Record<string, { owner: StarterSpec[]; viewer: StarterSpec[] }> = {
   Ideation: {
     owner: [
-      { icon: "spark", label: "Sketch the problem and objective", fill: ["Problem statement", "Objective"] },
-      { icon: "info", label: "Who would use this?", fill: ["Target users", "Geography"] },
+      { icon: "spark", label: "Sketch the problem and objective", fill: ["Problem statement", "Business objective"] },
+      { icon: "info", label: "Who would use this?", fill: ["Target users and teams", "Rollout geography"] },
     ],
     viewer: [
-      { icon: "info", label: "What problem does this solve?", read: ["Problem statement", "Objective"] },
-      { icon: "doc", label: "Who's it for?", read: ["Target users", "Business function"] },
+      { icon: "info", label: "What problem does this solve?", read: ["Problem statement", "Business objective"] },
+      { icon: "doc", label: "Who's it for?", read: ["Target users and teams", "Business function or area"] },
     ],
   },
   Qualification: {
@@ -1972,40 +1975,40 @@ const STAGE_STARTERS: Record<string, { owner: StarterSpec[]; viewer: StarterSpec
         reply:
           "No — it's document summarisation with a human reviewing every output, so it stays inside policy. Nothing here is an automated decision about a person.",
       },
-      { icon: "spark", label: "Set oversight and decision impact", fill: ["Human oversight", "Decision impact", "Data sensitivity"] },
+      { icon: "spark", label: "Set oversight and decision impact", fill: ["Human oversight level", "Decision impact level", "Data sensitivity class"] },
     ],
     viewer: [
-      { icon: "shield", label: "Why did this pass screening?", read: ["Human oversight", "Decision impact"] },
-      { icon: "doc", label: "Was anything similar built already?", read: ["Duplication check"] },
+      { icon: "shield", label: "Why did this pass screening?", read: ["Human oversight level", "Decision impact level"] },
+      { icon: "doc", label: "Was anything similar built already?", read: ["Duplication check result"] },
     ],
   },
   Prioritisation: {
     owner: [
-      { icon: "spark", label: "Score value against feasibility", fill: ["Business value", "Technical feasibility", "Complexity"] },
-      { icon: "info", label: "Work out the priority score", fill: ["Cost", "Strategic alignment", "Priority score"] },
+      { icon: "spark", label: "Score value against feasibility", fill: ["Business value score", "Technical feasibility", "Delivery complexity"] },
+      { icon: "info", label: "Work out the priority score", fill: ["Estimated build cost", "Strategic alignment", "Overall priority score"] },
     ],
     viewer: [
-      { icon: "info", label: "How was the priority score set?", read: ["Priority score", "Business value", "Technical feasibility"] },
+      { icon: "info", label: "How was the priority score set?", read: ["Overall priority score", "Business value score", "Technical feasibility"] },
       { icon: "doc", label: "Does it fit the strategy?", read: ["Strategic alignment"] },
     ],
   },
   Triage: {
     owner: [
       { icon: "shield", label: "Which risk tier applies?", fill: ["Risk governance tier"] },
-      { icon: "spark", label: "Does it need a full assessment?", fill: ["Compliance assessment required", "Triage notes"] },
+      { icon: "spark", label: "Does it need a full assessment?", fill: ["Compliance assessment required", "Triage rationale and notes"] },
     ],
     viewer: [
-      { icon: "shield", label: "Why this risk tier?", read: ["Risk governance tier", "Triage notes"] },
+      { icon: "shield", label: "Why this risk tier?", read: ["Risk governance tier", "Triage rationale and notes"] },
       { icon: "info", label: "Is a compliance assessment needed?", read: ["Compliance assessment required"] },
     ],
   },
   Assessment: {
     owner: [
-      { icon: "shield", label: "Assess PII and data hosting", fill: ["PII", "Data hosted risk"] },
-      { icon: "spark", label: "Rate model and ethical risk", fill: ["Model risk", "Ethical risk", "Overall risk"] },
+      { icon: "shield", label: "Assess PII and data hosting", fill: ["Personal data (PII) in scope", "Data hosting risk level"] },
+      { icon: "spark", label: "Rate model and ethical risk", fill: ["Model risk level", "Ethical risk level", "Overall risk level"] },
     ],
     viewer: [
-      { icon: "shield", label: "What are the top risks?", read: ["Overall risk", "Model risk", "Ethical risk"] },
+      { icon: "shield", label: "What are the top risks?", read: ["Overall risk level", "Model risk level", "Ethical risk level"] },
       { icon: "doc", label: "Which checks are cleared?", read: ["Compliance checks"] },
     ],
   },
@@ -2016,40 +2019,40 @@ const STAGE_STARTERS: Record<string, { owner: StarterSpec[]; viewer: StarterSpec
         label: "Estimate the savings",
         fill: ["Current annual volume", "Current cost per review", "Projected time savings", "Projected annual savings"],
       },
-      { icon: "info", label: "Work out the payback", fill: ["Investment", "Payback period", "3-year net value"] },
+      { icon: "info", label: "Work out the payback", fill: ["Total investment required", "Payback period (months)", "3-year net value (NPV)"] },
     ],
     viewer: [
-      { icon: "info", label: "What's the payback?", read: ["Payback period", "Investment", "3-year net value"] },
+      { icon: "info", label: "What's the payback?", read: ["Payback period (months)", "Total investment required", "3-year net value (NPV)"] },
       { icon: "doc", label: "How were savings estimated?", read: ["Current annual volume", "Projected time savings", "Projected annual savings"] },
     ],
   },
   GTAC: {
     owner: [
-      { icon: "spark", label: "Record the board's decision", fill: ["Go / No-Go", "Recommendation"] },
-      { icon: "shield", label: "Risk versus return?", fill: ["ROI payback", "Overall risk"] },
+      { icon: "spark", label: "Record the board's decision", fill: ["Go / No-Go board call", "Board recommendation"] },
+      { icon: "shield", label: "Risk versus return?", fill: ["ROI payback period", "Overall risk level"] },
     ],
     viewer: [
-      { icon: "shield", label: "What did the board decide?", read: ["Go / No-Go", "Recommendation"] },
-      { icon: "doc", label: "Any conditions attached?", read: ["Board notes"] },
+      { icon: "shield", label: "What did the board decide?", read: ["Go / No-Go board call", "Board recommendation"] },
+      { icon: "doc", label: "Any conditions attached?", read: ["Board conditions to proceed"] },
     ],
   },
   "Plan & KPI": {
     owner: [
-      { icon: "spark", label: "Draft the delivery plan", fill: ["Project plan"] },
-      { icon: "info", label: "Which KPIs do we lock?", fill: ["KPIs", "Targets locked"] },
+      { icon: "spark", label: "Draft the delivery plan", fill: ["Delivery plan and sequencing"] },
+      { icon: "info", label: "Which KPIs do we lock?", fill: ["KPIs and measurement targets", "Targets locked for delivery"] },
     ],
     viewer: [
-      { icon: "info", label: "What are the KPIs?", read: ["KPIs", "Targets locked"] },
-      { icon: "doc", label: "What's the delivery plan?", read: ["Project plan"] },
+      { icon: "info", label: "What are the KPIs?", read: ["KPIs and measurement targets", "Targets locked for delivery"] },
+      { icon: "doc", label: "What's the delivery plan?", read: ["Delivery plan and sequencing"] },
     ],
   },
   "Solution blue print": {
     owner: [
-      { icon: "shield", label: "Set the guardrails", fill: ["Human checkpoint", "Access control", "Audit trail"] },
-      { icon: "spark", label: "How often do we retrain?", fill: ["Capability", "Retraining cadence"] },
+      { icon: "shield", label: "Set the guardrails", fill: ["Human review checkpoint", "Access control and identity", "Audit trail & retention"] },
+      { icon: "spark", label: "How often do we retrain?", fill: ["Solution capability", "Retraining cadence"] },
     ],
     viewer: [
-      { icon: "shield", label: "What are the guardrails?", read: ["Human checkpoint", "Access control", "Audit trail"] },
+      { icon: "shield", label: "What are the guardrails?", read: ["Human review checkpoint", "Access control and identity", "Audit trail & retention"] },
       { icon: "info", label: "How often is it retrained?", read: ["Retraining cadence"] },
     ],
   },
@@ -2065,22 +2068,22 @@ const STAGE_STARTERS: Record<string, { owner: StarterSpec[]; viewer: StarterSpec
   },
   "Monitoring and tracking": {
     owner: [
-      { icon: "spark", label: "Log the latest metrics", fill: ["Review time reduction", "Summary accuracy", "Writer satisfaction (CSAT)"] },
-      { icon: "info", label: "Where's adoption at?", fill: ["Adoption rate"] },
+      { icon: "spark", label: "Log the latest metrics", fill: ["Review time reduction", "Summary accuracy vs baseline", "Writer satisfaction (CSAT)"] },
+      { icon: "info", label: "Where's adoption at?", fill: ["Adoption rate (eligible users)"] },
     ],
     viewer: [
-      { icon: "info", label: "Is it hitting its targets?", read: ["Review time reduction", "Summary accuracy"] },
-      { icon: "doc", label: "How do users rate it?", read: ["Writer satisfaction (CSAT)", "Adoption rate"] },
+      { icon: "info", label: "Is it hitting its targets?", read: ["Review time reduction", "Summary accuracy vs baseline"] },
+      { icon: "doc", label: "How do users rate it?", read: ["Writer satisfaction (CSAT)", "Adoption rate (eligible users)"] },
     ],
   },
   Adoption: {
     owner: [
       { icon: "spark", label: "Who still needs training?", fill: ["Training completed"] },
-      { icon: "doc", label: "Plan comms and support", fill: ["Change management comms", "Support model", "Feedback loop"] },
+      { icon: "doc", label: "Plan comms and support", fill: ["Change management comms", "Ongoing support model", "User feedback loop"] },
     ],
     viewer: [
       { icon: "info", label: "How's uptake going?", read: ["Training completed", "Change management comms"] },
-      { icon: "doc", label: "How do users get help?", read: ["Support model", "Feedback loop"] },
+      { icon: "doc", label: "How do users get help?", read: ["Ongoing support model", "User feedback loop"] },
     ],
   },
 };
@@ -2647,7 +2650,7 @@ function GrowText({
         // collapses an empty field, and it collapses further once disabled, which
         // made a blank answer shorter when read than when edited.
         className={cn(
-          "field-sizing-content min-h-[40px] w-full resize-none rounded-[10px] border border-transparent bg-[var(--field-fill)] px-3.5 py-2 text-[15px] leading-[1.6] text-[var(--text-primary)] outline-none transition hover:bg-[var(--field-fill-hover)] focus:ring-2 focus:ring-[var(--accent-ring)]",
+          "field-sizing-content min-h-[42px] w-full resize-none rounded-[10px] border border-transparent bg-[var(--field-fill)] px-3.5 py-2 text-[16px] leading-[1.6] text-[var(--text-primary)] outline-none transition hover:bg-[var(--field-fill-hover)] focus:ring-2 focus:ring-[var(--accent-ring)]",
           onSuggest && "pr-9",
         )}
       />

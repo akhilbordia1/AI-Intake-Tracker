@@ -78,7 +78,7 @@ everything else. Geist Mono (`.font-mono`) for **data**: record ids, dates,
 counts and ratios (`UC-138`, `6 Jul 2026`, `4/4`, `10/12`) — anything that lines up
 in a column or reads as a value rather than a word. Never for prose or labels.
 
-The scale is **11 · 12 · 13 · 14 · 15 · 18 · 20 · 28 · 40** — no other sizes. Mono
+The scale is **11 · 12 · 13 · 14 · 15 · 16 · 18 · 20 · 28 · 40** — no other sizes. Mono
 runs a shade larger than Inter at the same size, so drop it one step (12px mono
 next to 13px sans).
 
@@ -87,15 +87,19 @@ next to 13px sans).
 | 11 | Captions, tags, node numbers, uppercase group labels |
 | 12 | Meta lines, hints, counts, starter chips |
 | 13 | Default UI: buttons, table cells, chat body, list rows |
-| 14 | Form values and field labels, stage description |
-| 15 | Prose that is meant to be read (intake lead, long copy) |
+| 14 | Mono values (dates, scores), stage description |
+| 15 | Prose that is meant to be read (intake lead, long copy); mono values |
+| 16 | A record's answers — what the form captured |
 | 18 | Panel titles, section headings (Fraunces) |
 | 20 | Section titles (Fraunces) |
 | 28 | Record name (Fraunces) |
 | 40 | Intake hero only (Fraunces) |
 
-**Record values read at the size of the control that edits them** — 15px prose,
-14px mono, 13px in a pill. Toggling Edit is a change of chrome, never of type
+**Record values read at the size of the control that edits them** — 16px prose,
+15px mono, 14px in a pill: the answers are the content of a record, so they sit a
+step above the UI around them. A field's label sits a step below its value and in the
+muted ramp (12px `--text-muted`); at the same size and weight the question and the
+answer read as one run of text. Toggling Edit is a change of chrome, never of type
 size or of where the text starts.
 
 One caveat, because it bit us twice: element rules written **outside a layer**

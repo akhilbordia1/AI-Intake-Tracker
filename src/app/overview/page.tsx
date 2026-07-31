@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Circle, CircleDot, FileText, Flag, Gavel, Info, Layers, ListChecks, User } from "lucide-react";
+import { CheckCircle2, Circle, CircleDot, FileText, Flag, Gavel, Info, ListChecks, User } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useRef, useState, type ReactNode } from "react";
 
@@ -17,12 +17,11 @@ import {
   COMPLETED_STAGE_INDEXES,
   GATES,
   OUTCOME_ROW,
-  SUBSTAGE_TO_GROUP,
   STAGE_INTROS,
   STAGES,
   firstName,
 } from "@/data/lifecycle";
-import { CHIP, PHASE_TONES, PhaseIcon, Tag, type Tone } from "@/components/ui/kit";
+import { CHIP, Tag, type Tone } from "@/components/ui/kit";
 import { cn } from "@/lib/cn";
 
 // ── The record's landing page ──
@@ -297,27 +296,26 @@ const STATE_ICON: Record<StageState, ReactNode> = {
 
 function LifecycleTable({ currentUser }: { currentUser: string }) {
   return (
-    // Grouped by phase, with the columns a stage actually has: its number, its
-    // name, who holds it, the gate that follows it, how much it recorded, and what
-    // came out of it. Numbers and dates are mono, so they line up as data.
+    // The columns a stage actually has: its number, its name, where it stands, who
+    // holds it, and what came out of it. No phase column — the phase track above
+    // the table is what groups these twelve stages. Numbers and dates are mono, so
+    // they line up as data.
     // The table sits in its own box, so the header band and the rows are held by a
     // rounded edge rather than running into the page.
     <div className="no-scrollbar min-w-0 overflow-auto rounded-[10px] border border-[var(--border-default)] bg-[var(--surface)]">
       <table className="w-full min-w-[880px] table-fixed border-collapse">
         <colgroup>
           <col className="w-[6%]" />
-          <col className="w-[26%]" />
-          <col className="w-[14%]" />
-          <col className="w-[18%]" />
+          <col className="w-[30%]" />
           <col className="w-[16%]" />
-          <col className="w-[20%]" />
+          <col className="w-[18%]" />
+          <col className="w-[30%]" />
         </colgroup>
         <thead className="sticky top-0 z-10 bg-[var(--surface-header)]">
           <tr className="border-b border-[var(--border-default)] text-left">
             <TableHead className="pl-4">#</TableHead>
             <TableHead icon={<Flag size={12} />}>Stage</TableHead>
             <TableHead icon={<CircleDot size={12} />}>Status</TableHead>
-            <TableHead icon={<Layers size={12} />}>Phase</TableHead>
             <TableHead icon={<User size={12} />}>Owner</TableHead>
             <TableHead icon={<CheckCircle2 size={12} />} className="pr-4">
               Outcome
@@ -363,18 +361,6 @@ function LifecycleTable({ currentUser }: { currentUser: string }) {
                   <Tag tone={STATE_TONE[state]} icon={STATE_ICON[state]} className={CHIP}>
                     {STATE_LABEL[state]}
                   </Tag>
-                </td>
-
-                <td className="min-w-0 px-3 align-middle">
-                  <span data-tip={`Phase — ${SUBSTAGE_TO_GROUP[stage.name] ?? "—"}`} className="flex min-w-0 items-center gap-1.5">
-                    <PhaseIcon
-                      phase={SUBSTAGE_TO_GROUP[stage.name] ?? ""}
-                      size={12}
-                      className="shrink-0"
-                      style={{ color: `var(--tone-${PHASE_TONES[SUBSTAGE_TO_GROUP[stage.name] ?? ""] ?? "neutral"}-fg)` }}
-                    />
-                    <span className="min-w-0 truncate text-[12px] text-[var(--text-muted)]">{SUBSTAGE_TO_GROUP[stage.name] ?? "—"}</span>
-                  </span>
                 </td>
 
                 <td className="min-w-0 px-3 align-middle">

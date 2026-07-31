@@ -565,10 +565,10 @@ export default function HomePage() {
             <div className="relative min-h-0 flex-1">
               <div className="no-scrollbar h-full min-h-0 overflow-x-auto px-5 pb-5 pt-4">
                 <div
-                  className="grid h-full min-h-[320px] gap-6"
+                  className="grid h-full min-h-[320px] gap-3"
                   style={{
                     gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))`,
-                    minWidth: `${columns.length * 340 + (columns.length - 1) * 24}px`,
+                    minWidth: `${columns.length * 340 + (columns.length - 1) * 12}px`,
                   }}
                 >
                   {columns.map((column) => (

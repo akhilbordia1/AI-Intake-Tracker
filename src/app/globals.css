@@ -1125,6 +1125,13 @@ input[type="date"] {
    changes height or moves when the form is saved. For the fields you type into,
    read hides the box's lines, fill and glyphs while keeping its exact metrics —
    border widths and padding stay, so only the chrome goes. */
+/* Read mode pulls the box left by exactly its own left padding, so the value sits
+   on the label's edge instead of 14px inside it. A margin — not a padding change —
+   because the box keeps its width, so a wrapping value keeps its line count and the
+   fields below it don't move when Edit comes on. Tracks the controls' px-3.5. */
+.read-field {
+  margin-left: -0.875rem;
+}
 .read-field,
 .read-field *:not(.ai-field-loading, .ai-field-loading *) {
   background-color: transparent !important;
@@ -1146,7 +1153,8 @@ input[type="date"] {
    compete with three things nobody chose. `visibility` keeps their space, so the
    row is the same height and the answer stays put when you switch to Edit. */
 .read-choice [aria-pressed="false"],
-.read-choice [aria-checked="false"] {
+.read-choice [aria-checked="false"],
+.read-choice [data-choice="rail"] {
   visibility: hidden;
 }
 /* The picked option keeps whatever shape it has — a filled pill stays a pill, a

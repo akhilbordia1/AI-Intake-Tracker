@@ -21,7 +21,7 @@ const FIELD_FILL = "bg-[var(--field-fill)] hover:bg-[var(--field-fill-hover)]";
 const FOCUS_RING = "focus:ring-2 focus:ring-[var(--accent-ring)]";
 const FOCUS_RING_VISIBLE = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]";
 const BASE_INPUT = cn(
-  "h-10 w-full rounded-[10px] border px-3.5 text-[15px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)]",
+  "h-10 w-full rounded-[10px] border px-3.5 text-[16px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)]",
   FIELD_FILL,
   FOCUS_RING,
 );
@@ -35,7 +35,7 @@ function borderClass(error?: string) {
 export function FieldHeader({ label, required, hint }: { label: string; required?: boolean; hint?: string }) {
   return (
     <div className="mb-2 flex items-center gap-2">
-      <span className="text-[12px] font-medium text-[var(--text-primary)]">
+      <span className="text-[12px] font-medium tracking-[0.01em] text-[var(--text-muted)]">
         {label}
         {required ? <span className="ml-0.5 text-[var(--risk-high-fg)]">*</span> : null}
       </span>
@@ -152,7 +152,7 @@ export function SmartTextarea({
           maxLength={maxLength}
           aria-invalid={Boolean(error)}
           className={cn(
-            "w-full resize-none rounded-[12px] border py-2.5 pl-3.5 text-[15px] leading-[1.6] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)]",
+            "w-full resize-none rounded-[12px] border py-2.5 pl-3.5 text-[16px] leading-[1.6] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)]",
             FIELD_FILL,
             FOCUS_RING,
             borderClass(error),
@@ -291,7 +291,7 @@ export function Segmented({
               aria-pressed={selected}
               onClick={() => onChange(option)}
               className={cn(
-                "h-9 rounded-[10px] border border-transparent px-3 text-[15px] transition",
+                "h-9 rounded-[10px] border border-transparent px-3 text-[16px] transition",
                 FOCUS_RING_VISIBLE,
                 selected
                   ? "bg-[var(--surface)] font-medium text-[var(--text-primary)] shadow-[var(--shadow-btn-raised)] ring-1 ring-[var(--border-default)]"
@@ -341,7 +341,7 @@ export function SegmentedToggle({
               aria-checked={selected}
               onClick={() => onChange(option)}
               className={cn(
-                "rounded-full px-3.5 py-1.5 text-[15px] transition",
+                "rounded-full px-3.5 py-1.5 text-[16px] transition",
                 FOCUS_RING_VISIBLE,
                 selected
                   ? "bg-[var(--surface)] font-medium text-[var(--text-primary)] shadow-[var(--shadow-btn-raised)]"
@@ -392,7 +392,7 @@ export function ChipMultiSelect({
               aria-pressed={selected}
               onClick={() => toggle(option)}
               className={cn(
-                "inline-flex h-8 items-center gap-1.5 rounded-full border border-transparent px-3 text-[13px] font-medium transition",
+                "inline-flex h-8 items-center gap-1.5 rounded-full border border-transparent px-3 text-[14px] font-medium transition",
                 FOCUS_RING_VISIBLE,
                 selected ? "bg-[var(--accent)] text-white" : cn(FIELD_FILL, "text-[var(--text-body)]"),
               )}
@@ -442,7 +442,7 @@ export function ChipSelect({
               aria-checked={selected}
               onClick={() => onChange(option)}
               className={cn(
-                "inline-flex h-8 items-center gap-1.5 rounded-full border border-transparent px-3 text-[13px] font-medium transition",
+                "inline-flex h-8 items-center gap-1.5 rounded-full border border-transparent px-3 text-[14px] font-medium transition",
                 FOCUS_RING_VISIBLE,
                 selected ? "bg-[var(--accent)] text-white" : cn(FIELD_FILL, "text-[var(--text-body)]"),
               )}
@@ -611,7 +611,7 @@ export function CurrencyField({
           value={amount}
           onChange={(event) => onAmount(event.target.value)}
           placeholder={placeholder}
-          className="h-full min-w-0 flex-1 bg-transparent px-1.5 font-mono text-[14px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
+          className="h-full min-w-0 flex-1 bg-transparent px-1.5 font-mono text-[15px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
         />
         {suffix ? <span className="flex h-full shrink-0 items-center pr-3 text-[12px] text-[var(--text-muted)]">{suffix}</span> : null}
         {stepBy ? (
@@ -873,7 +873,7 @@ export function RadioGroup({
               role="radio"
               aria-checked={selected}
               onClick={() => onChange(option)}
-              className="group inline-flex items-center gap-2 text-[15px] text-[var(--text-primary)]"
+              className="group inline-flex items-center gap-2 text-[16px] text-[var(--text-primary)]"
             >
               <span
                 className={cn(
@@ -915,6 +915,12 @@ export function RatingStepper({
     <div className="min-w-0">
       {hideHeader ? null : <FieldHeader label={label} required={required} hint={hint} />}
       <div className="flex items-center gap-4">
+        {/* The number leads, because in read mode it is the whole field — the steps
+            are hidden and a value sitting after their empty space floated into the
+            middle of the row. */}
+        <span className="min-w-[2.5rem] shrink-0 font-mono text-[15px] font-medium text-[var(--text-primary)]">
+          {current ? `${current}/${max}` : "—"}
+        </span>
         <div className="flex items-center">
           {Array.from({ length: max }, (_, index) => {
             const step = index + 1;
@@ -922,7 +928,13 @@ export function RatingStepper({
             return (
               <Fragment key={step}>
                 {index > 0 ? (
-                  <span className={cn("h-[2px] w-6 sm:w-9", step <= current ? "bg-[var(--accent)]" : "bg-[var(--border-default)]")} />
+                  // The rail is scaffolding for the steps: in read mode the steps
+                  // you didn't pick are hidden, and a bare rail with nothing on it
+                  // read as four stray dashes.
+                  <span
+                    data-choice="rail"
+                    className={cn("h-[2px] w-6 sm:w-9", step <= current ? "bg-[var(--accent)]" : "bg-[var(--border-default)]")}
+                  />
                 ) : null}
                 <button
                   type="button"
@@ -940,7 +952,6 @@ export function RatingStepper({
             );
           })}
         </div>
-        <span className="font-mono text-[14px] font-medium text-[var(--text-primary)]">{current ? `${current}/${max}` : ""}</span>
       </div>
       <FieldError error={error} />
     </div>
