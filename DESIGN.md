@@ -55,7 +55,8 @@ Scale: `--accent-strong` (accent text), `--accent-soft` (tints, focus rings),
 
 ### Status tones
 
-Four triplets — ink / tint / hairline. **One green, one amber, one red, one clay.**
+Five triplets — ink / tint / hairline. **One green, one amber, one red, one clay,
+one violet.**
 Info is its own clay hue rather than the accent's: the accent is green, and
 "your turn" must not read as "passed".
 
@@ -65,6 +66,7 @@ Info is its own clay hue rather than the accent's: the accent is green, and
 | `warning` | In review, locked, waiting on a decision |
 | `danger` | Blocked, rejected, returned |
 | `info` | Active / current / your turn (warm clay, its own hue) |
+| `waived` | Skipped — out of this record's path, neither done nor waiting |
 | `neutral` | Counts and labels that aren't status at all |
 
 Use them via `<Tag tone="success">`, never by hand.

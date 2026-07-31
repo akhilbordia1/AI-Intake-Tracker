@@ -210,7 +210,7 @@ export type Gate = {
   id: string;
   name: string;
   afterStage: string; // the gate sits at the end of this stage
-  status: "Not started" | "In review" | "Passed" | "Blocked" | "Rejected";
+  status: "Not started" | "In review" | "Passed" | "Blocked" | "Rejected" | "Waived";
   approver: string; // distinct from the stage owner (the preparer)
   decided: string | null;
   artifacts: string[];
@@ -234,7 +234,8 @@ export const GATES: Gate[] = [
     id: "R2",
     name: "Governance & investment",
     afterStage: "GTAC",
-    status: "Passed",
+    // Waived with the stage it sits after: no board review, no board decision.
+    status: "Waived",
     approver: "Victor H.",
     decided: "Jun 28, 2026",
     artifacts: ["Business case", "GTAC minutes", "Risk register"],
@@ -268,6 +269,7 @@ export function gateForStage(stageName: string) {
 
 export const GATE_TONE: Record<Gate["status"], { fg: string; bg: string; border: string }> = {
   "Not started": { fg: "var(--text-muted)", bg: "var(--surface-muted)", border: "var(--border-default)" },
+  Waived: { fg: "var(--text-muted)", bg: "var(--surface-muted)", border: "var(--border-default)" },
   "In review": { fg: "#a15c11", bg: "#f6f0e6", border: "#e6d4b8" },
   Passed: { fg: "#15803d", bg: "#eef4ee", border: "#bfdcc7" },
   Blocked: { fg: "#b32020", bg: "#f7eaea", border: "#e6c3c3" },
@@ -302,7 +304,67 @@ export const RECORD_DETAILS: [string, string][] = [
 // R2 passed, R3 in review) and the newest entry in the activity log — so the
 // overview and the deep links into /detail agree on what's done.
 export const ACTIVE_STAGE_INDEX = STAGES.findIndex((stage) => stage.name === "Solutionise and Production");
-export const COMPLETED_STAGE_INDEXES = Array.from({ length: ACTIVE_STAGE_INDEX }, (_, index) => index);
+
+// ── Skipped stages ──
+// Not every use case walks all twelve. A GTAC board review is waived when the
+// investment sits under the board's threshold, so the stage is neither done nor
+// waiting — it is out of this record's path, with a reason and whose call it was.
+// A skipped stage keeps its place in the numbering (stage 7 is still stage 7) but
+// leaves the denominator: progress is measured against the path a record walks.
+export type StageSkip = { reason: string; by: string; when: string };
+
+// Which stages may be skipped at all. Everything else is mandatory, so the
+// control never appears on a stage that can't be waived.
+export const SKIPPABLE_STAGES = new Set(["GTAC"]);
+
+// What this record actually did: the board review was waived, so GTAC is skipped
+// rather than complete. This is the record's history — the live flow in /detail
+// doesn't pre-apply it, because walking to GTAC is where the decision gets made.
+export const SKIPPED_STAGES: Record<string, StageSkip> = {
+  GTAC: {
+    reason: "Investment under the 500K board threshold — sponsor approved it instead of the board.",
+    by: "Victor H.",
+    when: "Jun 28, 2026",
+  },
+};
+
+export const SKIPPED_STAGE_INDEXES = STAGES.flatMap((stage, index) => (SKIPPED_STAGES[stage.name] ? [index] : []));
+
+export const COMPLETED_STAGE_INDEXES = Array.from({ length: ACTIVE_STAGE_INDEX }, (_, index) => index).filter(
+  (index) => !SKIPPED_STAGE_INDEXES.includes(index),
+);
+
+// How many stages this record actually has to walk, and where a stage sits in
+// that walk — both exclude the skipped ones, so "8 of 11" never counts a stage
+// nobody will ever open.
+export const PATH_STAGE_COUNT = STAGES.length - SKIPPED_STAGE_INDEXES.length;
+
+export function pathPosition(index: number, skipped: number[] = SKIPPED_STAGE_INDEXES) {
+  return index + 1 - skipped.filter((skippedIndex) => skippedIndex < index).length;
+}
+
+export type StageState = "complete" | "active" | "skipped" | "upcoming";
+
+export function stageStateAt(
+  index: number,
+  {
+    active = ACTIVE_STAGE_INDEX,
+    completed = COMPLETED_STAGE_INDEXES,
+    skipped = SKIPPED_STAGE_INDEXES,
+  }: { active?: number; completed?: number[]; skipped?: number[] } = {},
+): StageState {
+  if (skipped.includes(index)) return "skipped";
+  if (completed.includes(index)) return "complete";
+  return index === active ? "active" : "upcoming";
+}
+
+// The next stage a record moves to — over any skipped one, so submitting Business
+// case lands on Plan & KPI rather than on a stage that was waived.
+export function nextStageIndex(from: number, skipped: number[] = SKIPPED_STAGE_INDEXES) {
+  let next = from + 1;
+  while (next < STAGES.length && skipped.includes(next)) next += 1;
+  return next < STAGES.length ? next : null;
+}
 
 // The row a stage reads as being *about* — its outcome, else its first answer.
 export const OUTCOME_ROW = /decision|outcome|recommend|status|tier|verdict|score|priority|approv|result/i;

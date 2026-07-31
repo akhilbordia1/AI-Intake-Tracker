@@ -33,6 +33,7 @@ function gateStatusTone(status: Gate["status"]): Tone {
   if (status === "Passed") return "success";
   if (status === "Blocked" || status === "Rejected") return "danger";
   if (status === "In review") return "warning";
+  if (status === "Waived") return "waived";
   return "neutral";
 }
 

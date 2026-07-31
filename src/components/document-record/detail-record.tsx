@@ -6,10 +6,14 @@ import {
   OUTCOME_ROW,
   RECORD_ACTIVITY,
   SHORT_STAGE_LABELS,
+  SKIPPABLE_STAGES,
+  SKIPPED_STAGES,
   STAGE_INTROS,
   STAGES,
   firstName,
   gateForStage,
+  nextStageIndex,
+  pathPosition,
   type StageItem,
 } from "@/data/lifecycle";
 import { RecordDetailsSheet } from "@/components/document-record/record-details-sheet";
@@ -26,6 +30,7 @@ import {
   FileText,
   Info,
   Lock,
+  MinusCircle,
   Pencil,
   RotateCcw,
   ShieldCheck,
@@ -86,6 +91,10 @@ export function DetailRecordPage({ initialStageIndex, initialIdea }: { initialSt
   const [dataStageIndexes, setDataStageIndexes] = useState<number[]>(() =>
     deepLink === null ? [defaultStageIndex] : Array.from({ length: deepLink }, (_, index) => index),
   );
+  // Stages this record doesn't walk. Empty to start even though the record's
+  // history has GTAC waived: the flow walks every stage and offers Skip on the
+  // ones that may be waived, so arriving at GTAC is where that call gets made.
+  const [skippedStageIndexes, setSkippedStageIndexes] = useState<number[]>([]);
   const [currentUser, setCurrentUser] = useState("Priya N.");
   const [rejections, setRejections] = useState<Rejection[]>([]);
   const [kickbacks, setKickbacks] = useState<Kickback[]>([]);
@@ -96,7 +105,10 @@ export function DetailRecordPage({ initialStageIndex, initialIdea }: { initialSt
   // deep-linked stage already has that context.
 
   const currentStage = STAGES[stageIndex] ?? STAGES[0];
-  const isCurrentComplete = completedStageIndexes.includes(stageIndex);
+  const isCurrentSkipped = skippedStageIndexes.includes(stageIndex);
+  // A skipped stage is closed like a complete one — its form is inert — but it is
+  // not done, so it never counts towards progress.
+  const isCurrentComplete = completedStageIndexes.includes(stageIndex) && !isCurrentSkipped;
   // Role-based: you can only edit / complete / decide on a stage your profile owns.
   const canComplete = currentStage.owner === currentUser;
   // An open stage owned by someone else — surfaced as a header indicator.
@@ -139,7 +151,25 @@ export function DetailRecordPage({ initialStageIndex, initialIdea }: { initialSt
     if (!wasComplete) setDataStageIndexes((indexes) => (indexes.includes(stageIndex) ? indexes : [...indexes, stageIndex]));
     setKickbacks((current) => current.filter((kickback) => kickback.to !== stageIndex));
     setRejections((current) => current.filter((rejection) => rejection.index !== stageIndex));
-    if (!wasComplete && stageIndex < STAGES.length - 1) selectStage(stageIndex + 1);
+    if (!wasComplete) {
+      const next = nextStageIndex(stageIndex, skippedStageIndexes);
+      if (next !== null) selectStage(next);
+    }
+  }
+
+  // Skipping is only offered on stages that may be waived, and only to the owner:
+  // taking a stage out of a governance path is a decision, not a view preference.
+  function toggleCurrentStageSkip() {
+    if (!canComplete || !SKIPPABLE_STAGES.has(currentStage.name)) return;
+    if (skippedStageIndexes.includes(stageIndex)) {
+      setSkippedStageIndexes((indexes) => indexes.filter((index) => index !== stageIndex));
+      return;
+    }
+    setSkippedStageIndexes((indexes) => [...indexes, stageIndex]);
+    // Reopened if it had been submitted: a skipped stage holds no outcome.
+    setCompletedStageIndexes((indexes) => indexes.filter((index) => index !== stageIndex));
+    const next = nextStageIndex(stageIndex, [...skippedStageIndexes, stageIndex]);
+    if (next !== null) selectStage(next);
   }
 
   function clearCurrentStatus() {
@@ -162,6 +192,10 @@ export function DetailRecordPage({ initialStageIndex, initialIdea }: { initialSt
         onSelectStage={selectStage}
         prefill={dataStageIndexes.includes(stageIndex)}
         isComplete={isCurrentComplete}
+        isSkipped={isCurrentSkipped}
+        skippedIndexes={skippedStageIndexes}
+        canSkip={canComplete && SKIPPABLE_STAGES.has(currentStage.name)}
+        onToggleSkip={toggleCurrentStageSkip}
         onMarkComplete={toggleCurrentStageComplete}
         onEditBlocked={showToast}
         initialIdea={initialIdea}
@@ -532,16 +566,20 @@ function MetaDot() {
 // that — a boxed pill made the header look like a row of badges.
 function StageStatusPill({
   isComplete,
+  isSkipped = false,
   canEdit,
   owner,
   blockedReason,
 }: {
   isComplete: boolean;
+  isSkipped?: boolean;
   canEdit: boolean;
   owner: string;
   blockedReason: string | null;
 }) {
-  const state = isComplete
+  const state = isSkipped
+    ? { label: "Skipped", colour: "var(--tone-waived-fg)", title: "Not part of this record's path" as string | undefined }
+    : isComplete
     ? { label: "Complete", colour: "var(--status-success)", title: undefined as string | undefined }
     : !canEdit
       ? { label: "Locked", colour: "var(--tone-warning-fg)", title: `${owner} owns this stage — switch profile to edit` }
@@ -566,6 +604,7 @@ function StageFormHeader({
   currentUser,
   canEdit,
   isComplete = false,
+  isSkipped = false,
   heading,
 }: {
   stage: StageItem;
@@ -573,6 +612,7 @@ function StageFormHeader({
   currentUser: string;
   canEdit: boolean;
   isComplete?: boolean;
+  isSkipped?: boolean;
   heading?: ReactNode;
 }) {
   const ownedByMe = stage.owner === currentUser;
@@ -600,7 +640,7 @@ function StageFormHeader({
       </span>
 
       <span className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-x-2 gap-y-1.5 text-[12px] text-[var(--text-muted)]">
-        <StageStatusPill isComplete={isComplete} canEdit={canEdit} owner={stage.owner} blockedReason={blockedReason} />
+        <StageStatusPill isComplete={isComplete} isSkipped={isSkipped} canEdit={canEdit} owner={stage.owner} blockedReason={blockedReason} />
 
         <MetaDot />
         <span className="shrink-0">
@@ -610,13 +650,19 @@ function StageFormHeader({
         {gate && gateTone ? (
           <>
             <MetaDot />
+            {/* A skipped stage takes its gate with it: no board review, no board
+                decision. The gate data is static, so the state comes from the record. */}
             <span
-              data-tip={`${gate.id} · ${gate.name} — approver ${gate.approver}`}
+              data-tip={isSkipped ? `${gate.id} · ${gate.name} — waived with the stage` : `${gate.id} · ${gate.name} — approver ${gate.approver}`}
               className="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold"
-              style={{ color: gateTone.fg, background: gateTone.bg, borderColor: gateTone.border }}
+              style={
+                isSkipped
+                  ? { color: "var(--tone-waived-fg)", background: "var(--tone-waived-bg)", borderColor: "var(--tone-waived-border)" }
+                  : { color: gateTone.fg, background: gateTone.bg, borderColor: gateTone.border }
+              }
             >
               <ShieldCheck size={11} />
-              <span className="font-mono">{gate.id}</span> · {titleCaseTag(gate.status)}
+              <span className="font-mono">{gate.id}</span> · {titleCaseTag(isSkipped ? "Waived" : gate.status)}
             </span>
           </>
         ) : null}
@@ -641,6 +687,7 @@ function StageFieldsGrid({
   currentUser,
   canEdit,
   isComplete = false,
+  isSkipped = false,
   embedded = false,
   onBlockedEdit,
   editAll = false,
@@ -651,6 +698,7 @@ function StageFieldsGrid({
   currentUser: string;
   canEdit: boolean;
   isComplete?: boolean;
+  isSkipped?: boolean;
   embedded?: boolean;
   onBlockedEdit?: () => void;
   editAll?: boolean;
@@ -666,7 +714,7 @@ function StageFieldsGrid({
       className={cn(embedded ? "px-6 pb-10 pt-5" : "no-scrollbar min-h-0 flex-1 overflow-y-auto px-8 pb-12 pt-6")}
       aria-label={`${stage.name} stage`}
     >
-      <StageFormHeader stage={stage} s={s} currentUser={currentUser} canEdit={canEdit} isComplete={isComplete} heading={heading} />
+      <StageFormHeader stage={stage} s={s} currentUser={currentUser} canEdit={canEdit} isComplete={isComplete} isSkipped={isSkipped} heading={heading} />
 
       {/* One column, on a reading measure: a two-up grid tied every row's height
           to its tallest cell and left long values fighting for half the width. */}
@@ -696,11 +744,13 @@ function StageFieldsGrid({
 function StagePathMenu({
   activeIndex,
   completedIndexes,
+  skippedIndexes = [],
   onSelect,
   variant = "heading",
 }: {
   activeIndex: number;
   completedIndexes: number[];
+  skippedIndexes?: number[];
   onSelect: (index: number) => void;
   // "heading" is the stage header's title; "crumb" is the last breadcrumb step.
   variant?: "heading" | "crumb";
@@ -790,7 +840,8 @@ function StagePathMenu({
         </span>
         {variant === "heading" ? (
           <span className="font-mono shrink-0 whitespace-nowrap text-[11px] font-medium text-[var(--text-muted)]">
-            {activeIndex + 1}/{STAGES.length}
+            {/* Position in the path this record walks — a skipped stage isn't a step. */}
+            {pathPosition(activeIndex, skippedIndexes)}/{STAGES.length - skippedIndexes.length}
           </span>
         ) : null}
         <ChevronDown size={variant === "heading" ? 14 : 13} className={cn("shrink-0 text-[var(--text-muted)] transition", open && "rotate-180")} />
@@ -806,7 +857,8 @@ function StagePathMenu({
               className="no-scrollbar fixed z-[80] overflow-y-auto overscroll-contain"
             >
               {STAGES.map((stage, index) => {
-                const complete = completedIndexes.includes(index);
+                const skipped = skippedIndexes.includes(index);
+                const complete = !skipped && completedIndexes.includes(index);
                 const current = index === activeIndex;
                 return (
                   <MenuItem
@@ -815,7 +867,12 @@ function StagePathMenu({
                     selected={current}
                     icon={<span className="w-[14px] font-mono text-right text-[11px]">{index + 1}</span>}
                     meta={
-                      complete ? (
+                      skipped ? (
+                        <span className="inline-flex items-center gap-1 text-[var(--tone-waived-fg)]">
+                          <MinusCircle size={12} />
+                          Skipped
+                        </span>
+                      ) : complete ? (
                         <span className="inline-flex items-center gap-1 text-[var(--tone-success-fg)]">
                           <Check size={12} strokeWidth={3} />
                           Done
@@ -915,6 +972,10 @@ function SplitStageView({
   onSelectStage,
   prefill,
   isComplete,
+  isSkipped = false,
+  skippedIndexes = [],
+  canSkip = false,
+  onToggleSkip,
   onMarkComplete,
   onEditBlocked,
   initialIdea,
@@ -931,6 +992,13 @@ function SplitStageView({
   onSelectStage: (index: number) => void;
   prefill: boolean;
   isComplete: boolean;
+  // Out of this record's path: closed like a complete stage, but with no outcome
+  // and no place in the progress count.
+  isSkipped?: boolean;
+  skippedIndexes?: number[];
+  // Only the owner of a skippable stage may waive it.
+  canSkip?: boolean;
+  onToggleSkip?: () => void;
   onMarkComplete: () => void;
   onEditBlocked: (message: string) => void;
   // What the user described on the way in, used as the chat's opening message.
@@ -941,8 +1009,9 @@ function SplitStageView({
   const s = useStageFields(stage, prefill);
   const owned = stage.owner === currentUser;
   const bespoke = stage.name in BESPOKE_STAGE_FORMS;
-  // Conversational fill runs only on an open stage you own that isn't bespoke.
-  const guided = !isComplete && owned && !bespoke;
+  // Conversational fill runs only on an open stage you own that isn't bespoke —
+  // and never on a stage this record has skipped.
+  const guided = !isComplete && !isSkipped && owned && !bespoke;
   // Whole-form edit mode, toggled from the action bar.
   const [editAll, setEditAll] = useState(false);
   // Chat header shows a divider once the conversation scrolls beneath it. The
@@ -978,7 +1047,12 @@ function SplitStageView({
   } else {
     let intro: string;
     let editNote: string | undefined;
-    if (!isComplete && !owned) {
+    if (isSkipped) {
+      intro = `${stage.name} is skipped on this record — it isn't part of the path this use case walks, so there's nothing to capture here. ${
+        STAGE_BRIEFS[stage.name] ?? ""
+      } Ask me why, or reinstate it on the form panel.`.trim();
+      editNote = owned ? "Reinstate it on the form panel to record it after all." : `${stage.owner} can reinstate it.`;
+    } else if (!isComplete && !owned) {
       intro =
         `${STAGE_BRIEFS[stage.name] ?? ""} ${stage.owner} owns this one, so recording changes needs their profile — but ask me anything about it.`.trim();
       editNote = `Switch to ${stage.owner} up top to edit.`;
@@ -989,13 +1063,13 @@ function SplitStageView({
       intro = `${stage.name} is complete. ${STAGE_BRIEFS[stage.name] ?? ""} Ask me anything about what was captured.`.trim();
       editNote = owned ? "Reopen it on the form panel to make changes." : `${stage.owner} can reopen it to make changes.`;
     }
-    chat = <AsideChat stage={stage} intro={intro} editNote={editNote} complete={isComplete} />;
+    chat = <AsideChat stage={stage} intro={intro} editNote={editNote} complete={isComplete || isSkipped} />;
   }
 
   // ---- The form/document, filling live. Completed stages show the
   // summary card; owned bespoke stages their custom widgets; else the field grid. ----
   let form: ReactNode;
-  if (bespoke && owned && !isComplete) {
+  if (bespoke && owned && !isComplete && !isSkipped) {
     // The bespoke forms get the same header as every other stage — stage-path
     // dropdown, owner, status, gate — instead of a title bar of their own.
     form = (
@@ -1005,7 +1079,9 @@ function SplitStageView({
           s={s}
           currentUser={currentUser}
           canEdit
-          heading={<StagePathMenu activeIndex={stageIndex} completedIndexes={completedIndexes} onSelect={onSelectStage} />}
+          heading={
+            <StagePathMenu activeIndex={stageIndex} completedIndexes={completedIndexes} skippedIndexes={skippedIndexes} onSelect={onSelectStage} />
+          }
         />
         <div className="mt-7">{BESPOKE_STAGE_FORMS[stage.name]()}</div>
       </div>
@@ -1020,9 +1096,12 @@ function SplitStageView({
         currentUser={currentUser}
         canEdit={guided}
         isComplete={isComplete}
+        isSkipped={isSkipped}
         embedded
         editAll={editAll}
-        heading={<StagePathMenu activeIndex={stageIndex} completedIndexes={completedIndexes} onSelect={onSelectStage} />}
+        heading={
+            <StagePathMenu activeIndex={stageIndex} completedIndexes={completedIndexes} skippedIndexes={skippedIndexes} onSelect={onSelectStage} />
+          }
         onBlockedEdit={
           guided
             ? undefined
@@ -1039,15 +1118,17 @@ function SplitStageView({
 
   // Submit (owner, open stages). For guided stages it unlocks once every detail
   // is captured and any gate is cleared.
-  const showSubmit = owned && !isComplete;
-  // Naming the next stage tells the user what submitting actually does. The long
-  // stage names use their short label so the button stays one line.
-  const nextStage = STAGES[stageIndex + 1];
+  const showSubmit = owned && !isComplete && !isSkipped;
+  // Naming the next stage tells the user what submitting actually does — and it
+  // names the stage the record will actually land on, stepping over any skipped
+  // one. The long stage names use their short label so the button stays one line.
+  const nextIndex = nextStageIndex(stageIndex, skippedIndexes);
+  const nextStage = nextIndex === null ? undefined : STAGES[nextIndex];
   const submitLabel =
     stage.name === "GTAC"
       ? "Submit decision"
-      : nextStage
-        ? `Proceed to ${SHORT_STAGE_LABELS[stageIndex + 1] ?? nextStage.name}`
+      : nextStage && nextIndex !== null
+        ? `Proceed to ${SHORT_STAGE_LABELS[nextIndex] ?? nextStage.name}`
         : "Complete the record";
   let submitReady = true;
   let submitHint: string | undefined;
@@ -1101,7 +1182,15 @@ function SplitStageView({
               { label: USE_CASE.id, href: "/overview", icon: <FileText size={13} />, title: USE_CASE.name },
               {
                 label: stage.name,
-                node: <StagePathMenu activeIndex={stageIndex} completedIndexes={completedIndexes} onSelect={onSelectStage} variant="crumb" />,
+                node: (
+                  <StagePathMenu
+                    activeIndex={stageIndex}
+                    completedIndexes={completedIndexes}
+                    skippedIndexes={skippedIndexes}
+                    onSelect={onSelectStage}
+                    variant="crumb"
+                  />
+                ),
               },
             ]}
           />
@@ -1122,6 +1211,20 @@ function SplitStageView({
               </span>
             ) : null}
             <span className="ml-auto flex shrink-0 items-center gap-2">
+              {/* Skipping is a decision on the record, so it sits with the other
+                  stage actions rather than hidden in a menu. Only offered where the
+                  stage may be waived and you own it. */}
+              {canSkip && onToggleSkip ? (
+                <button
+                  type="button"
+                  onClick={onToggleSkip}
+                  data-tip={isSkipped ? "Put this stage back in the path" : "Take this stage out of this record's path"}
+                  className={cn(shellButton(), isSkipped && "border-[var(--tone-waived-border)] bg-[var(--tone-waived-bg)] text-[var(--tone-waived-fg)]")}
+                >
+                  {isSkipped ? <RotateCcw size={13} /> : <MinusCircle size={13} />}
+                  {isSkipped ? "Reinstate stage" : "Skip stage"}
+                </button>
+              ) : null}
               {isComplete && owned ? (
                 <button type="button" onClick={onMarkComplete} className={shellButton()}>
                   <RotateCcw size={13} />
@@ -2104,6 +2207,10 @@ function priorStagesRecap(stageName: string): string {
   const prior = STAGES.slice(0, Math.max(0, index));
   if (!prior.length) return "This is the first stage — nothing has happened before it yet.";
   const lines = prior.map((item) => {
+    // A skipped stage has a reason, not an outcome — reporting its first row would
+    // claim the record captured something it never opened.
+    const skip = SKIPPED_STAGES[item.name];
+    if (skip) return `• ${item.name} — skipped: ${clip(skip.reason, 64)} (${skip.by})`;
     const row = item.rows.find(([label]) => OUTCOME_ROW.test(label)) ?? item.rows[0];
     return `• ${item.name} — ${clip(row[1], 64)} (${item.owner})`;
   });

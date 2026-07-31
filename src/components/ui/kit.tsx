@@ -130,7 +130,7 @@ export function IconButton({
 // state, board lifecycle. Tone names map to the token triplets, so a green here
 // is the same green everywhere.
 
-export type Tone = "neutral" | "info" | "success" | "warning" | "danger";
+export type Tone = "neutral" | "info" | "success" | "warning" | "danger" | "waived";
 
 // Every small tag — priority, gate, lifecycle, stage, the +n overflow — uses this
 // geometry. Mixed radii and paddings made a row of chips look ragged.
@@ -175,6 +175,7 @@ export const TONE_CLASS_MANIFEST = [
   "border-[var(--tone-success-border)] bg-[var(--tone-success-bg)] text-[var(--tone-success-fg)]",
   "border-[var(--tone-warning-border)] bg-[var(--tone-warning-bg)] text-[var(--tone-warning-fg)]",
   "border-[var(--tone-danger-border)] bg-[var(--tone-danger-bg)] text-[var(--tone-danger-fg)]",
+  "border-[var(--tone-waived-border)] bg-[var(--tone-waived-bg)] text-[var(--tone-waived-fg)]",
 ] as const;
 
 // ── Surfaces ──

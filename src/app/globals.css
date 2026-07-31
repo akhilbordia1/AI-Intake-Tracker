@@ -96,6 +96,12 @@
   --tone-info-fg: #9d5346;
   --tone-info-bg: #f7eae5;
   --tone-info-border: #e5c8bd;
+  /* Waived / skipped — a state of its own. Grey already means "a count, not a
+     status", so a skipped stage would have disappeared into it. Muted violet is
+     the one hue not spoken for by pass / wait / block / your-turn. */
+  --tone-waived-fg: #6b5f8c;
+  --tone-waived-bg: #f3f1f8;
+  --tone-waived-border: #dbd5e8;
   --tone-neutral-fg: var(--text-label);
   --tone-neutral-bg: var(--surface-strong);
   --tone-neutral-border: var(--border-default);

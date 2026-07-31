@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Circle, CircleDot, FileText, Flag, Gavel, Info, ListChecks, User } from "lucide-react";
+import { CheckCircle2, Circle, CircleDot, FileText, Flag, Gavel, Info, ListChecks, MinusCircle, User } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useRef, useState, type ReactNode } from "react";
 
@@ -17,9 +17,16 @@ import {
   COMPLETED_STAGE_INDEXES,
   GATES,
   OUTCOME_ROW,
+  PATH_STAGE_COUNT,
+  SKIPPED_STAGES,
+  SKIPPED_STAGE_INDEXES,
   STAGE_INTROS,
   STAGES,
   firstName,
+  nextStageIndex,
+  pathPosition,
+  stageStateAt,
+  type StageState,
 } from "@/data/lifecycle";
 import { CHIP, Tag, type Tone } from "@/components/ui/kit";
 import { cn } from "@/lib/cn";
@@ -30,12 +37,9 @@ import { cn } from "@/lib/cn";
 // carries its own outcome, so there's no separate wall of captured fields). All
 // of it reads from STAGES / GATES / RECORD_DETAILS — there is no second dataset.
 
-type StageState = "complete" | "active" | "upcoming";
-
-function stateOf(index: number): StageState {
-  if (COMPLETED_STAGE_INDEXES.includes(index)) return "complete";
-  return index === ACTIVE_STAGE_INDEX ? "active" : "upcoming";
-}
+// State comes from the lifecycle, so the overview, the record and the stage path
+// can't disagree about what a stage is — including the skipped ones.
+const stateOf = (index: number) => stageStateAt(index);
 
 // ── Role-aware actions ──
 // One list, ordered yours-first. "Yours" is anything the current profile is the
@@ -80,7 +84,8 @@ function actionsFor(person: string): ActionItem[] {
   // Gates. A gate the lifecycle has reached is a live decision; one it hasn't is
   // only worth showing to the person who will have to make it.
   for (const gate of GATES) {
-    if (gate.status === "Passed") continue;
+    // A waived gate has no decision left in it, and neither does a passed one.
+    if (gate.status === "Passed" || gate.status === "Waived") continue;
     const gateStageIndex = STAGES.findIndex((stage) => stage.name === gate.afterStage);
     const reached = gateStageIndex <= ACTIVE_STAGE_INDEX;
     const mine = gate.approver === person;
@@ -105,6 +110,8 @@ function actionsFor(person: string): ActionItem[] {
   // Stages further down the path that this person will own.
   STAGES.forEach((stage, index) => {
     if (index <= ACTIVE_STAGE_INDEX || stage.owner !== person) return;
+    // A skipped stage is nobody's work — it never opens.
+    if (SKIPPED_STAGE_INDEXES.includes(index)) return;
     items.push({
       key: `later-${index}`,
       title: stage.name,
@@ -144,11 +151,15 @@ function answerAboutRecord(question: string, person: string, actions: ActionItem
       return `• ${stage.name} — ${outcome[1]} (${stage.owner})`;
     });
     const passed = GATES.filter((gate) => gate.status === "Passed").map((gate) => gate.id);
-    return `${COMPLETED_STAGE_INDEXES.length} of ${STAGES.length} stages are complete${passed.length ? `, with ${passed.join(" and ")} passed` : ""}:\n\n${lines.join("\n")}`;
+    const waived = SKIPPED_STAGE_INDEXES.map((index) => STAGES[index].name);
+    return `${COMPLETED_STAGE_INDEXES.length} of ${PATH_STAGE_COUNT} stages are complete${passed.length ? `, with ${passed.join(" and ")} passed` : ""}${
+      waived.length ? `, and ${waived.join(" and ")} skipped` : ""
+    }:\n\n${lines.join("\n")}`;
   }
 
   if (/next|who owns|after this|upcoming/.test(asked)) {
-    const next = STAGES[ACTIVE_STAGE_INDEX + 1];
+    const nextIndex = nextStageIndex(ACTIVE_STAGE_INDEX);
+    const next = nextIndex === null ? undefined : STAGES[nextIndex];
     const active = STAGES[ACTIVE_STAGE_INDEX];
     return next
       ? `${active.name} is with ${active.owner} now. Next is ${next.name}, owned by ${next.owner} — ${STAGE_INTROS[next.name] ?? ""}`.trim()
@@ -230,7 +241,7 @@ export default function OverviewPage() {
             }}
             scrollRef={railScrollRef}
             onScrolledChange={setRailScrolled}
-            intro={`This is ${USE_CASE.name} (${USE_CASE.id}). It's at ${activeStage.name}, stage ${ACTIVE_STAGE_INDEX + 1} of ${STAGES.length}, with ${activeStage.owner} preparing it. Ask me anything, or open the workflow to record the next stage.`}
+            intro={`This is ${USE_CASE.name} (${USE_CASE.id}). It's at ${activeStage.name}, stage ${pathPosition(ACTIVE_STAGE_INDEX)} of ${PATH_STAGE_COUNT}, with ${activeStage.owner} preparing it. Ask me anything, or open the workflow to record the next stage.`}
             emptyTitle={`How can I help, ${firstName(currentUser)}?`}
             starters={[
               { label: "What's outstanding?", icon: <ListChecks size={13} /> },
@@ -286,11 +297,12 @@ export default function OverviewPage() {
 // Every stage on one row: where it is, whose it is, what came out of it. The rows
 // link into the workflow at that stage.
 
-const STATE_TONE: Record<StageState, Tone> = { complete: "success", active: "info", upcoming: "neutral" };
-const STATE_LABEL: Record<StageState, string> = { complete: "Complete", active: "In progress", upcoming: "Not started" };
+const STATE_TONE: Record<StageState, Tone> = { complete: "success", active: "info", skipped: "waived", upcoming: "neutral" };
+const STATE_LABEL: Record<StageState, string> = { complete: "Complete", active: "In progress", skipped: "Skipped", upcoming: "Not started" };
 const STATE_ICON: Record<StageState, ReactNode> = {
   complete: <CheckCircle2 size={11} />,
   active: <CircleDot size={11} />,
+  skipped: <MinusCircle size={11} />,
   upcoming: <Circle size={11} />,
 };
 
@@ -328,6 +340,7 @@ function LifecycleTable({ currentUser }: { currentUser: string }) {
         <tbody>
           {STAGES.map((stage, index) => {
             const state = stateOf(index);
+            const skip = SKIPPED_STAGES[stage.name];
             const outcome = stage.rows.find(([label]) => OUTCOME_ROW.test(label)) ?? stage.rows[0];
             const ownedByMe = stage.owner === currentUser;
             return (
@@ -336,6 +349,7 @@ function LifecycleTable({ currentUser }: { currentUser: string }) {
                 className={cn(
                   "group h-[52px] border-b border-[var(--border-hairline)] transition last:border-b-0",
                   state === "active" ? "bg-[var(--surface-muted)]" : "hover:bg-[var(--surface-hover)]",
+                  state === "skipped" && "text-[var(--text-muted)]",
                 )}
               >
                 <td className="pl-4 pr-2 align-middle">
@@ -375,11 +389,13 @@ function LifecycleTable({ currentUser }: { currentUser: string }) {
                 </td>
 
                 <td className="min-w-0 px-3 pr-4 align-middle">
+                  {/* A skipped stage has no outcome — it has a reason, and whose
+                      call it was. */}
                   <span
-                    data-tip={state === "upcoming" ? undefined : `${outcome?.[0]} — ${outcome?.[1]}`}
-                    className={cn("block truncate text-[12px]", state === "upcoming" ? "text-[var(--text-muted)]" : "text-[var(--text-body)]")}
+                    data-tip={skip ? `Skipped by ${skip.by}, ${skip.when} — ${skip.reason}` : state === "upcoming" ? undefined : `${outcome?.[0]} — ${outcome?.[1]}`}
+                    className={cn("block truncate text-[12px]", state === "complete" || state === "active" ? "text-[var(--text-body)]" : "text-[var(--text-muted)]")}
                   >
-                    {state === "upcoming" ? "Not recorded yet" : (outcome?.[1] ?? "—")}
+                    {skip ? skip.reason : state === "upcoming" ? "Not recorded yet" : (outcome?.[1] ?? "—")}
                   </span>
                 </td>
               </tr>
