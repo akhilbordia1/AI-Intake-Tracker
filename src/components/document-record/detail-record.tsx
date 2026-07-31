@@ -12,9 +12,9 @@ import {
   gateForStage,
   type StageItem,
 } from "@/data/lifecycle";
-import { GateBadge, RecordDetailsSheet } from "@/components/document-record/record-details-sheet";
+import { RecordDetailsSheet } from "@/components/document-record/record-details-sheet";
 import { RecordSummary } from "@/components/document-record/record-summary";
-import { MenuItem, MenuSurface, ProgressRing, StageIcon, VALUE_CHIP, titleCaseTag } from "@/components/ui/kit";
+import { MenuItem, MenuSurface, ProgressRing, StageIcon, titleCaseTag } from "@/components/ui/kit";
 import { cn } from "@/lib/cn";
 import {
   Ban,
@@ -179,55 +179,6 @@ export function DetailRecordPage({ initialStageIndex, initialIdea }: { initialSt
   );
 }
 
-function StageColumnHeader({ stage, currentUser, action }: { stage: StageItem; currentUser: string; action?: ReactNode }) {
-  const ownedByMe = stage.owner === currentUser;
-  const gate = gateForStage(stage.name);
-  const owner = (
-    <div className="flex items-center gap-2 text-[13px] leading-5">
-      <span className="text-[var(--text-label)]">{gate ? "Prepared by" : "Stage Owner"}</span>
-      <PersonAvatar name={stage.owner} size={20} highlight={ownedByMe} />
-      <span className={cn("text-[var(--text-primary)]", ownedByMe && "font-semibold")}>{stage.owner}</span>
-    </div>
-  );
-  const ownership = gate ? (
-    <div className="flex flex-wrap items-center gap-3">
-      {owner}
-      <span className="h-4 w-px bg-[var(--border-default)]" aria-hidden />
-      <GateBadge gate={gate} />
-    </div>
-  ) : (
-    owner
-  );
-
-  return (
-    <div
-      className="flex min-h-[52px] shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-[var(--border-soft)] px-7 py-2"
-      aria-label={`${stage.name} stage header`}
-    >
-      <div className="flex min-w-0 items-center gap-3">
-        <h2 className="font-display min-w-0 truncate text-[20px] leading-7 text-[var(--text-primary)]">{stage.name}</h2>
-        {action ? (
-          <>
-            <span className="h-4 w-px bg-[var(--border-default)]" aria-hidden />
-            {ownership}
-          </>
-        ) : null}
-      </div>
-      <div className="flex shrink-0 items-center gap-3">{action ?? ownership}</div>
-    </div>
-  );
-}
-
-function StageContent({ isComplete, stage }: { isComplete: boolean; stage: StageItem }) {
-  const bespoke = !isComplete ? BESPOKE_STAGE_FORMS[stage.name] : undefined;
-
-  return (
-    <section className="no-scrollbar min-h-0 min-w-0 flex-1 overflow-y-auto pb-6 pt-4" aria-label={`${stage.name} stage content`}>
-      {isComplete ? <StageReadOnlyRows rows={stage.rows} /> : bespoke ? bespoke() : null}
-    </section>
-  );
-}
-
 function StageStatusBanner({ note, canClear, onClear }: { note: StatusNote; canClear: boolean; onClear: () => void }) {
   const rejected = note.kind === "rejected";
   const palette = rejected
@@ -269,145 +220,10 @@ function StageStatusBanner({ note, canClear, onClear }: { note: StatusNote; canC
   );
 }
 
-const PERSON_LABEL_RE = /(assessor|sponsor|owner|lead|created by)/i;
 const STATUS_LABEL_RE = /(decision|outcome|verdict|recommendation|tier|ready|sign-off|resolution|board|drift|risk$|impact$)/i;
-
-function statusTone(value: string) {
-  const v = value.toLowerCase();
-  if (/(block|reject|upheld|no-?go|blocked|fail|high|serious|critical)/.test(v))
-    return { fg: "var(--tone-danger-fg)", bg: "var(--tone-danger-bg)", border: "var(--tone-danger-border)" };
-  if (/(condition|watch|pending|partial|needs|revise|minor|standard|medium|reindex|re-index)/.test(v))
-    return { fg: "var(--tone-warning-fg)", bg: "var(--tone-warning-bg)", border: "var(--tone-warning-border)" };
-  if (/(go\b|approve|cleared|committed|continue|proceed|recommend|locked|full|resolved|ready|yes|confirmed|complete|low|spawned)/.test(v))
-    return { fg: "var(--tone-success-fg)", bg: "var(--tone-success-bg)", border: "var(--tone-success-border)" };
-  return { fg: "var(--text-body)", bg: "var(--surface-muted)", border: "var(--border-default)" };
-}
 
 const TAG_LABEL_RE =
   /(archetype|function|delivery|sensitivity|exposure|reversibility|basis|users|complexity|path|department|team|country|window|cohort)/i;
-
-function ScaleReadValue({ value }: { value: string }) {
-  const [score, total] = value.split("/").map(Number);
-  return (
-    <span className="inline-flex items-center gap-2.5">
-      <span className="flex items-center gap-1">
-        {Array.from({ length: total }).map((_, index) => (
-          <span key={index} className={cn("h-1.5 w-1.5 rounded-full", index < score ? "bg-[var(--accent)]" : "bg-[var(--border-default)]")} />
-        ))}
-      </span>
-      <span className="font-mono text-[14px] font-medium text-[var(--text-primary)]">{value}</span>
-    </span>
-  );
-}
-
-// Currency, percentages, scores, dates — anything whose shape matters.
-const DATA_VALUE_RE = /^(?:[£$€]|~?\d)|\b\d{4}$|\d+\s*\/\s*\d+/;
-
-function ReadValue({ label, value }: { label: string; value: string }) {
-  const items = listItems(value);
-  const single = items.length === 1;
-  const short = value.length <= 30;
-
-  // KPI "current vs target" → progress meter + % reached.
-  const kpi = /^(\d+(?:\.\d+)?)%\s+of\s+(\d+(?:\.\d+)?)%/.exec(value);
-  if (kpi) {
-    const current = Number(kpi[1]);
-    const target = Number(kpi[2]);
-    const reached = target > 0 ? Math.round((current / target) * 100) : 0;
-    const hit = reached >= 100;
-    return (
-      <div className="max-w-[280px]">
-        <div className="flex items-baseline justify-between gap-3 text-[13px]">
-          <span className="font-mono font-medium text-[var(--text-primary)]">{current}%</span>
-          <span className="font-mono text-[12px] text-[var(--text-muted)]">
-            target {target}% · {reached}% reached
-          </span>
-        </div>
-        <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-[var(--surface-strong)]">
-          <div
-            className={cn("h-full rounded-full", hit ? "bg-[var(--tone-success-fg)]" : "bg-[var(--accent)]")}
-            style={{ width: `${Math.min(100, reached)}%` }}
-          />
-        </div>
-      </div>
-    );
-  }
-
-  // Multi-value → chips, in the pill shape the multi-select uses
-  if (items.length > 1 && items.every((item) => item.length <= 32)) {
-    return (
-      <div className="flex flex-wrap gap-2">
-        {items.map((item) => (
-          <span key={item} className={cn(VALUE_CHIP, "bg-[var(--surface-muted)] text-[var(--text-body)]")}>
-            {item}
-          </span>
-        ))}
-      </div>
-    );
-  }
-
-  // Rating scales (n/m) → one consistent meter, ignoring label wording
-  if (single && /^\d+\/\d+$/.test(value)) {
-    return <ScaleReadValue value={value} />;
-  }
-
-  // People → avatar + name
-  if (single && short && PERSON_LABEL_RE.test(label) && /^[A-Z]/.test(value)) {
-    return (
-      <span className="inline-flex items-center gap-2">
-        <PersonAvatar name={value} size={20} />
-        <span className="text-[15px] font-medium text-[var(--text-primary)]">{value}</span>
-      </span>
-    );
-  }
-
-  // Currency amounts → distinct styled value
-  if (CURRENCY_RE.test(value)) {
-    return <span className="font-mono block text-[14px] font-medium text-[var(--text-primary)]">{value}</span>;
-  }
-
-  // Decisions / tiers / risk / PII / autonomy → colored status badge
-  if (single && short && (STATUS_LABEL_RE.test(label) || /(pii|autonomy|oversight)/i.test(label))) {
-    const tone = statusTone(value);
-    return (
-      <span className={cn(VALUE_CHIP)} style={{ color: tone.fg, background: tone.bg, borderColor: tone.border }}>
-        <span className="h-1.5 w-1.5 rounded-full" style={{ background: tone.fg }} />
-        {value}
-      </span>
-    );
-  }
-
-  // Short attribute fields → neutral tag, in the product's chip geometry
-  if (single && short && TAG_LABEL_RE.test(label)) {
-    return <span className={cn(VALUE_CHIP, "bg-[var(--surface-muted)] text-[var(--text-body)]")}>{value}</span>;
-  }
-
-  // Numbers, money and dates are data — they take the mono face.
-  if (single && DATA_VALUE_RE.test(value)) {
-    return <span className="font-mono block text-[14px] text-[var(--text-primary)]">{value}</span>;
-  }
-
-  // Prose → the panel's width, regular weight so a long answer reads as a
-  // sentence rather than a heading.
-  return <span className="block text-[15px] leading-[1.6] text-[var(--text-primary)]">{value}</span>;
-}
-
-function StageReadOnlyRows({ rows }: { rows: StageItem["rows"] }) {
-  return (
-    <div>
-      <dl className="divide-y divide-[var(--border-hairline)] border-b border-[var(--border-hairline)]">
-        {rows.map(([label, value]) => (
-          <div key={label} className="grid grid-cols-[190px_minmax(0,1fr)] gap-7 px-7 py-4">
-            <dt className="pt-1 text-[14px] font-medium leading-5 text-[var(--text-label)]">{label}</dt>
-            <dd className="min-w-0">
-              <ReadValue label={label} value={value} />
-            </dd>
-          </div>
-        ))}
-      </dl>
-    </div>
-  );
-}
 
 type FieldKind = "toggle" | "tag" | "segmented" | "radio" | "select" | "scale" | "level" | "cards" | "chips" | "currency" | "date" | "long" | "text";
 
@@ -741,6 +557,84 @@ function StageStatusPill({
   );
 }
 
+// The stage form's header row. Both the field grid and the bespoke stage forms
+// (Plan & KPI) render it, so every stage opens with the same stage-path dropdown,
+// owner, status and gate rather than one stage having a header of its own.
+function StageFormHeader({
+  stage,
+  s,
+  currentUser,
+  canEdit,
+  isComplete = false,
+  heading,
+}: {
+  stage: StageItem;
+  s: StageFieldsState;
+  currentUser: string;
+  canEdit: boolean;
+  isComplete?: boolean;
+  heading?: ReactNode;
+}) {
+  const ownedByMe = stage.owner === currentUser;
+  const riskTier = canEdit && stage.name === "Assessment" ? computeRiskTier(s.values) : null;
+  const gate = gateForStage(stage.name);
+  const gateTone = gate ? GATE_TONE[gate.status] : null;
+  // A stage you own can still be held back by its own checklist (compliance
+  // checks, production readiness) — that reads as blocked, not simply active.
+  const blockedReason = canEdit ? stageGateReason(stage.name, s.values) : null;
+
+  // One line: the stage (which opens the stage path) on the left, its state,
+  // people and last edit as one run of metadata on the right.
+  return (
+    <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-2">
+      {heading ?? <h2 className="font-display text-[18px] leading-tight text-[var(--text-primary)]">{stage.name}</h2>}
+
+      {/* Whose stage it is belongs with its name, not in the run of metadata —
+          but outside the dropdown, so the trigger stays just the stage. */}
+      <span
+        data-tip={ownedByMe ? "You own this stage" : `${stage.owner} owns this stage`}
+        className="ml-1.5 inline-flex shrink-0 items-center gap-2 text-[12px]"
+      >
+        <PersonAvatar name={stage.owner} size={20} highlight={ownedByMe} />
+        <span className={cn("text-[var(--text-body)]", ownedByMe && "font-semibold text-[var(--text-primary)]")}>{stage.owner}</span>
+      </span>
+
+      <span className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-x-2 gap-y-1.5 text-[12px] text-[var(--text-muted)]">
+        <StageStatusPill isComplete={isComplete} canEdit={canEdit} owner={stage.owner} blockedReason={blockedReason} />
+
+        <MetaDot />
+        <span className="shrink-0">
+          Edited <span className="font-mono">{RECORD_ACTIVITY[0].when.split(",").slice(0, 2).join(",")}</span>
+        </span>
+
+        {gate && gateTone ? (
+          <>
+            <MetaDot />
+            <span
+              data-tip={`${gate.id} · ${gate.name} — approver ${gate.approver}`}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold"
+              style={{ color: gateTone.fg, background: gateTone.bg, borderColor: gateTone.border }}
+            >
+              <ShieldCheck size={11} />
+              <span className="font-mono">{gate.id}</span> · {titleCaseTag(gate.status)}
+            </span>
+          </>
+        ) : null}
+
+        {riskTier ? (
+          <span
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold"
+            style={{ color: riskTier.fg, background: riskTier.bg, borderColor: riskTier.border }}
+          >
+            <ShieldCheck size={11} />
+            {titleCaseTag(`${riskTier.tier} tier`)}
+          </span>
+        ) : null}
+      </span>
+    </div>
+  );
+}
+
 function StageFieldsGrid({
   stage,
   s,
@@ -764,13 +658,6 @@ function StageFieldsGrid({
 }) {
   // editAll (whole form editable) is controlled by the action bar.
   const readOnly = !canEdit;
-  const ownedByMe = stage.owner === currentUser;
-  const riskTier = canEdit && stage.name === "Assessment" ? computeRiskTier(s.values) : null;
-  const gate = gateForStage(stage.name);
-  const gateTone = gate ? GATE_TONE[gate.status] : null;
-  // A stage you own can still be held back by its own checklist (compliance
-  // checks, production readiness) — that reads as blocked, not simply active.
-  const blockedReason = canEdit ? stageGateReason(stage.name, s.values) : null;
 
   return (
     // embedded → a plain block inside a shared scroll (stacked stages); otherwise
@@ -779,65 +666,18 @@ function StageFieldsGrid({
       className={cn(embedded ? "px-6 pb-10 pt-5" : "no-scrollbar min-h-0 flex-1 overflow-y-auto px-8 pb-12 pt-6")}
       aria-label={`${stage.name} stage`}
     >
-      {/* Stage header, one line: the stage (which opens the stage path) on the left,
-          its state, people and last edit as one run of metadata on the right. */}
-      <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-2">
-        {heading ?? <h2 className="font-display text-[18px] leading-tight text-[var(--text-primary)]">{stage.name}</h2>}
-
-        {/* Whose stage it is belongs with its name, not in the run of metadata —
-            but outside the dropdown, so the trigger stays just the stage. */}
-        <span
-          data-tip={ownedByMe ? "You own this stage" : `${stage.owner} owns this stage`}
-          className="ml-1.5 inline-flex shrink-0 items-center gap-2 text-[12px]"
-        >
-          <PersonAvatar name={stage.owner} size={20} highlight={ownedByMe} />
-          <span className={cn("text-[var(--text-body)]", ownedByMe && "font-semibold text-[var(--text-primary)]")}>{stage.owner}</span>
-        </span>
-
-        <span className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-x-2 gap-y-1.5 text-[12px] text-[var(--text-muted)]">
-          <StageStatusPill isComplete={isComplete} canEdit={canEdit} owner={stage.owner} blockedReason={blockedReason} />
-
-          <MetaDot />
-          <span className="shrink-0">
-            Edited <span className="font-mono">{RECORD_ACTIVITY[0].when.split(",").slice(0, 2).join(",")}</span>
-          </span>
-
-          {gate && gateTone ? (
-            <>
-              <MetaDot />
-              <span
-                data-tip={`${gate.id} · ${gate.name} — approver ${gate.approver}`}
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold"
-                style={{ color: gateTone.fg, background: gateTone.bg, borderColor: gateTone.border }}
-              >
-                <ShieldCheck size={11} />
-                <span className="font-mono">{gate.id}</span> · {titleCaseTag(gate.status)}
-              </span>
-            </>
-          ) : null}
-
-          {riskTier ? (
-            <span
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold"
-              style={{ color: riskTier.fg, background: riskTier.bg, borderColor: riskTier.border }}
-            >
-              <ShieldCheck size={11} />
-              {titleCaseTag(`${riskTier.tier} tier`)}
-            </span>
-          ) : null}
-        </span>
-      </div>
+      <StageFormHeader stage={stage} s={s} currentUser={currentUser} canEdit={canEdit} isComplete={isComplete} heading={heading} />
 
       {/* One column, on a reading measure: a two-up grid tied every row's height
           to its tallest cell and left long values fighting for half the width. */}
-      <div className="mt-7 flex flex-col gap-y-6">
+      <div className="mt-7 flex flex-col gap-y-9">
         {s.fields.map((field) => (
           // No reserved height, and no centring: read and edit render the same
           // control, so the row is exactly as tall in both — a min-height that
           // applied to only one of them was itself the shift it meant to prevent.
           <div key={field.label} className="min-w-0">
             <label className="block text-[13px] font-medium text-[var(--text-label)]">{field.label}</label>
-            <div className="mt-1.5 min-w-0">
+            <div className="mt-2 min-w-0">
               <DocumentField field={field} s={s} readOnly={readOnly} onBlockedEdit={onBlockedEdit} forceEdit={editAll} />
             </div>
           </div>
@@ -1153,10 +993,18 @@ function SplitStageView({
   // summary card; owned bespoke stages their custom widgets; else the field grid. ----
   let form: ReactNode;
   if (bespoke && owned && !isComplete) {
+    // The bespoke forms get the same header as every other stage — stage-path
+    // dropdown, owner, status, gate — instead of a title bar of their own.
     form = (
-      <div className="pb-10">
-        <StageColumnHeader stage={stage} currentUser={currentUser} />
-        <StageContent isComplete={false} stage={stage} />
+      <div className="px-6 pb-10 pt-5">
+        <StageFormHeader
+          stage={stage}
+          s={s}
+          currentUser={currentUser}
+          canEdit
+          heading={<StagePathMenu activeIndex={stageIndex} completedIndexes={completedIndexes} onSelect={onSelectStage} />}
+        />
+        <div className="mt-7">{BESPOKE_STAGE_FORMS[stage.name]()}</div>
       </div>
     );
   } else {
@@ -2700,6 +2548,9 @@ function StageField({
         currency={currency}
         currencies={CURRENCY_CODES}
         stepBy={10000}
+        // An empty amount reads as a recorded blank, not as a lone currency code
+        // sitting on its own in the row.
+        placeholder="—"
         onAmount={(next) => onChange(`${currency} ${next}`.trim())}
         onCurrency={(next) => onChange(`${next} ${amount}`.trim())}
       />

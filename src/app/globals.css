@@ -1141,16 +1141,13 @@ input[type="date"] {
    only colour may change: the options you didn't pick fade back to the page and
    the chosen one goes quiet, and switching to Edit brings the alternatives — and
    the accent — back. Nothing here touches a metric, so nothing moves. */
+/* The options you didn't pick are hidden, not faded: a row of grey alternatives
+   with one darker word among them reads as broken text, and it made the answer
+   compete with three things nobody chose. `visibility` keeps their space, so the
+   row is the same height and the answer stays put when you switch to Edit. */
 .read-choice [aria-pressed="false"],
 .read-choice [aria-checked="false"] {
-  background-color: transparent !important;
-  border-color: transparent !important;
-  box-shadow: none !important;
-  color: var(--text-faint) !important;
-}
-.read-choice [aria-pressed="false"] svg,
-.read-choice [aria-checked="false"] svg {
-  opacity: 0.4;
+  visibility: hidden;
 }
 /* The picked option keeps whatever shape it has — a filled pill stays a pill, a
    radio stays a dot — just desaturated, so a settled answer doesn't shout in
@@ -1162,4 +1159,17 @@ input[type="date"] {
   /* The lift and hairline that mark the live control would otherwise leave one
      empty-looking box floating where the faded options used to be. */
   box-shadow: none !important;
+}
+/* Controls that are pills in edit mode keep a pill in read mode, in the quiet
+   neutral — the answer needs a shape of its own, or a row of faded options with
+   one darker word in it reads as broken text. Controls that aren't pills (a
+   radio's dot) are left alone: a fill there would draw a box that never existed. */
+.read-choice [data-choice="pill"][aria-pressed="true"],
+.read-choice [data-choice="pill"][aria-checked="true"] {
+  background-color: var(--surface-strong) !important;
+  color: var(--text-primary) !important;
+}
+.read-choice [data-choice="pill"][aria-pressed="true"] svg,
+.read-choice [data-choice="pill"][aria-checked="true"] svg {
+  color: var(--text-label);
 }

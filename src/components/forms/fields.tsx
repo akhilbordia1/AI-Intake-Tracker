@@ -34,7 +34,7 @@ function borderClass(error?: string) {
 
 export function FieldHeader({ label, required, hint }: { label: string; required?: boolean; hint?: string }) {
   return (
-    <div className="mb-1.5 flex items-center gap-2">
+    <div className="mb-2 flex items-center gap-2">
       <span className="text-[12px] font-medium text-[var(--text-primary)]">
         {label}
         {required ? <span className="ml-0.5 text-[var(--risk-high-fg)]">*</span> : null}
@@ -287,6 +287,7 @@ export function Segmented({
             <button
               key={option}
               type="button"
+              data-choice="pill"
               aria-pressed={selected}
               onClick={() => onChange(option)}
               className={cn(
@@ -336,6 +337,7 @@ export function SegmentedToggle({
               key={option}
               type="button"
               role="radio"
+              data-choice="pill"
               aria-checked={selected}
               onClick={() => onChange(option)}
               className={cn(
@@ -386,6 +388,7 @@ export function ChipMultiSelect({
             <button
               key={option}
               type="button"
+              data-choice="pill"
               aria-pressed={selected}
               onClick={() => toggle(option)}
               className={cn(
@@ -435,6 +438,7 @@ export function ChipSelect({
               key={option}
               type="button"
               role="radio"
+              data-choice="pill"
               aria-checked={selected}
               onClick={() => onChange(option)}
               className={cn(
@@ -521,7 +525,7 @@ function CurrencyPicker({ currency, currencies, onCurrency }: { currency: string
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label="Currency"
-        className="flex h-full items-center gap-1.5 rounded-l-[9px] pl-3 pr-2.5 text-[12px] font-medium text-[var(--text-label)] outline-none transition hover:text-[var(--text-primary)] focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
+        className="flex h-full items-center gap-1 rounded-l-[9px] pl-3.5 pr-2 text-[13px] font-medium text-[var(--text-label)] outline-none transition hover:text-[var(--text-primary)] focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
       >
         {currency}
         <ChevronDown size={13} className={cn("text-[var(--text-muted)] transition", open && "rotate-180")} />
@@ -607,7 +611,7 @@ export function CurrencyField({
           value={amount}
           onChange={(event) => onAmount(event.target.value)}
           placeholder={placeholder}
-          className="h-full min-w-0 flex-1 bg-transparent px-3 font-mono text-[14px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
+          className="h-full min-w-0 flex-1 bg-transparent px-1.5 font-mono text-[14px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
         />
         {suffix ? <span className="flex h-full shrink-0 items-center pr-3 text-[12px] text-[var(--text-muted)]">{suffix}</span> : null}
         {stepBy ? (

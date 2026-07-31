@@ -136,10 +136,6 @@ export type Tone = "neutral" | "info" | "success" | "warning" | "danger";
 // geometry. Mixed radii and paddings made a row of chips look ragged.
 export const CHIP = "inline-flex h-[22px] shrink-0 items-center gap-1 rounded-[6px] px-2 text-[11px] font-medium leading-none";
 
-// The same chip at form scale: a record value reads at the size of the control
-// that edits it, so toggling Edit doesn't resize the text.
-export const VALUE_CHIP = "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-[var(--border-default)] px-3 text-[13px] font-medium";
-
 // Tags read in Title Case ("In Review", "Blocked by Gate") — short prepositions
 // stay lowercase. Prose elsewhere stays sentence case.
 const TAG_LOWER = new Set(["a", "an", "and", "as", "at", "by", "for", "in", "of", "on", "or", "the", "to", "via", "with"]);
