@@ -921,20 +921,17 @@ export function RatingStepper({
         <span className="min-w-[2.5rem] shrink-0 font-mono text-[15px] font-medium text-[var(--text-primary)]">
           {current ? `${current}/${max}` : "—"}
         </span>
-        <div className="flex items-center">
+        {/* The steps are the control, the number is the answer: in read mode the
+            whole row of steps goes (visibility, so the field keeps its size) and the
+            value is left on its own, like every other read field. */}
+        <div data-choice="control" className="flex items-center">
           {Array.from({ length: max }, (_, index) => {
             const step = index + 1;
             const filled = step <= current;
             return (
               <Fragment key={step}>
                 {index > 0 ? (
-                  // The rail is scaffolding for the steps: in read mode the steps
-                  // you didn't pick are hidden, and a bare rail with nothing on it
-                  // read as four stray dashes.
-                  <span
-                    data-choice="rail"
-                    className={cn("h-[2px] w-6 sm:w-9", step <= current ? "bg-[var(--accent)]" : "bg-[var(--border-default)]")}
-                  />
+                  <span className={cn("h-[2px] w-6 sm:w-9", step <= current ? "bg-[var(--accent)]" : "bg-[var(--border-default)]")} />
                 ) : null}
                 <button
                   type="button"

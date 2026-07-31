@@ -1158,10 +1158,17 @@ input[type="date"] {
    with one darker word among them reads as broken text, and it made the answer
    compete with three things nobody chose. `visibility` keeps their space, so the
    row is the same height and the answer stays put when you switch to Edit. */
+/* Taken out of flow, not just hidden: holding their space left the answer floating
+   in the middle of the row — a chip three options along sat wherever the options
+   before it had been. A single-line pill row keeps its height either way; a
+   wrapping multi-select can lose a line when you switch to Edit, which is the one
+   place this trades a little movement for a legible answer. */
 .read-choice [aria-pressed="false"],
 .read-choice [aria-checked="false"],
-.read-choice [data-choice="rail"] {
-  visibility: hidden;
+/* A control that carries its answer in a value beside it (the rating scale) hides
+   whole rather than leaving one selected step floating in the row. */
+.read-choice [data-choice="control"] {
+  display: none;
 }
 /* The picked option keeps whatever shape it has — a filled pill stays a pill, a
    radio stays a dot — just desaturated, so a settled answer doesn't shout in

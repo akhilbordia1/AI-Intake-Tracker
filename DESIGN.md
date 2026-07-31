@@ -198,10 +198,16 @@ edge.
 
 **Forms.** A field reads as the control that edits it: read mode renders the same
 control, inert (`fieldset disabled`). Typed fields lose the box's lines and fill
-(`.read-field`); a choice field hides the options you didn't pick and shows the one
+(`.read-field`); a choice field drops the options you didn't pick and shows the one
 you did as a quiet pill (`.read-choice`, keyed off `data-choice="pill"` so a radio's
-dot doesn't grow a box it never had). Neither rule touches a metric — hidden means
-`visibility`, so the space stays and nothing moves when Edit comes on. Nothing may change size or move
+dot doesn't grow a box it never had). Dropped means `display: none` — holding their
+space left the answer floating wherever the earlier options had been. A single-line
+pill row keeps its height; a wrapping multi-select can lose a line, the one place
+this trades movement for a legible answer.
+
+A field's width is set on its row wrapper, never inside a control: the "Capturing…"
+overlay covers that wrapper, so a cap set deeper leaves the overlay spanning the
+whole column. Nothing may change size or move
 between read and edit — no reserved heights on one side only, no negative inset on
 one kind of control. Everything left-aligns on the label's left edge: a box, a pill
 row, a radio's dot, a slider's track. No field takes the panel's full width: prose

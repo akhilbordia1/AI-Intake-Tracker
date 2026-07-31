@@ -497,7 +497,7 @@ function DocumentField({
   // Every control starts at the column's left edge — a box, a pill row, a slider's
   // thumb and a radio's dot all line up under the label. Insetting the boxed ones to
   // align their *text* instead left them hanging left of everything else.
-  const inset = "relative w-full min-w-0";
+  const inset = cn("relative w-full min-w-0", fieldBoxWidth(field));
 
   const control = (
     <StageField
@@ -2612,14 +2612,13 @@ function FieldGenerating({ tall = false }: { tall?: boolean }) {
   return (
     <div
       className={cn(
-        "ai-field-loading absolute inset-0 z-10 flex gap-2 rounded-[8px] bg-white px-3 pr-10 text-[13px] text-[var(--text-muted)]",
+        // No glyph: the shimmering border already says the agent is working, and a
+        // sparkle in every field at once reads as decoration.
+        "ai-field-loading absolute inset-0 z-10 flex gap-2 rounded-[10px] bg-white px-3.5 text-[13px] text-[var(--text-muted)]",
         tall ? "items-start py-2.5" : "items-center",
       )}
     >
       <span>Capturing…</span>
-      <span className={cn("absolute right-2 grid h-6 w-6 place-items-center text-[var(--accent)]", tall ? "top-2" : "top-1/2 -translate-y-1/2")}>
-        <Sparkles size={13} className="animate-pulse" />
-      </span>
     </div>
   );
 }
@@ -2691,11 +2690,7 @@ function StageField({
   }
 
   if (spec.kind === "select") {
-    return (
-      <div className="max-w-[360px]">
-        <SearchableSelect hideHeader label={spec.label} options={spec.options ?? []} value={text} onChange={onChange} />
-      </div>
-    );
+    return <SearchableSelect hideHeader label={spec.label} options={spec.options ?? []} value={text} onChange={onChange} />;
   }
 
   if (spec.kind === "cards") {
@@ -2715,11 +2710,7 @@ function StageField({
   // a two-word value in a column-wide field reads as a field that failed to fill.
   // Only prose gets the suggest button: on a short box the sparkle crowded a
   // two-word answer, and a name or a function is quicker to type than to draft.
-  return (
-    <div className={textBoxWidth(spec)}>
-      <GrowText value={text} onChange={onChange} onSuggest={spec.kind === "long" ? onSuggest : undefined} label={spec.label} />
-    </div>
-  );
+  return <GrowText value={text} onChange={onChange} onSuggest={spec.kind === "long" ? onSuggest : undefined} label={spec.label} />;
 }
 
 // How wide a free-text box should be, from the length of the answer it holds.
@@ -2734,6 +2725,16 @@ function textBoxWidth(spec: FieldSpec) {
   if (length <= 24) return "max-w-[300px]";
   if (length <= 56) return "max-w-[460px]";
   return PROSE_MEASURE;
+}
+
+// The field's own width, applied to the row wrapper rather than inside each
+// control — the "Capturing…" overlay covers that wrapper, so a capped box has to
+// be capped there or the overlay spans the whole column.
+function fieldBoxWidth(spec: FieldSpec) {
+  if (spec.kind === "text" || spec.kind === "long") return textBoxWidth(spec);
+  if (spec.kind === "select" || spec.kind === "currency") return "max-w-[360px]";
+  if (spec.kind === "date") return "max-w-[300px]";
+  return "w-full";
 }
 
 // Record free-text editor: grows with its content (never truncates a value to one
