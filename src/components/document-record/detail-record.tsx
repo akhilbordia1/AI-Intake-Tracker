@@ -2723,12 +2723,17 @@ function StageField({
 }
 
 // How wide a free-text box should be, from the length of the answer it holds.
+// Nothing takes the panel's full width: prose caps at a reading measure and wraps,
+// because a sentence running the width of a wide panel is hard to scan and leaves
+// every short answer looking like a field that failed to fill.
+const PROSE_MEASURE = "w-full max-w-[600px]";
+
 function textBoxWidth(spec: FieldSpec) {
-  if (spec.kind === "long") return "w-full";
+  if (spec.kind === "long") return PROSE_MEASURE;
   const length = typeof spec.suggestion === "string" ? spec.suggestion.length : 96;
   if (length <= 24) return "max-w-[300px]";
   if (length <= 56) return "max-w-[460px]";
-  return "w-full";
+  return PROSE_MEASURE;
 }
 
 // Record free-text editor: grows with its content (never truncates a value to one

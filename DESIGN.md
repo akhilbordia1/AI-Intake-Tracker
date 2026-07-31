@@ -204,8 +204,10 @@ dot doesn't grow a box it never had). Neither rule touches a metric — hidden m
 `visibility`, so the space stays and nothing moves when Edit comes on. Nothing may change size or move
 between read and edit — no reserved heights on one side only, no negative inset on
 one kind of control. Everything left-aligns on the label's left edge: a box, a pill
-row, a radio's dot, a slider's track. Only prose takes the column's full width;
-short answers, selects and money get a shorter box.
+row, a radio's dot, a slider's track. No field takes the panel's full width: prose
+caps at 600px and wraps, and short answers, selects and money get a shorter box —
+a sentence running the width of a wide panel is hard to scan, and it makes every
+short answer look like a field that failed to fill.
 
 **Panel vs. stage headers:** the panel header carries the *object* (record id,
 phase, view). The stage header inside carries the *stage* (name, status, progress,
