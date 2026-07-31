@@ -1,16 +1,32 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, CalendarDays, ChevronDown, Columns3, Flag, Inbox, Search, ShieldCheck, SlidersHorizontal, Table2 } from "lucide-react";
+import {
+  ArrowRight,
+  CalendarDays,
+  ChevronDown,
+  CircleDot,
+  Columns3,
+  FileText,
+  Flag,
+  Inbox,
+  Search,
+  ShieldCheck,
+  SlidersHorizontal,
+  Sparkles,
+  Table2,
+  User,
+} from "lucide-react";
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
-import { AppShell, ContentPanel, PanelTabs, RailHeader, useRailMode } from "@/components/app-shell";
+import { AppShell, ContentPanel, PanelBreadcrumb, PanelTabs, RailHeader, useRailMode } from "@/components/app-shell";
 import { ChatHistoryButton, useChatSessions, type ChatSession, type ChatTurn } from "@/components/chat/chat-history";
 import { JumpToTop } from "@/components/chat/chat-ui";
 import { MiniChatRail } from "@/components/chat/mini-chat-rail";
 import { PersonAvatar, ProfileSwitcher } from "@/components/profile";
 import {
+  Button,
   CHIP,
   ChipOverflow,
   IconButton,
@@ -483,9 +499,9 @@ export default function HomePage() {
             emptyTitle={`How can I help, ${activeProfile.split(" ")[0]}?`}
             intro={`${useCases.length} use cases are in the registry and ${attentionCount} need attention. Describe an idea and I'll start a new one, or ask me about what's already here.`}
             starters={[
-              { label: "Start a new use case", draft: "I want to build an AI assistant that " },
-              "What needs my attention?",
-              "Which use cases are blocked?",
+              { label: "Start a new use case", draft: "I want to build an AI assistant that ", icon: <Sparkles size={13} /> },
+              { label: "What needs my attention?", icon: <Inbox size={13} /> },
+              { label: "Which use cases are blocked?", icon: <ShieldCheck size={13} /> },
             ]}
             answer={(question) => answerAboutPortfolio(question, activeProfile)}
             newIdeaHref="/detail"
@@ -496,8 +512,9 @@ export default function HomePage() {
       }
     >
       <ContentPanel
-        icon={displayMode === "board" ? <Columns3 size={17} /> : <Table2 size={17} />}
-        data-tip="All use cases"
+        // The same breadcrumb the record pages use, so the tracker's panel header
+        // reads as the first step of that path rather than a title of its own.
+        breadcrumb={<PanelBreadcrumb items={[{ label: "All use cases" }]} />}
         tabs={
           <PanelTabs
             compact
@@ -511,30 +528,33 @@ export default function HomePage() {
         }
         controls={
           <>
+            {/* Two groups, a rule between them: what you're looking at (search,
+                the attention filter, grouping) and who you are. */}
             <CollapsingSearch value={search} onChange={setSearch} />
-            <button
-              type="button"
+            <Button
               onClick={() => setAttentionOnly(!attentionOnly)}
+              active={attentionOnly}
               aria-pressed={attentionOnly}
-              className={[
-                "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[8px] border px-2.5 text-[12px] font-medium transition",
-                attentionOnly
-                  ? "border-[var(--accent-border)] bg-[var(--accent-soft)] text-[var(--accent-strong)]"
-                  : "border-[var(--border-default)] bg-[var(--surface)] text-[var(--text-body)] hover:bg-[var(--surface-hover)]",
-              ].join(" ")}
+              className={cn(attentionOnly && "border-[var(--accent-border)] bg-[var(--accent-soft)] text-[var(--accent-strong)]")}
             >
-              <Inbox size={13} />
+              <Inbox size={14} />
               Needs my attention
-              <span className="font-mono text-[11px]">{attentionCount}</span>
-            </button>
+              <span className="font-mono text-[11px] text-[var(--text-muted)]">{attentionCount}</span>
+            </Button>
             <FilterMenu activeView={activeView} onViewChange={setActiveView} activeScope={scopeFilter} onScopeChange={setScopeFilter} />
+            <span aria-hidden className="mx-0.5 h-4 w-px shrink-0 bg-[var(--border-default)]" />
             <ProfileSwitcher currentUser={activeProfile} onUserChange={setActiveProfile} compact />
           </>
         }
         scroll={false}
         titleMeta={
-          <span className="shrink-0 font-mono text-[12px] text-[var(--text-muted)]">
-            <span className="font-mono">{filteredUseCases.length}</span> {filteredUseCases.length === 1 ? "use case" : "use cases"}
+          // Just the number, as a chip: "11 use cases" spelled out beside a crumb
+          // that already says "use cases" was the same word twice.
+          <span
+            data-tip={`${filteredUseCases.length} ${filteredUseCases.length === 1 ? "use case" : "use cases"}`}
+            className={cn(CHIP, "font-mono bg-[var(--surface-strong)] text-[var(--text-label)]")}
+          >
+            {filteredUseCases.length}
           </span>
         }
       >
@@ -605,7 +625,7 @@ function CollapsingSearch({ value, onChange }: { value: string; onChange: (value
           }
         }}
         placeholder="Search use cases…"
-        className="h-8 w-[180px] rounded-[8px] border border-[var(--border-default)] bg-[var(--surface)] pl-7 pr-2.5 text-[12px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--border-input)]"
+        className="h-9 w-[190px] rounded-[8px] border border-[var(--border-default)] bg-[var(--surface)] pl-8 pr-2.5 text-[13px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--border-input)]"
       />
     </label>
   );
@@ -642,7 +662,7 @@ function FilterMenu({
         data-tip={`Grouped ${groupLabel.toLowerCase()}`}
         aria-label={`Filters — grouped ${groupLabel.toLowerCase()}`}
         className={[
-          "inline-flex h-8 items-center gap-1.5 rounded-[8px] border px-2.5 text-[12px] transition",
+          "inline-flex h-9 items-center gap-1.5 rounded-[8px] border px-3 text-[13px] transition",
           open || activeCount > 0
             ? "border-[var(--accent-ring)] bg-[var(--surface-hover)] text-[var(--accent-strong)]"
             : "border-[var(--border-default)] bg-[var(--surface)] text-[var(--text-body)] hover:border-[var(--border-input)] hover:bg-[var(--surface-hover)]",
@@ -656,7 +676,7 @@ function FilterMenu({
       </button>
 
       {open ? (
-        <MenuSurface className="absolute right-0 top-9 z-30 w-[236px]">
+        <MenuSurface className="absolute right-0 top-11 z-30 w-[236px]">
           <MenuLabel>Group by</MenuLabel>
           {viewOptions.map((option) => (
             <MenuItem key={option.key} selected={activeView === option.key} onClick={() => onViewChange(option.key)}>
@@ -710,11 +730,13 @@ function UseCaseTableView({ columns, totalRows }: { columns: BoardColumn[]; tota
               first row of data — the same fill the lifecycle table uses. */}
           <thead className="sticky top-0 z-10 bg-[var(--surface-header)]">
             <tr className="border-b border-[var(--border-default)] text-left">
-              <TableHeader>Use case</TableHeader>
-              <TableHeader>Stage</TableHeader>
-              <TableHeader>Owner</TableHeader>
-              <TableHeader>Status</TableHeader>
-              <TableHeader align="right">Due</TableHeader>
+              <TableHeader icon={<FileText size={12} />}>Use case</TableHeader>
+              <TableHeader icon={<Flag size={12} />}>Stage</TableHeader>
+              <TableHeader icon={<User size={12} />}>Owner</TableHeader>
+              <TableHeader icon={<CircleDot size={12} />}>Status</TableHeader>
+              <TableHeader icon={<CalendarDays size={12} />} align="right">
+                Due
+              </TableHeader>
             </tr>
           </thead>
 
@@ -882,15 +904,16 @@ function UseCaseTableRow({ row }: { row: UseCaseCard }) {
   );
 }
 
-function TableHeader({ children, align = "left" }: { children: ReactNode; align?: "left" | "right" }) {
+// Same header cell as the lifecycle table: a glyph, then the column's name.
+function TableHeader({ icon, children, align = "left" }: { icon?: ReactNode; children: ReactNode; align?: "left" | "right" }) {
   return (
     <th
-      className={[
-        "h-9 px-3 text-[11px] font-medium text-[var(--text-muted)] first:pl-4 last:pr-5",
-        align === "right" ? "text-right" : "text-left",
-      ].join(" ")}
+      className={cn("h-9 px-3 text-[11px] font-medium text-[var(--text-muted)] first:pl-4 last:pr-5", align === "right" ? "text-right" : "text-left")}
     >
-      {children}
+      <span className={cn("inline-flex items-center gap-1.5", align === "right" && "flex-row-reverse")}>
+        {icon ? <span className="shrink-0">{icon}</span> : null}
+        {children}
+      </span>
     </th>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 
 import { PastChatTranscript, type ChatSession, type ChatTurn } from "@/components/chat/chat-history";
 import { ChatComposer, ChatDock, ChatLine, ChatStartScreen, ChatTimeDivider, formatChatTime } from "@/components/chat/chat-ui";
@@ -15,8 +15,10 @@ import { ChatComposer, ChatDock, ChatLine, ChatStartScreen, ChatTimeDivider, for
 const NEW_IDEA_RE = /\b(new use case|new ticket|raise|submit|start|create|build|draft|i want|we want|idea for)\b/i;
 
 // A suggestion either sends as-is (a question) or drops an editable draft into the
-// composer (anything the user is meant to finish in their own words).
-export type RailStarter = string | { label: string; draft: string };
+// composer (anything the user is meant to finish in their own words). The icon is
+// what makes it read as a suggestion rather than a tag — the same pill the stage
+// chats use.
+export type RailStarter = string | { label: string; draft?: string; icon?: ReactNode };
 
 export function MiniChatRail({
   intro,

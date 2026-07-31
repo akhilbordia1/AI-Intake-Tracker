@@ -124,8 +124,8 @@ export function PanelTabs({
       {tabs.map((tab) => {
         const active = tab.id === activeId;
         const shape = cn(
-          "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[10px] text-[13px] transition",
-          compact ? "w-8 justify-center" : "px-2.5",
+          "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[10px] text-[13px] transition",
+          compact ? "w-9 justify-center" : "px-3",
           active
             ? "border border-[var(--border-default)] bg-white font-semibold text-[var(--text-primary)] "
             : "text-[var(--text-body)] hover:bg-[var(--surface-hover)]",
@@ -259,9 +259,18 @@ export function ContentPanel({
       <div className="flex min-h-[52px] shrink-0 flex-wrap items-center gap-x-2.5 gap-y-1.5 border-b border-[var(--border-hairline)] px-6 py-2">
         {icon ? <span className="shrink-0 text-[var(--accent)]">{icon}</span> : null}
         {title ? <h1 className="font-display min-w-0 shrink-0 truncate text-[18px] leading-tight text-[var(--text-primary)]">{title}</h1> : null}
-        {titleMeta}
+        {/* Breadcrumb before the count: what the panel *is* comes before how much
+            of it there is. */}
         {breadcrumb}
-        {tabs ? <div className="ml-3 shrink-0">{tabs}</div> : null}
+        {titleMeta}
+        {/* The tabs are a different kind of thing from the panel's name, so a rule
+            separates them rather than more whitespace. */}
+        {tabs ? (
+          <>
+            <span aria-hidden className="ml-1.5 h-4 w-px shrink-0 bg-[var(--border-default)]" />
+            <div className="shrink-0">{tabs}</div>
+          </>
+        ) : null}
         {controls ? <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-1.5">{controls}</div> : null}
       </div>
       {/* Content scrolls inside the panel; nothing bleeds past its rounded edge. */}

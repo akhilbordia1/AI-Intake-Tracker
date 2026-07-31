@@ -1,6 +1,6 @@
 "use client";
 
-import { Sparkles } from "lucide-react";
+import { Lightbulb, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
@@ -48,7 +48,9 @@ export default function StartUseCasePage() {
           size="lg"
           title="What do you want to build?"
           lead="Describe the idea in your own words — the problem, who it's for, and what good looks like. I'll ask the follow-ups and fill in the record as we go."
-          starters={EXAMPLES.map((label, index) => ({ id: String(index), label }))}
+          // Same pill as the stage chats: the glyph is what marks a suggestion as
+          // something to tap rather than a tag to read.
+          starters={EXAMPLES.map((label, index) => ({ id: String(index), label, icon: <Lightbulb size={13} /> }))}
           onPick={(item) => {
             setIdea(item.label);
             const input = inputRef.current;

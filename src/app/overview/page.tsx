@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Circle, CircleDot, FileText, Flag, Info, Layers, User } from "lucide-react";
+import { CheckCircle2, Circle, CircleDot, FileText, Flag, Gavel, Info, Layers, ListChecks, User } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useRef, useState, type ReactNode } from "react";
 
@@ -233,7 +233,11 @@ export default function OverviewPage() {
             onScrolledChange={setRailScrolled}
             intro={`This is ${USE_CASE.name} (${USE_CASE.id}). It's at ${activeStage.name}, stage ${ACTIVE_STAGE_INDEX + 1} of ${STAGES.length}, with ${activeStage.owner} preparing it. Ask me anything, or open the workflow to record the next stage.`}
             emptyTitle={`How can I help, ${firstName(currentUser)}?`}
-            starters={["What's outstanding?", "Summarise the decisions so far", "Who owns the next stage?"]}
+            starters={[
+              { label: "What's outstanding?", icon: <ListChecks size={13} /> },
+              { label: "Summarise the decisions so far", icon: <Gavel size={13} /> },
+              { label: "Who owns the next stage?", icon: <User size={13} /> },
+            ]}
             answer={(question) => answerAboutRecord(question, currentUser, actions)}
             placeholder="Ask about this use case"
             reply="I can answer on what's outstanding, the decisions so far, and who owns the next stage. Open the Workflow tab and I'll walk you through the stage you own."
@@ -315,7 +319,9 @@ function LifecycleTable({ currentUser }: { currentUser: string }) {
             <TableHead icon={<CircleDot size={12} />}>Status</TableHead>
             <TableHead icon={<Layers size={12} />}>Phase</TableHead>
             <TableHead icon={<User size={12} />}>Owner</TableHead>
-            <TableHead className="pr-4">Outcome</TableHead>
+            <TableHead icon={<CheckCircle2 size={12} />} className="pr-4">
+              Outcome
+            </TableHead>
           </tr>
         </thead>
 
