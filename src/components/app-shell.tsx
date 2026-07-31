@@ -306,7 +306,7 @@ export function AppShell({
   const columns = railExpanded ? "minmax(0,1fr)" : aside ? `${railTrack} minmax(0,62fr) minmax(0,38fr)` : `${railTrack} minmax(0,1fr)`;
   return (
     // One row of content: the rail and the panel, each carrying its own header.
-    <main className="flex h-screen flex-col overflow-hidden bg-[var(--shell-canvas)] text-[var(--text-primary)]">
+    <main className="chat-glow flex h-screen flex-col overflow-hidden bg-[var(--shell-canvas)] text-[var(--text-primary)]">
       {banner}
       <div className="grid min-h-0 min-w-0 flex-1 gap-x-3 overflow-hidden px-3 py-3" style={{ gridTemplateColumns: columns }}>
         {/* The rail's grid item always renders: a display:none item is skipped by

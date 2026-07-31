@@ -148,11 +148,13 @@ export function RecordDetailsSheet({ onClose }: { onClose: () => void }) {
       </div>
       <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto">
         {tab === "details" ? (
-          <dl className="px-4 py-2">
+          // Rows carry the side padding, not the list: a divider that stops 16px
+          // short of the sheet's edge reads as a box that isn't there.
+          <dl className="py-2">
             {RECORD_DETAILS.map(([label, value]) => (
               <div
                 key={label}
-                className="grid grid-cols-[118px_minmax(0,1fr)] items-center gap-3 border-b border-[var(--border-hairline)] py-2 last:border-b-0"
+                className="grid grid-cols-[124px_minmax(0,1fr)] items-center gap-4 border-b border-[var(--border-hairline)] px-4 py-3.5 last:border-b-0"
               >
                 <dt className="text-[12px] text-[var(--text-muted)]">{label}</dt>
                 <dd className="min-w-0">
@@ -163,11 +165,11 @@ export function RecordDetailsSheet({ onClose }: { onClose: () => void }) {
           </dl>
         ) : null}
         {tab === "gates" ? (
-          <div className="px-4 py-2">
+          <div className="py-2">
             {GATES.map((gate) => {
               const tone = GATE_TONE[gate.status];
               return (
-                <div key={gate.id} className="flex items-start gap-2.5 border-b border-[var(--border-hairline)] py-3 last:border-b-0">
+                <div key={gate.id} className="flex items-start gap-2.5 border-b border-[var(--border-hairline)] px-4 py-3.5 last:border-b-0">
                   <span className={cn(CHIP, "font-mono mt-px bg-[var(--surface-strong)] text-[var(--text-body)]")}>{gate.id}</span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[13px] font-medium text-[var(--text-primary)]">{gate.name}</p>
@@ -192,9 +194,9 @@ export function RecordDetailsSheet({ onClose }: { onClose: () => void }) {
         ) : null}
         {tab === "comments" ? (
           <div className="flex min-h-full flex-col">
-            <div className="flex-1 px-4 py-2">
+            <div className="flex-1 py-2">
               {comments.map((c, i) => (
-                <div key={i} className="border-b border-[var(--border-hairline)] py-3 last:border-b-0">
+                <div key={i} className="border-b border-[var(--border-hairline)] px-4 py-3.5 last:border-b-0">
                   <div className="flex min-w-0 items-center gap-2">
                     <PersonAvatar name={c.by} size={20} />
                     <span className="min-w-0 truncate text-[13px] font-medium text-[var(--text-primary)]">{c.by}</span>
@@ -231,9 +233,9 @@ export function RecordDetailsSheet({ onClose }: { onClose: () => void }) {
           </div>
         ) : null}
         {tab === "activity" ? (
-          <ol className="px-4 py-3">
+          <ol className="px-4 pb-2 pt-[22px]">
             {RECORD_ACTIVITY.map((entry, index) => (
-              <li key={entry.title} className="relative flex gap-3 pb-4 last:pb-0">
+              <li key={entry.title} className="relative flex gap-3 pb-6 last:pb-0">
                 {/* One line down the timeline, so the entries read as a sequence. */}
                 {index === RECORD_ACTIVITY.length - 1 ? null : (
                   <span aria-hidden className="absolute bottom-0 left-[12px] top-7 w-px bg-[var(--border-hairline)]" />

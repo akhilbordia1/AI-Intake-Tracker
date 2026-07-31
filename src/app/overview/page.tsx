@@ -308,7 +308,7 @@ function LifecycleTable({ currentUser }: { currentUser: string }) {
           <col className="w-[16%]" />
           <col className="w-[20%]" />
         </colgroup>
-        <thead className="sticky top-0 z-10 bg-[var(--surface-muted)]">
+        <thead className="sticky top-0 z-10 bg-[var(--surface-header)]">
           <tr className="border-b border-[var(--border-default)] text-left">
             <TableHead className="pl-4">#</TableHead>
             <TableHead icon={<Flag size={12} />}>Stage</TableHead>

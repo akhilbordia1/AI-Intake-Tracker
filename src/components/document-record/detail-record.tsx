@@ -520,7 +520,7 @@ function computeRiskTier(values: Record<string, string | string[]>) {
 // blocked, or null when the stage is free to complete.
 function stageGateReason(stageName: string, values: Record<string, string | string[]>): string | null {
   const done = /cleared|n\/?a|passed|complete|approved|deployed|done|go\b/i;
-  if (stageName === "Assessment - Risk & Compliance") {
+  if (stageName === "Assessment") {
     const cleared = Array.isArray(values["Compliance checks"]) ? (values["Compliance checks"] as string[]) : [];
     const stillOpen = COMPLIANCE_REQS.filter((req) => !cleared.includes(req));
     return stillOpen.length
@@ -757,7 +757,7 @@ function StageFieldsGrid({
   // editAll (whole form editable) is controlled by the action bar.
   const readOnly = !canEdit;
   const ownedByMe = stage.owner === currentUser;
-  const riskTier = canEdit && stage.name === "Assessment - Risk & Compliance" ? computeRiskTier(s.values) : null;
+  const riskTier = canEdit && stage.name === "Assessment" ? computeRiskTier(s.values) : null;
   const gate = gateForStage(stage.name);
   const gateTone = gate ? GATE_TONE[gate.status] : null;
   // A stage you own can still be held back by its own checklist (compliance
@@ -1034,7 +1034,7 @@ const STAGE_CHAT_HISTORY: ChatSession[] = [
   },
   {
     id: "chat-assessment",
-    title: "Assessment - Risk & Compliance",
+    title: "Assessment",
     when: "Jul 5",
     turns: [
       { role: "user", text: "What are the top risks?", time: "3:20 PM" },
@@ -1324,7 +1324,7 @@ const STAGE_BRIEFS: Record<string, string> = {
     "Here the idea competes for attention. We score business value against how feasible it is to build, factor in cost and strategic fit, and that produces the priority score the portfolio uses to sequence work.",
   Triage:
     "Triage turns the risk signals from Qualification into a route. I'll confirm the governance tier, decide whether a full risk and compliance assessment is required, and note anything the assessors should look at first.",
-  "Assessment - Risk & Compliance":
+  Assessment:
     "The deep review. We work through what data the model touches, where it's hosted, how it could fail, and the ethical exposure — then land an overall risk rating and the conditions that have to hold before anything gets built.",
   "Business Case":
     "Time for the numbers. We take today's review volume and cost, project what the assistant saves, and set that against the investment. Payback and three-year value are what the GTAC board will actually debate.",
@@ -2143,7 +2143,7 @@ const STAGE_STARTERS: Record<string, { owner: StarterSpec[]; viewer: StarterSpec
       { icon: "info", label: "Is a compliance assessment needed?", read: ["Compliance assessment required"] },
     ],
   },
-  "Assessment - Risk & Compliance": {
+  Assessment: {
     owner: [
       { icon: "shield", label: "Assess PII and data hosting", fill: ["PII", "Data hosted risk"] },
       { icon: "spark", label: "Rate model and ethical risk", fill: ["Model risk", "Ethical risk", "Overall risk"] },

@@ -17,7 +17,7 @@ isn't a token, add the token.
 
 ## Colour
 
-Warm editorial neutrals, one teal accent, three status tones. Nothing else.
+Warm editorial neutrals, one forest-green accent, three status tones. Nothing else.
 
 ### Surfaces
 
@@ -28,6 +28,7 @@ Warm editorial neutrals, one teal accent, three status tones. Nothing else.
 | `--surface-muted` | Recessed fills inside a panel (answer boxes, read-value hovers) |
 | `--surface-hover` | Hover on a quiet control |
 | `--surface-strong` | Filled neutral chips, disabled buttons, progress tracks |
+| `--surface-header` | The table header band — a shade lighter than `strong`, so column names read as chrome, not as a filled row |
 | `--surface-bubble` | The user's chat bubble — the one surface that is neither panel nor field |
 
 ### Lines
@@ -43,7 +44,7 @@ field borders). Pick the lightest one that still reads.
 
 ### Accent
 
-`--accent` #0e7090 is the only brand colour, and it marks what something **is** —
+`--accent` #42623b (deep forest) is the only brand colour, and it marks what something **is** —
 a link, the current stage, the primary action, a focus ring. It is never an
 interaction state: hover is `--surface-hover`, selected/open is
 `--surface-strong`, so a row you're pointing at and a row that's chosen read as
@@ -54,14 +55,16 @@ Scale: `--accent-strong` (accent text), `--accent-soft` (tints, focus rings),
 
 ### Status tones
 
-Four triplets — ink / tint / hairline. **One green, one amber, one red, one blue.**
+Four triplets — ink / tint / hairline. **One green, one amber, one red, one clay.**
+Info is its own clay hue rather than the accent's: the accent is green, and
+"your turn" must not read as "passed".
 
 | Tone | Means |
 | --- | --- |
 | `success` | Passed, complete, done |
 | `warning` | In review, locked, waiting on a decision |
 | `danger` | Blocked, rejected, returned |
-| `info` | Active / current / your turn (the accent family) |
+| `info` | Active / current / your turn (warm clay, its own hue) |
 | `neutral` | Counts and labels that aren't status at all |
 
 Use them via `<Tag tone="success">`, never by hand.
@@ -124,7 +127,10 @@ From `src/components/ui/kit.tsx`:
 - **`Button` / `ButtonLink` / `buttonClass(tone, size)`** — `primary` (the one
   action a view is for), `secondary`, `quiet` (header chrome), `danger`. Sizes
   `sm` (h-8/13px, default) and `md` (h-9/14px). Every action button in the app is
-  one of these, so Submit stage and New use case are the same object.
+  one of these, so Submit stage and New use case are the same object. Press and
+  focus are shared across tones — the resting lift (`--shadow-btn-raised` /
+  `--shadow-btn-primary`) becomes `--shadow-btn-pressed` on `:active`, and focus
+  is an offset accent ring, never a recoloured edge.
 - **`IconButton`** — square icon-only control, 28–32px, for chrome and steppers.
 - **`Tag`** — status chip; tone-driven, 11px, pill.
 - **`cardClass({ selected, interactive })`** — the one card shape.
@@ -169,6 +175,13 @@ expandable to full width (`useRailMode` — the states are mutually exclusive). 
 panel clips its own content: **nothing bleeds past its rounded edge**, and content
 that needs more room scrolls inside it.
 
+**Collections sit in a box.** A table is a hairline box on white with a
+`--surface-header` header band; a kanban column is a `--surface-muted` tray with
+no border, holding white cards. Both keep the panel's `px-5` gutter, and the box —
+not the panel — is the scroll container, so a sticky header has something to stick
+to. Inside a boxed list, rows carry the side padding so hairlines run edge to
+edge.
+
 **Forms.** A field reads as the control that edits it: read mode renders the same
 control, inert (`fieldset disabled`), and typed fields lose the box's lines and
 fill (`.read-field`) while keeping its metrics. Nothing may change size or move
@@ -199,6 +212,12 @@ rather than a greeting.
 The composer is one shape everywhere: textarea, a mention control on the left, a
 circular send on the right that stays visible and greys out when empty. The shell
 provides its insets, so it lines up with the bottom of the content panel.
+
+Light rises off the bottom of the window behind it — `.chat-glow` on the shell,
+not on the rail, so it reaches every edge and is there before a conversation
+starts. `ChatDock`'s fade and band continue the same ramp (`--glow-mid` →
+`--glow-near`); change one stop without the others and the dock reappears as a
+rectangle sitting on the glow.
 
 ---
 

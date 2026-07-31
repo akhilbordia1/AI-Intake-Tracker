@@ -13,6 +13,9 @@
   --shell-canvas: #faf9f6;
   --surface-hover: #f5f4f2;
   --surface-strong: #f0efed;
+  /* Table header band — needs to register against white rows without reading as
+     a filled chip, so it sits between --surface-muted and --surface-strong. */
+  --surface-header: #f7f6f3;
   /* The user's chat bubble — the one surface that isn't a panel or a field. */
   --surface-bubble: #f1efec;
   --surface-elevated: #f0efed;
@@ -43,20 +46,20 @@
   --text-caption: #6b655e;
 
   /* Govern AI brand — primary action color */
-  --ai-accent: #0e7090;
-  --ai-accent-hover: #0c5f7a;
+  --ai-accent: #42623b;
+  --ai-accent-hover: #2f4a25;
 
   /* CTA / focus — aliases brand accent */
   --accent: var(--ai-accent);
   --accent-hover: var(--ai-accent-hover);
-  --accent-muted: #e8f4f8;
+  --accent-muted: #edf2e9;
   /* Accent scale — the record view used to define these locally; they're global
      so the shell, menus and portalled popovers all tint the same way. */
-  --accent-strong: #0c5f7a;
-  --accent-soft: #e8f4f8;
-  --accent-border: #c5e2ea;
-  --accent-ring: #8fc0cf;
-  --accent-hover-bg: #f4fafb;
+  --accent-strong: #2f4a25;
+  --accent-soft: #edf2e9;
+  --accent-border: #cddec3;
+  --accent-ring: #9cb890;
+  --accent-hover-bg: #f5f8f2;
 
   /* Choice surfaces (radio cards / selectable tiles) */
   --choice-selected-border: #c8c4bf;
@@ -81,9 +84,12 @@
   --tone-danger-fg: #b32020;
   --tone-danger-bg: #f7eaea;
   --tone-danger-border: #e6c3c3;
-  --tone-info-fg: var(--accent-strong);
-  --tone-info-bg: var(--accent-soft);
-  --tone-info-border: var(--accent-border);
+  /* Info is warm clay, not the accent — the accent went green, and an "Active /
+     your turn" chip must not read as a green "Passed" one. Rosier and browner
+     than the amber warning tone, so the two warm chips still separate. */
+  --tone-info-fg: #9d5346;
+  --tone-info-bg: #f7eae5;
+  --tone-info-border: #e5c8bd;
   --tone-neutral-fg: var(--text-label);
   --tone-neutral-bg: var(--surface-strong);
   --tone-neutral-border: var(--border-default);
@@ -150,6 +156,25 @@
   --shadow-menu: 0 8px 28px rgba(12, 10, 9, 0.1), 0 0 0 1px rgba(12, 10, 9, 0.04);
   --shadow-modal: 0 24px 70px rgba(12, 10, 9, 0.14);
   --shadow-btn: var(--shadow-sm);
+  /* Buttons — a hairline lift, no inner highlight: the face stays one flat
+     colour. Pressed swaps the lift for an inset. */
+  --shadow-btn-raised: 0 1px 1.5px rgba(12, 10, 9, 0.05);
+  --shadow-btn-primary: 0 1px 2px rgba(31, 48, 25, 0.26);
+  --shadow-btn-primary-hover: 0 3px 8px rgba(31, 48, 25, 0.2);
+  --shadow-btn-pressed: inset 0 1px 2px rgba(12, 10, 9, 0.16);
+
+  /* Light rising off the bottom of a chat window: the fade the messages dissolve
+     into, then the band the input sits on. Mixed from --accent, so it follows
+     the brand.
+
+     One ramp, three places: the window paints it (.chat-glow), then the dock's
+     fade and band continue it at the same mixes. Change a stop and change all
+     three, or the dock reappears as a rectangle. */
+  --glow-near: color-mix(in srgb, var(--accent) 7%, var(--shell-canvas));
+  --glow-mid: color-mix(in srgb, var(--accent) 4%, var(--shell-canvas));
+  --composer-glow: linear-gradient(to top, var(--glow-near) 0%, var(--glow-mid) 38%, transparent 100%);
+  --composer-wash-top: linear-gradient(to bottom, transparent, var(--glow-mid));
+  --composer-wash: linear-gradient(to bottom, var(--glow-mid), var(--glow-near));
 }
 
 @theme inline {
@@ -231,6 +256,15 @@ input[type="date"] {
 
 .no-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+/* Light rising off the bottom of a chat window — under the composer, behind the
+   rail's gutters, present on every route rather than only where a dock is. */
+.chat-glow {
+  background-image: var(--composer-glow);
+  background-repeat: no-repeat;
+  background-position: bottom center;
+  background-size: 100% 280px;
 }
 
 /* ── Editorial display type (Fraunces, optical-sized) ── */

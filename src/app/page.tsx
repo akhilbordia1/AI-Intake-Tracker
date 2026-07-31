@@ -24,6 +24,7 @@ import {
   titleCaseTag,
 } from "@/components/ui/kit";
 import { SHORT_STAGE_LABELS, STAGE_GROUPS, STAGES, SUBSTAGE_TO_GROUP } from "@/data/lifecycle";
+import { cn } from "@/lib/cn";
 import { useClickOutside } from "@/lib/use-click-outside";
 
 type ViewKey = "stage" | "people" | "priority" | "due" | "status";
@@ -144,7 +145,7 @@ const STAGE_DESC: Record<string, string> = {
   Qualification: "Basic validation to filter non-viable ideas by risk & readiness.",
   Prioritisation: "Score value & readiness; prioritize within the function.",
   Triage: "Determine the scope of the detailed assessments.",
-  "Assessment - Risk & Compliance": "Complete the required risk & compliance assessments.",
+  Assessment: "Complete the required risk & compliance assessments.",
   "Business Case": "Review the business case; prioritize it for GTAC.",
   GTAC: "Approve or reject the business case; allocate investment.",
   "Plan & KPI": "Confirm delivery model, resourcing, roadmap, and KPIs.",
@@ -250,7 +251,7 @@ const useCases: UseCaseCard[] = [
     owner: "Rohan Desai",
     due: "10 Jul 2026",
     stage: "Governance review",
-    substage: "Assessment - Risk & Compliance",
+    substage: "Assessment",
     priority: "High",
     orgPriority: "High",
     dueGroup: "This week",
@@ -542,7 +543,7 @@ export default function HomePage() {
             {/* Columns share the panel's width down to a readable floor, then the
  board scrolls sideways rather than squeezing the cards. */}
             <div className="relative min-h-0 flex-1">
-              <div className="no-scrollbar h-full min-h-0 overflow-x-auto px-5">
+              <div className="no-scrollbar h-full min-h-0 overflow-x-auto px-5 pb-5 pt-4">
                 <div
                   className="grid h-full min-h-[320px] gap-6"
                   style={{
@@ -698,11 +699,16 @@ function UseCaseTableView({ columns, totalRows }: { columns: BoardColumn[]; tota
   }
 
   return (
-    <section className="no-scrollbar min-h-0 flex-1 overflow-auto">
-      <div className="min-w-[880px] pb-4">
-        <table className="w-full table-fixed border-collapse">
+    // Boxed like the lifecycle table: the panel's edge is whitespace, the table's
+    // own edge is a hairline box. The box is the scroll container, so the header
+    // band stays put against its top rather than scrolling out of the frame.
+    <section className="min-h-0 flex-1 px-5 pb-5 pt-4">
+      <div className="no-scrollbar h-full min-h-0 overflow-auto rounded-[10px] border border-[var(--border-default)] bg-[var(--surface)]">
+        <table className="w-full min-w-[880px] table-fixed border-collapse">
           {TABLE_COLS}
-          <thead className="sticky top-0 z-10 bg-[var(--surface)]">
+          {/* A filled band, so the column names read as chrome rather than as a
+              first row of data — the same fill the lifecycle table uses. */}
+          <thead className="sticky top-0 z-10 bg-[var(--surface-header)]">
             <tr className="border-b border-[var(--border-default)] text-left">
               <TableHeader>Use case</TableHeader>
               <TableHeader>Stage</TableHeader>
@@ -760,16 +766,25 @@ function UseCaseTableRow({ row }: { row: UseCaseCard }) {
 
   return (
     <tr className="group h-[60px] border-b border-[var(--border-hairline)] transition last:border-b-0 hover:bg-[var(--surface-hover)]">
-      {/* The id rides above the title rather than owning a column of its own. */}
+      {/* The title owns the first line; the id joins the meta line beneath it, so
+          every title starts on the same edge and 11px mono isn't wedged against
+          13px semibold. */}
       <td className="min-w-0 px-3 align-middle first:pl-4">
         <Link href={row.href} className="block min-w-0">
-          <span className="flex min-w-0 items-baseline gap-2">
-            <span className="font-mono shrink-0 text-[11px] font-medium text-[var(--text-muted)]">{row.id}</span>
-            <span className="min-w-0 truncate text-[13px] font-semibold text-[var(--text-primary)] transition group-hover:text-[var(--accent-strong)]">
-              {row.title}
+          <span className="block min-w-0 truncate text-[13px] font-semibold text-[var(--text-primary)] transition group-hover:text-[var(--accent-strong)]">
+            {row.title}
+          </span>
+          <span className="mt-0.5 flex min-w-0 items-baseline gap-1.5 text-[12px] leading-4 text-[var(--text-muted)]">
+            <span className="font-mono shrink-0 text-[11px] text-[var(--text-faint)]">{row.id}</span>
+            <span aria-hidden className="shrink-0 text-[var(--text-faint)]">
+              ·
+            </span>
+            {/* The row is one line tall, so the description truncates — the tip is
+                how you read the rest of it without opening the record. */}
+            <span data-tip={row.description} className="min-w-0 truncate">
+              {row.description}
             </span>
           </span>
-          <span className="mt-0.5 block truncate text-[12px] leading-4 text-[var(--text-muted)]">{row.description}</span>
         </Link>
       </td>
 
@@ -860,7 +875,7 @@ function UseCaseTableRow({ row }: { row: UseCaseCard }) {
         {!priority && !lifecycleTag && !row.gate && !row.needsAttention ? <span className="text-[13px] text-[var(--text-muted)]">—</span> : null}
       </td>
 
-      <td className="px-3 pr-4 text-right align-middle">
+      <td className="px-3 pr-5 text-right align-middle">
         <span className="font-mono text-[12px] text-[var(--text-body)]">{due ?? "—"}</span>
       </td>
     </tr>
@@ -871,7 +886,7 @@ function TableHeader({ children, align = "left" }: { children: ReactNode; align?
   return (
     <th
       className={[
-        "h-9 px-3 text-[11px] font-medium text-[var(--text-muted)] first:pl-4 last:pr-4",
+        "h-9 px-3 text-[11px] font-medium text-[var(--text-muted)] first:pl-4 last:pr-5",
         align === "right" ? "text-right" : "text-left",
       ].join(" ")}
     >
@@ -906,36 +921,35 @@ function PhaseStagesHint({ members }: { members: string[] }) {
       · {members.length} stages
       {coords && typeof document !== "undefined"
         ? createPortal(
-            <div
-              style={{ position: "fixed", left: coords.x, top: coords.y, width: coords.w }}
-              className="pointer-events-none z-[80] rounded-[14px] border border-[var(--border-input)] bg-[var(--surface-strong)] p-3 shadow-[var(--shadow-menu)]"
-            >
-              {members.map((member, index) => {
-                const owner = stageOwner(member);
-                const desc = STAGE_DESC[member];
-                const last = index === members.length - 1;
-                return (
-                  <div key={member} className="flex gap-3">
-                    <div className="flex flex-col items-center pt-[7px]">
-                      <span className="h-2 w-2 shrink-0 rounded-full bg-[var(--accent)] ring-4 ring-[var(--surface-strong)]" />
-                      {last ? null : <span className="mt-1 w-px flex-1 bg-[var(--border-input)]" />}
-                    </div>
-                    <div className="min-w-0 flex-1" style={{ paddingBottom: last ? 0 : 14 }}>
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-[13px] font-semibold leading-4 text-[var(--text-primary)]">{member}</span>
-                        {owner ? (
-                          <span className="flex shrink-0 items-center gap-1.5">
-                            <PersonAvatar name={owner} size={20} />
-                            <span className="text-[11px] font-medium text-[var(--text-body)]">{owner}</span>
-                          </span>
-                        ) : null}
+            // A menu, not a diagram: the panel is the product's menu surface, and
+            // each stage is one row — number, name, owner, one line of what it is.
+            // The timeline dots and connector spelled out an order the numbers
+            // already carry, on a grey fill that fought the cards behind it.
+            <MenuSurface style={{ position: "fixed", left: coords.x, top: coords.y, width: coords.w }} className="pointer-events-none z-[80] p-0">
+              {/* No header: the trigger you hovered already says "4 stages".
+                  Hairlines separate the rows — with two-line descriptions, gaps
+                  alone left it unclear where one stage ended. The avatar sits
+                  last, so every owner ends on the same right edge instead of
+                  four avatars at four different offsets. */}
+              <div className="divide-y divide-[var(--border-hairline)]">
+                {members.map((member, index) => {
+                  const owner = stageOwner(member);
+                  const desc = STAGE_DESC[member];
+                  return (
+                    <div key={member} className="px-3 py-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className="w-3 shrink-0 font-mono text-[11px] text-[var(--text-faint)]">{index + 1}</span>
+                        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-[var(--text-primary)]">{member}</span>
+                        {/* Name only — four avatars down a 240px menu were more
+                            colour than the row needed. */}
+                        {owner ? <span className="shrink-0 text-[11px] text-[var(--text-muted)]">{owner}</span> : null}
                       </div>
-                      {desc ? <p className="mt-1 text-[11px] leading-[1.35] text-[var(--text-label)]">{desc}</p> : null}
+                      {desc ? <p className="ml-5 mt-1 text-[11px] leading-[1.45] text-[var(--text-muted)]">{desc}</p> : null}
                     </div>
-                  </div>
-                );
-              })}
-            </div>,
+                  );
+                })}
+              </div>
+            </MenuSurface>,
             document.body,
           )
         : null}
@@ -948,21 +962,29 @@ function KanbanColumn({ column }: { column: BoardColumn }) {
   const members = STAGE_GROUPS[column.title];
 
   return (
-    <section className="relative flex h-full min-h-0 flex-col">
-      <div className={["sticky top-0 z-10 bg-[var(--surface)] transition-shadow", hasScrolled ? "" : ""].join(" ")}>
-        <div className="flex items-baseline justify-between gap-2 px-1 pb-3 pt-5">
-          <div className="flex items-baseline gap-1.5">
-            <h2 className="text-[15px] font-medium text-[var(--text-primary)]">{column.title}</h2>
-            {members && members.length > 1 ? <PhaseStagesHint members={members} /> : null}
-          </div>
-          <span className="grid h-[20px] min-w-[20px] place-items-center rounded-full bg-[var(--surface-strong)] px-1.5 font-mono text-[11px] font-medium text-[var(--text-label)]">
-            {column.cards.length}
-          </span>
+    // The column is a box: a recessed tray holding white cards, so a phase reads
+    // as one container rather than a loose stack floating on the panel.
+    <section className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-[12px] bg-[var(--surface-muted)]">
+      {/* Outside the scroll area, so it stays put without a sticky fill. Its
+          hairline only appears once cards have scrolled under it. */}
+      <div
+        className={cn(
+          "flex shrink-0 items-center justify-between gap-2 border-b px-3.5 pb-3 pt-3.5",
+          hasScrolled ? "border-[var(--border-hairline)]" : "border-transparent",
+        )}
+      >
+        <div className="flex min-w-0 items-center gap-2">
+          <PhaseIcon phase={column.title} size={14} className="shrink-0" style={{ color: `var(--tone-${PHASE_TONES[column.title] ?? "neutral"}-fg)` }} />
+          <h2 className="truncate text-[14px] font-semibold text-[var(--text-primary)]">{column.title}</h2>
+          {members && members.length > 1 ? <PhaseStagesHint members={members} /> : null}
         </div>
+        <span className="grid h-[20px] min-w-[20px] shrink-0 place-items-center rounded-full bg-[var(--surface-strong)] px-1.5 font-mono text-[11px] font-medium text-[var(--text-label)]">
+          {column.cards.length}
+        </span>
       </div>
 
       <div
-        className="no-scrollbar flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-1 pb-14"
+        className="no-scrollbar flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-3 pb-10 pt-0.5"
         onScroll={(event) => setHasScrolled(event.currentTarget.scrollTop > 0)}
       >
         {column.cards.map((card) => (
@@ -971,7 +993,7 @@ function KanbanColumn({ column }: { column: BoardColumn }) {
       </div>
       {/* A card that runs past the bottom of the column dissolves rather than
  being cut in half at rest. */}
-      <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-b from-transparent to-[var(--surface)]" />
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-b from-transparent to-[var(--surface-muted)]" />
     </section>
   );
 }
@@ -1038,6 +1060,8 @@ function UseCaseBoardCard({ card }: { card: UseCaseCard }) {
           </h3>
         </div>
 
+        {/* No tip here: the card has room for the whole description, and a tip
+            that repeats what you're already reading covers the card. */}
         <p className="mt-1.5 line-clamp-2 text-[12px] leading-[1.5] text-[var(--text-body)]">{card.description}</p>
 
         {/* Chips stay on one line: past the third, the rest collapse into a +n whose

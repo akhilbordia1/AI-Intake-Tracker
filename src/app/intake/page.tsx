@@ -30,7 +30,7 @@ export default function StartUseCasePage() {
   }
 
   return (
-    <main className="flex h-screen flex-col overflow-hidden bg-[var(--shell-canvas)] text-[var(--text-primary)]">
+    <main className="chat-glow flex h-screen flex-col overflow-hidden bg-[var(--shell-canvas)] text-[var(--text-primary)]">
       <header className="flex h-14 shrink-0 items-center gap-2 border-b border-[var(--border-hairline)] px-4">
         <Link
           href="/"

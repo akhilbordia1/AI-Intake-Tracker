@@ -42,7 +42,7 @@ function gateStatusTone(status: Gate["status"]): Tone {
 export function RecordSummary({ currentUser, divider = true }: { currentUser: string; divider?: boolean }) {
   const activeStage = STAGES[ACTIVE_STAGE_INDEX];
   const tier = stageValue("Triage", "Risk governance tier");
-  const overallRisk = stageValue("Assessment - Risk & Compliance", "Overall risk");
+  const overallRisk = stageValue("Assessment", "Overall risk");
   const gateOnActive = gateForStage(activeStage.name);
   const ownedByMe = activeStage.owner === currentUser;
 

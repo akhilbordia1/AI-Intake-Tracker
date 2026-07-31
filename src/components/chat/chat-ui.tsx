@@ -100,8 +100,11 @@ export function JumpToTop({ visible, onClick }: { visible: boolean; onClick: () 
 export function ChatDock({ children }: { children: ReactNode }) {
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-0">
-      <div className="h-10 bg-gradient-to-b from-transparent to-[var(--shell-canvas)]" />
-      <div className="pointer-events-auto bg-[var(--shell-canvas)]">{children}</div>
+      {/* Tinted to continue the window's .chat-glow rather than covering it, so
+          the dock doesn't read as a rectangle laid on top. No side padding: the
+          composer keeps the full width of the rail. */}
+      <div className="h-24 bg-[image:var(--composer-wash-top)]" />
+      <div className="pointer-events-auto bg-[image:var(--composer-wash)]">{children}</div>
     </div>
   );
 }

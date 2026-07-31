@@ -38,15 +38,25 @@ import { cn } from "@/lib/cn";
 type ButtonTone = "primary" | "secondary" | "quiet" | "danger";
 type ButtonSize = "sm" | "md";
 
+// Every tone shares the same press and focus behaviour: the lift becomes an
+// inset on :active, and the focus ring lives outside the edge rather than
+// recolouring it. Only the face changes between tones — and a face is one flat
+// colour, no inner highlight.
 export function buttonClass(tone: ButtonTone = "secondary", size: ButtonSize = "sm") {
   return cn(
-    "inline-flex shrink-0 items-center justify-center gap-1.5 rounded-[8px] font-medium transition disabled:cursor-not-allowed disabled:opacity-40",
+    "inline-flex shrink-0 select-none items-center justify-center gap-1.5 rounded-[8px] font-medium outline-none",
+    "transition-[background-color,border-color,box-shadow,color,transform] duration-150",
+    "focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface)]",
+    "active:translate-y-px active:shadow-[var(--shadow-btn-pressed)]",
+    "disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none disabled:active:translate-y-0",
     size === "sm" ? "h-8 px-3 text-[13px]" : "h-9 px-3.5 text-[14px]",
-    tone === "primary" && "bg-[var(--accent)] text-white hover:bg-[var(--accent-strong)]",
+    tone === "primary" &&
+      "bg-[var(--accent)] text-white shadow-[var(--shadow-btn-primary)] hover:bg-[var(--accent-hover)] hover:shadow-[var(--shadow-btn-primary-hover)]",
     tone === "secondary" &&
-      "border border-[var(--border-default)] bg-[var(--surface)] text-[var(--text-body)] hover:border-[var(--border-input)] hover:bg-[var(--surface-hover)] hover:text-[var(--accent-strong)]",
+      "border border-[var(--border-default)] bg-[var(--surface)] text-[var(--text-body)] shadow-[var(--shadow-btn-raised)] hover:border-[var(--border-input)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]",
     tone === "quiet" && "text-[var(--text-label)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]",
-    tone === "danger" && "border border-[var(--tone-danger-border)] bg-[var(--tone-danger-bg)] text-[var(--tone-danger-fg)] hover:brightness-95",
+    tone === "danger" &&
+      "border border-[var(--tone-danger-border)] bg-[var(--tone-danger-bg)] text-[var(--tone-danger-fg)] shadow-[var(--shadow-btn-raised)] hover:border-[var(--tone-danger-fg)] hover:bg-[var(--tone-danger-border)]",
   );
 }
 
@@ -99,7 +109,9 @@ export function IconButton({
       style={{ width: size, height: size }}
       {...rest}
       className={cn(
-        "grid shrink-0 place-items-center rounded-[8px] transition disabled:cursor-not-allowed disabled:opacity-45",
+        "grid shrink-0 place-items-center rounded-[8px] outline-none transition duration-150",
+        "focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface)]",
+        "active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-45 disabled:active:scale-100",
         active
           ? "bg-[var(--surface-strong)] text-[var(--text-primary)]"
           : "text-[var(--text-label)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]",
@@ -343,7 +355,7 @@ export const STAGE_ICONS: Record<string, LucideIcon> = {
   Qualification: Filter,
   Prioritisation: ArrowUpDown,
   Triage: Split,
-  "Assessment - Risk & Compliance": ShieldCheck,
+  Assessment: ShieldCheck,
   "Business Case": Calculator,
   GTAC: Gavel,
   "Plan & KPI": Target,

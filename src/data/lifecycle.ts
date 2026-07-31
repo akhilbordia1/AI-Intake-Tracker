@@ -68,7 +68,7 @@ export const STAGES = [
     ],
   },
   {
-    name: "Assessment - Risk & Compliance",
+    name: "Assessment",
     owner: "Lena Osei",
     rows: [
       ["PII", "No"],
@@ -176,7 +176,7 @@ export const SHORT_STAGE_LABELS = [
 // stages inside each one, and the record's breadcrumb names the current phase.
 export const STAGE_GROUPS: Record<string, string[]> = {
   "Intake & Prioritization": ["Ideation", "Qualification", "Prioritisation", "Triage"],
-  "Governance & Risk": ["Assessment - Risk & Compliance", "Business Case", "GTAC"],
+  "Governance & Risk": ["Assessment", "Business Case", "GTAC"],
   Delivery: ["Plan & KPI", "Solution blue print", "Solutionise and Production"],
   "Operate & Adopt": ["Monitoring and tracking", "Adoption"],
 };
@@ -196,7 +196,7 @@ export const STAGE_INTROS: Record<string, string> = {
   Qualification: "A quick scan for prohibited uses, ending in a provisional risk tier.",
   Prioritisation: "Value weighed against readiness, to decide whether this moves now.",
   Triage: "Any flags resolved, and the use case routed onto the right assessment path.",
-  "Assessment - Risk & Compliance": "Data, privacy and model risks reviewed, with the conditions to proceed.",
+  Assessment: "Data, privacy and model risks reviewed, with the conditions to proceed.",
   "Business Case": "Cost, benefit, and the recommendation going to the GTAC board.",
   GTAC: "The board's funding decision and any binding conditions.",
   "Plan & KPI": "The delivery squad, the milestones, and the success metrics to lock.",
