@@ -746,10 +746,13 @@ function UseCaseTableView({ columns, totalRows }: { columns: BoardColumn[]; tota
             return (
               <tbody key={column.title}>
                 <tr>
-                  <th scope="colgroup" colSpan={5} className="px-4 pb-2 pt-5 text-left">
+                  <th scope="colgroup" colSpan={5} className="px-2 pb-2 pt-5 text-left">
                     {/* Neutral band, coloured glyph: the phase reads from the icon
-                        rather than a wash of tint behind everything. */}
-                    <span className="flex min-h-[38px] items-center gap-2 rounded-[8px] border border-[var(--border-hairline)] bg-[var(--surface-muted)] px-3.5 py-2.5">
+                        rather than a wash of tint behind everything. Its gutter and
+                        inner padding add up to the cells' own 16px, so the phase name
+                        sits on the same edge as the rows under it while the box still
+                        floats inside the table. */}
+                    <span className="flex min-h-[38px] items-center gap-2 rounded-[8px] border border-[var(--border-hairline)] bg-[var(--surface-muted)] py-2.5 pl-2 pr-3">
                       <PhaseIcon phase={column.title} size={14} className="shrink-0" style={{ color: `var(--tone-${tone}-fg)` }} />
                       <span className="text-[13px] font-semibold text-[var(--text-primary)]">{column.title}</span>
                       <span className="font-mono rounded-[5px] bg-[var(--surface-strong)] px-1.5 text-[11px] font-medium text-[var(--text-label)]">
@@ -910,7 +913,9 @@ function TableHeader({ icon, children, align = "left" }: { icon?: ReactNode; chi
     <th
       className={cn("h-9 px-3 text-[11px] font-medium text-[var(--text-muted)] first:pl-4 last:pr-5", align === "right" ? "text-right" : "text-left")}
     >
-      <span className={cn("inline-flex items-center gap-1.5", align === "right" && "flex-row-reverse")}>
+      {/* Icon first in every column, right-aligned ones included: a glyph on the
+          far side of the label reads as a control, not as the column's kind. */}
+      <span className="inline-flex items-center gap-1.5">
         {icon ? <span className="shrink-0">{icon}</span> : null}
         {children}
       </span>
