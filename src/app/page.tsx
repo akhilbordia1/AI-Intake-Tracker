@@ -10,6 +10,7 @@ import {
   FileText,
   Flag,
   Inbox,
+  Plus,
   Search,
   ShieldCheck,
   SlidersHorizontal,
@@ -27,6 +28,7 @@ import { MiniChatRail } from "@/components/chat/mini-chat-rail";
 import { PersonAvatar, ProfileSwitcher } from "@/components/profile";
 import {
   Button,
+  ButtonLink,
   CHIP,
   ChipOverflow,
   IconButton,
@@ -542,6 +544,13 @@ export default function HomePage() {
               <span className="font-mono text-[11px] text-[var(--text-muted)]">{attentionCount}</span>
             </Button>
             <FilterMenu activeView={activeView} onViewChange={setActiveView} activeScope={scopeFilter} onScopeChange={setScopeFilter} />
+            {/* The one action this view is for. The rail can also start a use case
+                from a described idea; this is the door for people who'd rather fill
+                the intake in. */}
+            <ButtonLink href="/intake" tone="primary">
+              <Plus size={14} />
+              New use case
+            </ButtonLink>
             <span aria-hidden className="mx-0.5 h-4 w-px shrink-0 bg-[var(--border-default)]" />
             <ProfileSwitcher currentUser={activeProfile} onUserChange={setActiveProfile} compact />
           </>
