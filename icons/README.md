@@ -7,7 +7,7 @@ Each SVG is a 24×24 stroke icon with `stroke="currentColor"` and `stroke-width=
 takes the colour of its container. The app renders them at 11–18px; set `width`/`height`
 to the size you need rather than scaling with CSS transforms.
 
-59 icons.
+58 icons.
 
 | Icon | File | Used in |
 | --- | --- | --- |
@@ -56,14 +56,13 @@ to the size you need rather than scaling with CSS transforms.
 | PanelLeftOpen | `panel-left-open.svg` | `src/components/app-shell.tsx` |
 | PenTool | `pen-tool.svg` | `src/components/ui/kit.tsx` |
 | Pencil | `pencil.svg` | `src/components/document-record/detail-record.tsx` |
-| PieChart | `chart-pie.svg` | `src/app/page.tsx` |
 | Plus | `plus.svg` | `src/app/page.tsx`, `src/components/forms/fields.tsx` |
 | Rocket | `rocket.svg` | `src/components/ui/kit.tsx` |
 | RotateCcw | `rotate-ccw.svg` | `src/components/document-record/detail-record.tsx`, `src/components/document-record/record-details-sheet.tsx` |
 | Search | `search.svg` | `src/app/page.tsx`, `src/components/forms/fields.tsx` |
 | ShieldCheck | `shield-check.svg` | `src/app/page.tsx`, `src/app/portfolio/page.tsx`, `src/components/document-record/detail-record.tsx`, `src/components/document-record/record-details-sheet.tsx`, `src/components/document-record/record-summary.tsx`, `src/components/ui/kit.tsx` |
 | SlidersHorizontal | `sliders-horizontal.svg` | `src/app/page.tsx`, `src/app/portfolio/page.tsx` |
-| Sparkles | `sparkles.svg` | `src/app/page.tsx`, `src/app/portfolio/page.tsx`, `src/components/chat/chat-ui.tsx`, `src/components/document-record/detail-record.tsx`, `src/components/document-record/record-details-sheet.tsx`, `src/components/forms/fields.tsx` |
+| Sparkles | `sparkles.svg` | `src/app/page.tsx`, `src/app/portfolio/page.tsx`, `src/components/chat/chat-ui.tsx`, `src/components/document-record/detail-record.tsx`, `src/components/document-record/record-details-sheet.tsx`, `src/components/forms/fields.tsx`, `src/components/portfolio/tiles.tsx` |
 | Split | `split.svg` | `src/components/ui/kit.tsx` |
 | Table2 | `table-2.svg` | `src/app/page.tsx` |
 | Target | `target.svg` | `src/components/ui/kit.tsx` |
