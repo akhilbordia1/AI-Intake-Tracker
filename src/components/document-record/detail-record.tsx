@@ -701,65 +701,30 @@ function StageFormHeader({
 
 // ── The board's decision, read by the agent ──
 // GTAC is a judgement, not a lookup: the numbers are already in the record, spread
-// across the business case, the assessment and prioritisation. This puts the case
-// for and against in one place so the board member can disagree with something
-// specific rather than re-reading three stages.
-// ai-upgrade: the argument is assembled from recorded values below. Swap it for a
-// model call over the record.
-function DecisionColumn({ title, tone, items }: { title: string; tone: string; items: string[] }) {
-  return (
-    <div className="min-w-0">
-      <h4 className="text-[11px] font-semibold uppercase tracking-[0.06em]" style={{ color: tone }}>
-        {title}
-      </h4>
-      <ul className="mt-2 flex flex-col gap-1.5">
-        {items.map((item) => (
-          <li key={item} className="flex gap-1.5 text-[12px] leading-[1.5] text-[var(--text-body)]">
-            <span aria-hidden className="mt-[7px] h-[3px] w-[3px] shrink-0 rounded-full" style={{ background: tone }} />
-            <span className="min-w-0">{item}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
+// across the business case, the assessment and prioritisation. The header carries
+// the call, one line carries the reasoning. Anything longer competed with the form
+// that records the actual decision.
+// ai-upgrade: the call and its line are assembled from recorded values below. Swap
+// them for a model call over the record.
 function GtacRecommendation() {
   const value = (stage: string, label: string) => stageValue(stage, label) ?? "—";
+  // The board's own call is a recorded row; the agent's read agrees or it doesn't.
+  const call = /no.?go/i.test(value("GTAC", "Go / No-Go board call")) ? "NO-GO" : "GO";
 
   return (
-    <section aria-label="Read on this decision" className="mt-6 rounded-[10px] border border-[var(--border-default)] bg-[var(--surface-muted)]">
-      <div className="flex items-center gap-2 border-b border-[var(--border-hairline)] px-4 py-2.5">
+    <section aria-label="Read on this decision" className="mt-6 rounded-[10px] border border-[var(--border-default)] bg-[var(--surface-muted)] p-3.5">
+      <div className="flex items-center gap-2">
         <Sparkles size={13} className="shrink-0 text-[var(--accent)]" />
-        <span className="text-[12px] font-semibold text-[var(--text-primary)]">Recommend GO</span>
+        <span className="text-[12px] font-semibold text-[var(--text-primary)]">
+          Recommendation ·{" "}
+          <span style={{ color: call === "GO" ? "var(--status-success)" : "var(--tone-danger-fg)" }}>{call}</span>
+        </span>
       </div>
-
-      {/* A rule between the two sides, not just a gap: the columns are an argument
-          with each other, so the divider is the point. */}
-      <div className="grid sm:grid-cols-2">
-        <div className="px-4 py-3.5">
-          <DecisionColumn
-            title="For"
-            tone="var(--status-success)"
-            items={[
-              `Payback ${value("GTAC", "ROI payback period")}, well inside the five-year bar.`,
-              `${value("Business Case", "Projected annual savings")}/yr on ${value("Business Case", "Total investment required")}; ${value("Business Case", "3-year net value (NPV)")} over three years.`,
-              `${value("Assessment", "Overall risk level")} risk, no personal data, writer sign-off in place.`,
-            ]}
-          />
-        </div>
-        <div className="border-t border-[var(--border-hairline)] px-4 py-3.5 sm:border-l sm:border-t-0">
-          <DecisionColumn
-            title="Against"
-            tone="var(--tone-warning-fg)"
-            items={[
-              `Assumes ${value("Business Case", "Projected time savings")} saved; pilot is at ${value("Monitoring and tracking", "Review time reduction")}.`,
-              `Adoption ${value("Monitoring and tracking", "Adoption rate (eligible users)")} in pilot.`,
-              "GxP-adjacent: CSV validation before build, not after.",
-            ]}
-          />
-        </div>
-      </div>
+      <p className="mt-2 text-[13px] leading-[1.6] text-[var(--text-body)]">
+        Payback {value("GTAC", "ROI payback period")} on {value("Business Case", "Total investment required")} at{" "}
+        {value("Assessment", "Overall risk level").toLowerCase()} risk — press on the time saving, which the pilot has at{" "}
+        {value("Monitoring and tracking", "Review time reduction")}.
+      </p>
     </section>
   );
 }
