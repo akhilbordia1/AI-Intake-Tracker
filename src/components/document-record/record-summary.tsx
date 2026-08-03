@@ -103,7 +103,10 @@ export function RecordSummary({ currentUser, divider = true }: { currentUser: st
           on the right as chips. Four identical pills made the owner, a date and two
           different states all look like the same kind of thing. */}
       <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-[12px] text-[var(--text-muted)]">
-        <span className="inline-flex items-center gap-1.5">
+        {/* Labelled like the date beside it: a name on its own didn't say whether
+            it was the requester, the approver or whose turn it is. */}
+        <span data-tip={`Owns the ${activeStage.name} stage`} className="inline-flex items-center gap-1.5">
+          Owner
           <PersonAvatar name={activeStage.owner} size={20} highlight={ownedByMe} />
           <span className={cn("text-[var(--text-body)]", ownedByMe && "font-semibold text-[var(--text-primary)]")}>{activeStage.owner}</span>
         </span>
