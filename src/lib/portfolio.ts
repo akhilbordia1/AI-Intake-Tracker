@@ -9,7 +9,7 @@
 // Phase membership lives in `lifecycle.ts`; it is passed in as a `PhaseMap` so this
 // file keeps no second copy of the lifecycle and stays importable by the checker.
 
-import type { GateStatus, Lifecycle, PortfolioMonth, RiskLevel, RiskTier, UseCaseCard } from "@/data/registry";
+import type { Capability, GateStatus, Lifecycle, PortfolioMonth, RiskLevel, RiskTier, UseCaseCard } from "@/data/registry";
 
 export type PhaseMap = { order: readonly string[]; phaseOf: (substage: string) => string };
 
@@ -40,6 +40,13 @@ export function usd(amount: number): string {
 }
 
 export const pct = (ratio: number) => `${Math.round(ratio * 100)}%`;
+
+// Counts at a glance, the way the refs write them: 2,450 → 2.5k, 29,000 → 29k.
+export function compactNumber(value: number): string {
+  if (Math.abs(value) < 1000) return String(value);
+  const thousands = value / 1000;
+  return `${thousands >= 10 ? Math.round(thousands) : Math.round(thousands * 10) / 10}k`;
+}
 
 // ── Flow ──
 
@@ -195,6 +202,56 @@ export function riskMix(cards: UseCaseCard[]) {
 export function riskLevelMix(cards: UseCaseCard[]) {
   const order: RiskLevel[] = ["Low", "Medium", "High"];
   return order.map((level) => ({ level, count: cards.filter((card) => card.riskLevel === level).length }));
+}
+
+// ── Conversion, mix, impact, pulse ──
+
+// How far the funnel narrows: the share of everything ever raised that reached each
+// phase. This is the "L0 → L5 conversion" question, answered off `phaseEntered`
+// rather than a hand-kept percentage.
+export function conversion(cards: UseCaseCard[], phases: PhaseMap) {
+  const total = cards.length || 1;
+  return phases.order.map((phase) => {
+    const reached = cards.filter((card) => card.phaseEntered[phase]).length;
+    return { phase, reached, share: reached / total };
+  });
+}
+
+// Analytical / Generative / Agentic — the split that decides how much governance a
+// record needs, so it belongs next to the risk numbers.
+export function capabilityMix(cards: UseCaseCard[]) {
+  const order: Capability[] = ["Analytical", "Generative", "Agentic"];
+  const total = cards.length || 1;
+  return order.map((capability) => {
+    const count = cards.filter((card) => card.capability === capability).length;
+    return { capability, count, share: count / total };
+  });
+}
+
+// What production actually gives back, in people and hours rather than money — the
+// two numbers a sponsor repeats in a town hall.
+export function impact(cards: UseCaseCard[]) {
+  const live = cards.filter((card) => card.lifecycle === "Live");
+  return {
+    live: live.length,
+    activeUsers: live.reduce((total, card) => total + (card.activeUsers ?? 0), 0),
+    hoursSaved: live.reduce((total, card) => total + (card.hoursSavedPerYear ?? 0), 0),
+  };
+}
+
+// One number for "is the system healthy", and the four things it is made of. A single
+// score hides its own reasoning, so the parts are returned with it and shown.
+export function pulse(cards: UseCaseCard[], months: PortfolioMonth[], asOf: string, decisionTargetDays = 15) {
+  const h = headline(cards, months, asOf);
+  const targets = attainmentSummary(kpiAttainment(cards));
+  const parts = [
+    { label: "Gate approvals", ratio: h.passRate },
+    { label: "Targets met", ratio: targets.total ? targets.ratio : 1 },
+    // Faster than the target is a full mark, not a bonus.
+    { label: "Decision speed", ratio: Math.min(1, decisionTargetDays / Math.max(1, h.decisionDays)) },
+    { label: "Flow", ratio: h.active ? 1 - h.blocked / h.active : 1 },
+  ];
+  return { score: parts.reduce((total, part) => total + part.ratio, 0) / parts.length, parts };
 }
 
 // ── Capacity ──
@@ -510,6 +567,7 @@ function demo() {
     riskTier: "Standard" as RiskTier,
     riskLevel: "Low" as RiskLevel,
     businessFunction: "Ops",
+    capability: "Analytical" as Capability,
     ...over,
   });
 

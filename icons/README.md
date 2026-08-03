@@ -7,7 +7,7 @@ Each SVG is a 24×24 stroke icon with `stroke="currentColor"` and `stroke-width=
 takes the colour of its container. The app renders them at 11–18px; set `width`/`height`
 to the size you need rather than scaling with CSS transforms.
 
-58 icons.
+61 icons.
 
 | Icon | File | Used in |
 | --- | --- | --- |
@@ -28,6 +28,7 @@ to the size you need rather than scaling with CSS transforms.
 | ChevronRight | `chevron-right.svg` | `src/components/app-shell.tsx`, `src/components/chat/chat-use-case-card.tsx`, `src/components/document-record/detail-record.tsx`, `src/components/forms/fields.tsx` |
 | Circle | `circle.svg` | `src/app/overview/page.tsx` |
 | CircleDot | `circle-dot.svg` | `src/app/overview/page.tsx`, `src/app/page.tsx` |
+| CircleSlash | `circle-slash.svg` | `src/app/portfolio/page.tsx` |
 | Coins | `coins.svg` | `src/app/portfolio/page.tsx` |
 | Columns3 | `columns-3.svg` | `src/app/page.tsx` |
 | CornerUpLeft | `corner-up-left.svg` | `src/components/document-record/detail-record.tsx` |
@@ -39,9 +40,9 @@ to the size you need rather than scaling with CSS transforms.
 | Hammer | `hammer.svg` | `src/components/ui/kit.tsx` |
 | HelpCircle | `circle-question-mark.svg` | `src/components/forms/fields.tsx` |
 | History | `history.svg` | `src/components/chat/chat-history.tsx` |
-| Inbox | `inbox.svg` | `src/app/page.tsx`, `src/components/ui/kit.tsx` |
+| Inbox | `inbox.svg` | `src/app/page.tsx`, `src/app/portfolio/page.tsx`, `src/components/ui/kit.tsx` |
 | Info | `info.svg` | `src/app/overview/page.tsx`, `src/components/document-record/detail-record.tsx` |
-| Layers | `layers.svg` | `src/components/document-record/record-details-sheet.tsx`, `src/components/ui/kit.tsx` |
+| Layers | `layers.svg` | `src/app/portfolio/page.tsx`, `src/components/document-record/record-details-sheet.tsx`, `src/components/ui/kit.tsx` |
 | Lightbulb | `lightbulb.svg` | `src/app/intake/page.tsx`, `src/components/ui/kit.tsx` |
 | ListChecks | `list-checks.svg` | `src/app/overview/page.tsx` |
 | LoaderCircle | `loader-circle.svg` | `src/components/chat/chat-ui.tsx` |
@@ -60,12 +61,14 @@ to the size you need rather than scaling with CSS transforms.
 | Rocket | `rocket.svg` | `src/components/ui/kit.tsx` |
 | RotateCcw | `rotate-ccw.svg` | `src/components/document-record/detail-record.tsx`, `src/components/document-record/record-details-sheet.tsx` |
 | Search | `search.svg` | `src/app/page.tsx`, `src/components/forms/fields.tsx` |
-| ShieldCheck | `shield-check.svg` | `src/app/page.tsx`, `src/app/portfolio/page.tsx`, `src/components/document-record/detail-record.tsx`, `src/components/document-record/record-details-sheet.tsx`, `src/components/document-record/record-summary.tsx`, `src/components/ui/kit.tsx` |
+| ShieldCheck | `shield-check.svg` | `src/app/page.tsx`, `src/components/document-record/detail-record.tsx`, `src/components/document-record/record-details-sheet.tsx`, `src/components/document-record/record-summary.tsx`, `src/components/ui/kit.tsx` |
 | SlidersHorizontal | `sliders-horizontal.svg` | `src/app/page.tsx`, `src/app/portfolio/page.tsx` |
 | Sparkles | `sparkles.svg` | `src/app/page.tsx`, `src/app/portfolio/page.tsx`, `src/components/chat/chat-ui.tsx`, `src/components/document-record/detail-record.tsx`, `src/components/document-record/record-details-sheet.tsx`, `src/components/forms/fields.tsx`, `src/components/portfolio/tiles.tsx` |
 | Split | `split.svg` | `src/components/ui/kit.tsx` |
 | Table2 | `table-2.svg` | `src/app/page.tsx` |
-| Target | `target.svg` | `src/components/ui/kit.tsx` |
+| Target | `target.svg` | `src/app/portfolio/page.tsx`, `src/components/ui/kit.tsx` |
+| Timer | `timer.svg` | `src/app/portfolio/page.tsx` |
+| TrendingUp | `trending-up.svg` | `src/app/portfolio/page.tsx` |
 | User | `user.svg` | `src/app/overview/page.tsx`, `src/app/page.tsx` |
 | Users | `users.svg` | `src/components/document-record/record-details-sheet.tsx`, `src/components/ui/kit.tsx` |
 | X | `x.svg` | `src/components/document-record/detail-record.tsx`, `src/components/document-record/markdown-modal.tsx`, `src/components/document-record/record-details-sheet.tsx` |

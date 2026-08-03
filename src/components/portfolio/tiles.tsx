@@ -5,25 +5,24 @@ import type { ReactNode } from "react";
 
 import { Markdown } from "@/components/document-record/markdown";
 
-import { ProgressBar, cardClass } from "@/components/ui/kit";
+import { ProgressBar, ProgressRing, cardClass } from "@/components/ui/kit";
 import { cn } from "@/lib/cn";
 
 // ── The portfolio's drawing parts ──
-// Five shapes cover both views, and that ceiling is the point: a leadership page is
-// read, not explored, so it says its answer in a sentence (`ReadLine`), backs it with
-// at most four blocks, and names what it left out (`AskLine`). All hand-drawn from
-// the product's own hairlines and fills — bars rather than pies, because a hole and a
-// legend is a different visual language from the rest of the app, and lengths are
-// easier to compare than angles. Only a real time axis gets a chart runtime (see
-// `time-chart.tsx`).
+// A leadership page is read, not explored: a titled summary, a band of four numbers,
+// then at most four blocks, each with a noun for a title and no explanatory sentence —
+// if a tile needs a caption to be understood, it's the wrong tile. All hand-drawn from
+// the product's own hairlines and fills; bars only where something is a share of a
+// whole, dots rather than pills for status in a dense list, and a chart runtime only
+// where there is a real time axis (see `time-chart.tsx`).
 
 // The assistant's read on the numbers above it — a headline sentence and three
-// supporting lines, authored as Markdown so the copy can come from a model. Titled,
-// on the muted surface with an accent edge, so it reads as something written rather
-// than as another tile of figures.
+// supporting lines, authored as Markdown so the copy can come from a model. The muted
+// fill and the glyph are enough to mark it as something written rather than another
+// tile of figures; an accent edge on top of that was one signal too many.
 export function SummaryPanel({ title, source, meta }: { title: string; source: string; meta?: string }) {
   return (
-    <section className="rounded-[10px] border border-[var(--border-default)] border-l-2 border-l-[var(--accent)] bg-[var(--surface-muted)]">
+    <section className="rounded-[10px] border border-[var(--border-default)] bg-[var(--surface-muted)]">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-[var(--border-hairline)] px-5 py-3">
         <h3 className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[var(--text-primary)]">
           <Sparkles size={13} className="text-[var(--accent)]" />
@@ -35,17 +34,6 @@ export function SummaryPanel({ title, source, meta }: { title: string; source: s
         <Markdown source={source} className="max-w-[86ch]" />
       </div>
     </section>
-  );
-}
-
-// What this page deliberately doesn't show. Everything cut from the tiles is one
-// question away in the rail, so the page can stay short without the numbers being
-// lost — and saying so is what makes the omission read as a choice.
-export function AskLine({ topics }: { topics: string }) {
-  return (
-    <p className="text-[12px] text-[var(--text-muted)]">
-      Ask the assistant for {topics} — it reads the same numbers as this page.
-    </p>
   );
 }
 
@@ -65,7 +53,7 @@ export function TileBox({
   className?: string;
 }) {
   return (
-    <section className={cn(cardClass(), "min-w-0", className)}>
+    <section className={cn(cardClass(), "min-w-0 rounded-[12px]", className)}>
       {/* Sans and 13px, not the display serif: eight serif headings down a page of
           figures read as eight article titles and buried the data they introduce. */}
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-[var(--border-hairline)] px-5 py-3">
@@ -97,7 +85,7 @@ export function DataTable({
             <th
               key={column}
               className={cn(
-                "border-b border-[var(--border-default)] pb-2 text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--text-muted)]",
+                "border-b border-[var(--border-hairline)] pb-2 text-[11px] font-medium text-[var(--text-muted)]",
                 index > 0 && "pl-4 text-right",
               )}
             >
@@ -119,6 +107,19 @@ export function DataTable({
         ))}
       </tbody>
     </table>
+  );
+}
+
+// Status as a dot and a word, the way a dense list wants it: four filled pills down a
+// column read as four buttons, and the colour is doing the work anyway.
+export function StatusDot({ label, tone }: { label: string; tone: "good" | "warn" | "bad" | "quiet" }) {
+  const colour =
+    tone === "good" ? "var(--status-success)" : tone === "warn" ? "var(--tone-warning-fg)" : tone === "bad" ? "var(--tone-danger-fg)" : "var(--text-faint)";
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1.5 text-[12px]" style={{ color: colour }}>
+      <span aria-hidden className="h-1.5 w-1.5 rounded-full" style={{ background: colour }} />
+      {label}
+    </span>
   );
 }
 
@@ -147,7 +148,7 @@ export function TargetRow({
         {unit}
       </span>
       <span className="font-mono shrink-0 text-[11px] text-[var(--text-muted)]">
-        of {target}
+        {target}
         {unit}
       </span>
       <span
@@ -162,9 +163,43 @@ export function TargetRow({
   );
 }
 
+// Six months of a measure, at the size of a word. Inline SVG rather than a chart
+// runtime: there is no axis to label, and the shape *is* the whole point.
+export function Sparkline({ values, colour = "var(--accent)", width = 64, height = 20 }: { values: number[]; colour?: string; width?: number; height?: number }) {
+  if (values.length < 2) return null;
+  const low = Math.min(...values);
+  const high = Math.max(...values);
+  const span = high - low || 1;
+  const step = (width - 2) / (values.length - 1);
+  const points = values.map((value, index) => `${1 + index * step},${height - 2 - ((value - low) / span) * (height - 4)}`);
+  const last = points[points.length - 1].split(",");
+
+  return (
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden className="shrink-0 overflow-visible">
+      <polyline points={points.join(" ")} fill="none" stroke={colour} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" opacity={0.55} />
+      <circle cx={last[0]} cy={last[1]} r={2} fill={colour} />
+    </svg>
+  );
+}
+
+export type Stat = {
+  label: string;
+  value: string;
+  // The one-line "compared to what" under the number.
+  delta?: string;
+  // Colours that line: good, needs-attention, or plain.
+  deltaTone?: "good" | "warn";
+  icon?: ReactNode;
+  // Six-month shape of the same measure, drawn beside the number.
+  trend?: number[];
+  tip?: string;
+};
+
 // The headline row: four numbers, divided by rules rather than by gaps, because
-// they're one statement about the portfolio and not four separate cards.
-export function StatBand({ items }: { items: { label: string; value: string; delta?: string; tip?: string }[] }) {
+// they're one statement about the portfolio and not four separate cards. Each cell is
+// a glyph and a label, the number, then what it's measured against — read top to
+// bottom, in the same three sizes every time.
+export function StatBand({ items }: { items: Stat[] }) {
   return (
     <section className={cn(cardClass(), "grid grid-cols-2 sm:grid-cols-4")}>
       {items.map((item, index) => (
@@ -172,16 +207,37 @@ export function StatBand({ items }: { items: { label: string; value: string; del
           key={item.label}
           data-tip={item.tip}
           className={cn(
-            "min-w-0 px-4 py-3.5",
+            "flex min-w-0 flex-col gap-2 px-5 py-4",
             // Hairlines between cells, and none on the leading edge of a row.
             index % 2 === 1 && "border-l border-[var(--border-hairline)]",
             index >= 2 && "border-t border-[var(--border-hairline)] sm:border-t-0",
             index >= 1 && "sm:border-l sm:border-[var(--border-hairline)]",
           )}
         >
-          <div className="text-[12px] text-[var(--text-label)]">{item.label}</div>
-          <div className="font-display mt-1 text-[28px] leading-none text-[var(--text-primary)]">{item.value}</div>
-          {item.delta ? <div className="font-mono mt-1.5 text-[11px] text-[var(--text-muted)]">{item.delta}</div> : null}
+          <div className="flex min-w-0 items-center gap-1.5 text-[12px] text-[var(--text-label)]">
+            {item.icon ? <span className="shrink-0 text-[var(--text-faint)]">{item.icon}</span> : null}
+            <span className="truncate">{item.label}</span>
+          </div>
+          <div className="flex items-end justify-between gap-2">
+            {/* Sans, not the display serif: Fraunces sets figures with old-style
+                numerals, so "$1.79M" and "8/10" came out uneven and slightly wrong at
+                a glance. Tabular so a row of cells lines up. */}
+            <span className="text-[26px] font-semibold leading-none tracking-[-0.02em] text-[var(--text-primary)] [font-variant-numeric:tabular-nums]">
+              {item.value}
+            </span>
+            {item.trend ? <Sparkline values={item.trend} /> : null}
+          </div>
+          {item.delta ? (
+            <div
+              className="font-mono truncate text-[11px]"
+              style={{
+                color:
+                  item.deltaTone === "good" ? "var(--status-success)" : item.deltaTone === "warn" ? "var(--tone-warning-fg)" : "var(--text-muted)",
+              }}
+            >
+              {item.delta}
+            </div>
+          ) : null}
         </div>
       ))}
     </section>
@@ -226,6 +282,58 @@ export function BarList({ rows, className }: { rows: BarRow[]; className?: strin
           )}
         </div>
       ))}
+    </div>
+  );
+}
+
+// One bar split into segments plus a legend — the app's answer to a donut: same
+// information, same hairline language, and lengths you can compare.
+export function StackedMeter({ segments }: { segments: { key: string; label: string; count: number; colour: string }[] }) {
+  const total = segments.reduce((sum, segment) => sum + segment.count, 0) || 1;
+  return (
+    <div>
+      <span className="flex h-2 overflow-hidden rounded-full bg-[var(--surface-strong)]">
+        {segments.map((segment) => (
+          <span key={segment.key} style={{ width: `${(segment.count / total) * 100}%`, background: segment.colour }} />
+        ))}
+      </span>
+      <div className="mt-3 flex flex-col gap-1.5">
+        {segments.map((segment) => (
+          <span key={segment.key} className="flex items-center gap-2 text-[12px] text-[var(--text-body)]">
+            <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: segment.colour }} />
+            <span className="min-w-0 flex-1 truncate">{segment.label}</span>
+            <span className="font-mono text-[11px] text-[var(--text-muted)]">{Math.round((segment.count / total) * 100)}%</span>
+            <span className="font-mono w-5 text-right text-[12px] text-[var(--text-primary)]">{segment.count}</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// A composite score, with the things it is made of underneath: one number on its own
+// hides its own reasoning, and a leader's first question is "made of what?".
+export function ScorePanel({ score, parts, label }: { score: number; parts: { label: string; ratio: number }[]; label: string }) {
+  return (
+    <div className="flex items-center gap-5">
+      <span className="relative shrink-0">
+        <ProgressRing ratio={score} size={72} stroke={6} complete={score >= 0.9} />
+        <span className="absolute inset-0 grid place-items-center text-[15px] font-semibold text-[var(--text-primary)] [font-variant-numeric:tabular-nums]">
+          {Math.round(score * 100)}%
+        </span>
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="mb-2 text-[12px] text-[var(--text-label)]">{label}</div>
+        <div className="flex flex-col gap-1.5">
+          {parts.map((part) => (
+            <span key={part.label} className="flex items-center gap-2 text-[12px] text-[var(--text-body)]">
+              <span className="min-w-0 flex-1 truncate">{part.label}</span>
+              <ProgressBar ratio={part.ratio} className="h-1.5 w-16 shrink-0" />
+              <span className="font-mono w-8 shrink-0 text-right text-[11px] text-[var(--text-muted)]">{Math.round(part.ratio * 100)}%</span>
+            </span>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

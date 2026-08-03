@@ -234,14 +234,25 @@ sentence rather than a count. Four blocks per view is the ceiling; anything cut 
 the rail, and an `AskLine` at the foot says so, so the omission reads as a choice
 instead of a gap.
 
+**Figures are sans, even the big ones.** Fraunces sets numerals old-style, so `$1.79M`
+and `8/10` came out uneven at 28px — the one place the display serif loses to Inter. A
+headline number is 26px semibold sans with `tabular-nums` so a row of cells lines up;
+the serif keeps prose, record names and section titles. Two lines on one chart never
+share a hue family: the second series takes the clay `--tone-info-fg`, because
+accent-green against success-green read as one line crossing itself.
+
 **Pick the shape the comparison needs.** A bar is for shares of a whole (`BarList`,
 phases). Figures that want reading against each other go in a hairline table with the
 numbers right-aligned in mono (`DataTable`) — bars sized against the largest bucket
 made the *stopped* money the longest thing on the tile. A measured value against its
 target shows the gap, not a proportional bar (`TargetRow`): production KPIs all sit
-within a few points of target, so every bar was full and said nothing. Tile headings are
-13px sans, not the display serif — eight serif headings down a page of figures read as
-eight article titles. Both views sit in one measured grid (max 1080px, two tiles abreast
+within a few points of target, so every bar was full and said nothing. A share of a whole with three parts is one stacked bar
+plus a legend (`StackedMeter`), never a donut. A composite score shows what it's made
+of underneath it (`ScorePanel`) — one number alone hides its own reasoning. Status in a
+dense list is a coloured dot and a word (`StatusDot`), not a filled pill: four pills
+down a column read as four buttons. Tile headings are 13px sans with a noun for a
+title and a count for a hint — if a tile needs a caption sentence to be understood,
+it's the wrong tile. Both views sit in one measured grid (max 1080px, two tiles abreast
 where they fit): full-bleed rows put a label and its number in different postcodes.
 
 **Tooltips.** One line is a phrase. More than that is written as lines, first line

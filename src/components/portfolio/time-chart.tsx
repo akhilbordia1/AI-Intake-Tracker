@@ -69,7 +69,9 @@ export function TimeChart({
   return (
     <div style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data} margin={{ top: 6, right: 8, bottom: 0, left: -18 }}>
+        {/* No negative left margin: pulling the plot left clipped the widest y label
+            ($1.8M) against the tile edge. The axis reserves its own width instead. */}
+        <LineChart data={data} margin={{ top: 6, right: 12, bottom: 0, left: 0 }}>
           <CartesianGrid vertical={false} stroke="var(--border-hairline)" />
           <XAxis
             dataKey="label"
@@ -81,7 +83,8 @@ export function TimeChart({
             tick={{ fontSize: 11, fill: "var(--text-muted)", fontFamily: "var(--mono)" }}
             tickLine={false}
             axisLine={false}
-            width={56}
+            width={64}
+            tickMargin={6}
             tickFormatter={(value: number) => (yFormat ? yFormat(value) : String(value))}
           />
           {reference ? (

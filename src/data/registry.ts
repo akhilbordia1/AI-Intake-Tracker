@@ -23,6 +23,9 @@ export type GateStatus = "Pending" | "In review" | "Passed" | "Blocked" | "Rejec
 export type Lifecycle = "Active" | "On hold" | "Rejected" | "Live";
 export type ScopeFilter = "my" | "team" | "all";
 export type RiskTier = "Lightweight" | "Standard" | "Full";
+// What kind of AI it is — the split leadership asks about first, because the three
+// carry different risk and different build effort.
+export type Capability = "Analytical" | "Generative" | "Agentic";
 export type RiskLevel = "Low" | "Medium" | "High";
 
 // The prototype's "today". Every derivation takes it as an argument rather than
@@ -80,6 +83,10 @@ export type UseCaseCard = {
   riskTier: RiskTier;
   riskLevel: RiskLevel;
   businessFunction: string;
+  capability: Capability;
+  // Adoption, once it's in production: who uses it and what it gives back in time.
+  activeUsers?: number;
+  hoursSavedPerYear?: number;
   // Measured only once something is live.
   kpis?: { name: string; actual: number; target: number; unit: "%" | "days" | "pts" }[];
   // Decisions already taken, oldest first — `gate` is only the current one.
@@ -112,6 +119,7 @@ export const USE_CASES: UseCaseCard[] = [
     riskTier: "Lightweight",
     riskLevel: "Low",
     businessFunction: "Finance",
+    capability: "Generative",
     href: "/overview",
   },
   {
@@ -137,6 +145,7 @@ export const USE_CASES: UseCaseCard[] = [
     riskTier: "Standard",
     riskLevel: "Low",
     businessFunction: "Sales",
+    capability: "Generative",
     href: "/overview",
   },
   {
@@ -173,6 +182,7 @@ export const USE_CASES: UseCaseCard[] = [
     riskTier: "Full",
     riskLevel: "Medium",
     businessFunction: "R&D",
+    capability: "Generative",
     gateHistory: [{ id: "R1", status: "Passed", decided: "2026-06-22", approver: "Priya N." }],
     href: "/overview",
   },
@@ -202,6 +212,7 @@ export const USE_CASES: UseCaseCard[] = [
     riskTier: "Standard",
     riskLevel: "Medium",
     businessFunction: "Legal",
+    capability: "Analytical",
     href: "/overview",
   },
   {
@@ -229,6 +240,7 @@ export const USE_CASES: UseCaseCard[] = [
     riskTier: "Lightweight",
     riskLevel: "Low",
     businessFunction: "HR",
+    capability: "Generative",
     href: "/overview",
   },
   {
@@ -256,6 +268,7 @@ export const USE_CASES: UseCaseCard[] = [
     riskTier: "Full",
     riskLevel: "High",
     businessFunction: "Sales",
+    capability: "Analytical",
     gateHistory: [{ id: "R1", status: "Passed", decided: "2026-06-24", approver: "Priya N." }],
     href: "/overview",
   },
@@ -286,6 +299,7 @@ export const USE_CASES: UseCaseCard[] = [
     riskTier: "Standard",
     riskLevel: "Medium",
     businessFunction: "Finance",
+    capability: "Analytical",
     gateHistory: [{ id: "R1", status: "Passed", decided: "2026-06-15", approver: "Priya N." }],
     href: "/overview",
   },
@@ -316,6 +330,7 @@ export const USE_CASES: UseCaseCard[] = [
     riskTier: "Standard",
     riskLevel: "Medium",
     businessFunction: "Support",
+    capability: "Generative",
     gateHistory: [{ id: "R1", status: "Passed", decided: "2026-05-26", approver: "Priya N." }],
     href: "/overview",
   },
@@ -346,6 +361,7 @@ export const USE_CASES: UseCaseCard[] = [
     riskTier: "Full",
     riskLevel: "Medium",
     businessFunction: "Supply Chain",
+    capability: "Analytical",
     gateHistory: [{ id: "R1", status: "Passed", decided: "2026-06-08", approver: "Priya N." }],
     href: "/overview",
   },
@@ -380,6 +396,9 @@ export const USE_CASES: UseCaseCard[] = [
     riskTier: "Lightweight",
     riskLevel: "Low",
     businessFunction: "Marketing",
+    capability: "Analytical",
+    activeUsers: 240,
+    hoursSavedPerYear: 3_100,
     kpis: [
       { name: "Tagging accuracy", actual: 92, target: 90, unit: "%" },
       { name: "Time to publish saved", actual: 41, target: 35, unit: "%" },
@@ -416,6 +435,7 @@ export const USE_CASES: UseCaseCard[] = [
     riskTier: "Full",
     riskLevel: "High",
     businessFunction: "Support",
+    capability: "Agentic",
     gateHistory: [{ id: "R1", status: "Passed", decided: "2026-04-24", approver: "Priya N." }],
     href: "/overview",
   },
@@ -465,6 +485,9 @@ export const PORTFOLIO_ARCHIVE: UseCaseCard[] = [
     riskTier: "Standard",
     riskLevel: "Low",
     businessFunction: "Legal",
+    capability: "Analytical",
+    activeUsers: 180,
+    hoursSavedPerYear: 4_200,
     kpis: [
       { name: "Clause extraction accuracy", actual: 94, target: 90, unit: "%" },
       { name: "Review time saved", actual: 38, target: 30, unit: "%" },
@@ -501,6 +524,9 @@ export const PORTFOLIO_ARCHIVE: UseCaseCard[] = [
     riskTier: "Full",
     riskLevel: "Medium",
     businessFunction: "Supply Chain",
+    capability: "Analytical",
+    activeUsers: 320,
+    hoursSavedPerYear: 6_500,
     kpis: [
       { name: "Pick travel reduction", actual: 17, target: 20, unit: "%" },
       { name: "Slotting throughput", actual: 108, target: 100, unit: "pts" },
@@ -537,6 +563,9 @@ export const PORTFOLIO_ARCHIVE: UseCaseCard[] = [
     riskTier: "Full",
     riskLevel: "Medium",
     businessFunction: "Finance",
+    capability: "Analytical",
+    activeUsers: 460,
+    hoursSavedPerYear: 9_800,
     kpis: [
       { name: "Triage accuracy", actual: 91, target: 90, unit: "%" },
       { name: "Manual touches removed", actual: 62, target: 70, unit: "%" },
@@ -573,6 +602,9 @@ export const PORTFOLIO_ARCHIVE: UseCaseCard[] = [
     riskTier: "Lightweight",
     riskLevel: "Low",
     businessFunction: "Support",
+    capability: "Generative",
+    activeUsers: 1_250,
+    hoursSavedPerYear: 5_400,
     kpis: [
       { name: "Summary adoption", actual: 79, target: 70, unit: "%" },
       { name: "Editing time saved", actual: 44, target: 40, unit: "%" },
@@ -603,6 +635,7 @@ export const PORTFOLIO_ARCHIVE: UseCaseCard[] = [
     riskTier: "Full",
     riskLevel: "High",
     businessFunction: "HR",
+    capability: "Analytical",
   },
   {
     ...CLOSED_BOARD_FIELDS,
@@ -629,6 +662,7 @@ export const PORTFOLIO_ARCHIVE: UseCaseCard[] = [
     riskTier: "Full",
     riskLevel: "High",
     businessFunction: "Marketing",
+    capability: "Agentic",
   },
   {
     ...CLOSED_BOARD_FIELDS,
@@ -656,6 +690,7 @@ export const PORTFOLIO_ARCHIVE: UseCaseCard[] = [
     riskTier: "Standard",
     riskLevel: "Medium",
     businessFunction: "Sales",
+    capability: "Agentic",
   },
 ];
 

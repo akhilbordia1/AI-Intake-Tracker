@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, Coins, ShieldCheck, SlidersHorizontal, Sparkles } from "lucide-react";
+import { Activity, CircleSlash, Coins, Inbox, Layers, SlidersHorizontal, Sparkles, Target, Timer, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 
@@ -10,7 +10,18 @@ import { ChatCardList } from "@/components/chat/chat-use-case-card";
 import { JumpToTop } from "@/components/chat/chat-ui";
 import { MiniChatRail, type RailAnswer } from "@/components/chat/mini-chat-rail";
 import { Markdown } from "@/components/document-record/markdown";
-import { AskLine, BarList, DataTable, MiniList, StatBand, SummaryPanel, TargetRow, TileBox } from "@/components/portfolio/tiles";
+import {
+  BarList,
+  DataTable,
+  MiniList,
+  ScorePanel,
+  StackedMeter,
+  StatBand,
+  StatusDot,
+  SummaryPanel,
+  TargetRow,
+  TileBox,
+} from "@/components/portfolio/tiles";
 import { TimeChart } from "@/components/portfolio/time-chart";
 import { PersonAvatar, ProfileSwitcher } from "@/components/profile";
 import { Button, CHIP, MenuDivider, MenuItem, MenuLabel, MenuSurface, PHASE_TONES, PhaseIcon, Tag } from "@/components/ui/kit";
@@ -19,7 +30,6 @@ import {
   ALL_RECORDS,
   AS_OF,
   CURRENT_USER,
-  GATE_STATUS_TONE,
   LIFECYCLE_TONE,
   PORTFOLIO_SNAPSHOTS,
   USE_CASES,
@@ -32,7 +42,10 @@ import {
   attainmentSummary,
   blockers,
   daysBetween,
+  capabilityMix,
   capacityByOwner,
+  compactNumber,
+  conversion,
   decisionSpeedSeries,
   formatDay,
   funnel,
@@ -40,6 +53,7 @@ import {
   gateOutcomes,
   headline,
   healthSummary,
+  impact,
   kpiAttainment,
   medianCycleDaysByPhase,
   phasesBySpeed,
@@ -48,7 +62,7 @@ import {
   oldestOpenGate,
   pct,
   portfolioDigest,
-  reconcile,
+  pulse,
   riskMix,
   throughput,
   usd,
@@ -72,6 +86,10 @@ import { useClickOutside } from "@/lib/use-click-outside";
 // they fit, and `items-start` so a short tile doesn't stretch to match a tall one.
 const TAB_GRID = "mx-auto grid w-full max-w-[1080px] grid-cols-1 items-start gap-4 lg:grid-cols-2";
 const SPAN = "lg:col-span-2";
+
+// The one categorical ramp on the page: three kinds of AI, three hues that aren't the
+// accent (which means "the measure") or a status tone.
+const CAPABILITY_FILL = ["var(--avatar-5-fg)", "var(--avatar-1-fg)", "var(--avatar-2-fg)"];
 
 // Phase membership stays in `lifecycle.ts`; the derivations take it as an argument.
 const PHASES: PhaseMap = { order: Object.keys(STAGE_GROUPS), phaseOf: phaseForStage };
@@ -303,6 +321,7 @@ function HealthTab({ cards, board, months }: { cards: UseCaseCard[]; board: UseC
   const cycle = medianCycleDaysByPhase(cards, PHASES);
   const stalled = blockers(board);
   const aged = aging(board, AS_OF);
+  const beat = pulse(cards, months, AS_OF);
 
   // One row per record that isn't moving: the blocked ones first, then whatever has
   // simply been sitting. A record can be both; it appears once.
@@ -323,18 +342,38 @@ function HealthTab({ cards, board, months }: { cards: UseCaseCard[]; board: UseC
       <div className={SPAN}>
         <StatBand
           items={[
-            { label: "In flight", value: String(h.active), delta: `${h.tracked} ever raised`, tip: "Records with an active lifecycle" },
+            {
+              label: "In flight",
+              value: String(h.active),
+              delta: `${h.tracked} ever raised`,
+              icon: <Layers size={13} />,
+              trend: months.map((month) => Object.values(month.wip).reduce((total, count) => total + count, 0)),
+              tip: "Records with an active lifecycle",
+            },
             {
               label: "Needs a decision",
               value: String(h.attention),
               delta: `${h.aged} over a week old`,
+              deltaTone: h.aged ? "warn" : undefined,
+              icon: <Inbox size={13} />,
               tip: "Records flagged for their action owner",
             },
-            { label: "Not moving", value: String(h.blocked), delta: `${h.openGates} gates open`, tip: "Parked, or blocked at a gate" },
+            {
+              label: "Not moving",
+              value: String(h.blocked),
+              delta: `${h.openGates} gates open`,
+              deltaTone: h.blocked ? "warn" : undefined,
+              icon: <CircleSlash size={13} />,
+              tip: "Parked, or blocked at a gate",
+            },
             {
               label: "Days to a decision",
               value: String(h.decisionDays),
               delta: h.decisionTrend > 0 ? `${h.decisionTrend} faster than ${h.since}` : `${Math.abs(h.decisionTrend)} slower than ${h.since}`,
+              deltaTone: h.decisionTrend > 0 ? "good" : "warn",
+              icon: <Timer size={13} />,
+              // Down is the good direction here, so the line falling is the message.
+              trend: months.map((month) => month.medianDaysToDecision),
               tip: "Median days from intake to a first gate decision",
             },
           ]}
@@ -343,13 +382,13 @@ function HealthTab({ cards, board, months }: { cards: UseCaseCard[]; board: UseC
 
       <div className={SPAN}>
         <SummaryPanel
-          title="What this says"
+          title="Summary"
           source={healthSummary(cards, months, PHASES, AS_OF)}
           meta={`As of ${formatDay(AS_OF)} · ${cards.length} records`}
         />
       </div>
 
-      <TileBox title="Where the work is sitting" hint={`${board.length} on the board, by phase`}>
+      <TileBox title="Pipeline" hint={`${board.length} on the board`}>
         <BarList
           rows={flow.map((row) => ({
             key: row.phase,
@@ -363,10 +402,7 @@ function HealthTab({ cards, board, months }: { cards: UseCaseCard[]; board: UseC
             ),
             value: String(row.count),
             ratio: row.share,
-            meta: [
-              row.attention ? `${row.attention} waiting on someone` : null,
-              cycle[row.phase]?.sample ? `${cycle[row.phase].days} days typically` : `${cycle[row.phase]?.open ?? 0} still here`,
-            ]
+            meta: [row.attention ? `${row.attention} waiting` : null, cycle[row.phase]?.sample ? `${cycle[row.phase].days}d` : null]
               .filter(Boolean)
               .join(" · "),
             tip: `${row.phase}\nStages: ${row.stages.map(shortStageLabel).join(", ") || "none occupied"}\n${
@@ -378,7 +414,7 @@ function HealthTab({ cards, board, months }: { cards: UseCaseCard[]; board: UseC
         />
       </TileBox>
 
-      <TileBox title="What needs unblocking" hint="parked, blocked, or a week in the same stage">
+      <TileBox title="Needs unblocking" hint={`${notMoving.length} of ${board.length}`}>
         <MiniList
           rows={notMoving.map((row) => ({
             key: row.card.id,
@@ -390,13 +426,11 @@ function HealthTab({ cards, board, months }: { cards: UseCaseCard[]; board: UseC
                 >
                   {row.card.title}
                 </Link>
-                <Tag
-                  tone={row.card.gate?.status ? GATE_STATUS_TONE[row.card.gate.status] : LIFECYCLE_TONE[row.card.lifecycle]}
-                  className={cn(CHIP, "shrink-0")}
-                >
-                  {row.why === "Sitting" ? "Sitting" : `${row.card.gate?.id ?? ""} ${String(row.why).toLowerCase()}`.trim()}
-                </Tag>
-                <span className="font-mono shrink-0 text-[11px] text-[var(--text-muted)]">{row.days}d</span>
+                <StatusDot
+                  tone={row.why === "Sitting" ? "quiet" : "bad"}
+                  label={row.why === "Sitting" ? "Sitting" : `${row.card.gate?.id ?? ""} blocked`.trim()}
+                />
+                <span className="font-mono w-8 shrink-0 text-right text-[11px] text-[var(--text-muted)]">{row.days}d</span>
                 <PersonAvatar name={row.card.actionOwner} size={20} />
               </div>
             ),
@@ -405,7 +439,24 @@ function HealthTab({ cards, board, months }: { cards: UseCaseCard[]; board: UseC
         />
       </TileBox>
 
-      <TileBox className={SPAN} title="Are decisions getting faster?" hint="median days from intake to a first gate decision">
+      <TileBox title="Conversion" hint={`of ${cards.length} ever raised`}>
+        <BarList
+          rows={conversion(cards, PHASES).map((row) => ({
+            key: row.phase,
+            label: <span className="truncate">{row.phase}</span>,
+            value: pct(row.share),
+            ratio: row.share,
+            meta: `${row.reached} reached`,
+            tip: `${row.reached} of ${cards.length} records have reached ${row.phase}`,
+          }))}
+        />
+      </TileBox>
+
+      <TileBox title="Pulse" hint={`${pct(beat.score)} healthy`}>
+        <ScorePanel score={beat.score} parts={beat.parts} label="Four measures, evenly weighted" />
+      </TileBox>
+
+      <TileBox className={SPAN} title="Time to a decision" hint="median days, intake to first gate">
         <TimeChart
           data={decisionSpeedSeries(months)}
           series={[{ key: "days", name: "Days", colour: "var(--accent)" }]}
@@ -413,10 +464,6 @@ function HealthTab({ cards, board, months }: { cards: UseCaseCard[]; board: UseC
           yFormat={(value) => `${value}d`}
         />
       </TileBox>
-
-      <div className={SPAN}>
-        <AskLine topics="gate outcomes, the risk mix, owner load or throughput by month" />
-      </div>
     </div>
   );
 }
@@ -428,6 +475,7 @@ function ValueTab({ cards, months }: { cards: UseCaseCard[]; months: typeof PORT
   const money = moneyByState(cards);
   const attainment = kpiAttainment(cards);
   const summary = attainmentSummary(attainment);
+  const prod = impact(cards);
   const outcomes = [...cards]
     .filter((card) => card.liveSince || card.closedOn)
     .sort((a, b) => (b.liveSince ?? b.closedOn ?? "").localeCompare(a.liveSince ?? a.closedOn ?? ""));
@@ -448,24 +496,32 @@ function ValueTab({ cards, months }: { cards: UseCaseCard[]; months: typeof PORT
               label: "Committed",
               value: usd(h.investment),
               delta: `${money[0].count + money[1].count} funded records`,
+              icon: <Coins size={13} />,
+              trend: months.map((month) => month.committedUsd),
               tip: "Investment on live and funded work",
             },
             {
               label: "Annualised benefit",
               value: usd(h.benefit),
               delta: `from ${h.live} live`,
+              deltaTone: "good",
+              icon: <TrendingUp size={13} />,
+              trend: months.map((month) => month.benefitUsd),
               tip: "Benefit counted only once something is in production",
             },
             {
               label: "Payback",
               value: h.paybackMonths ? `${h.paybackMonths} mo` : "—",
-              delta: "committed against live benefit",
+              delta: "on committed spend",
+              icon: <Timer size={13} />,
               tip: "Committed investment divided by the annualised benefit of what is live",
             },
             {
               label: "Targets met",
               value: `${summary.met}/${summary.total}`,
-              delta: `across ${h.live} live`,
+              delta: summary.met === summary.total ? "all on target" : `${summary.total - summary.met} behind`,
+              deltaTone: summary.met === summary.total ? "good" : "warn",
+              icon: <Target size={13} />,
               tip: "KPIs measured in production against their target",
             },
           ]}
@@ -473,25 +529,27 @@ function ValueTab({ cards, months }: { cards: UseCaseCard[]; months: typeof PORT
       </div>
 
       <div className={SPAN}>
-        <SummaryPanel title="What this says" source={valueSummary(cards, months, AS_OF)} meta={`As of ${formatDay(AS_OF)} · ${cards.length} records`} />
+        <SummaryPanel title="Summary" source={valueSummary(cards, months, AS_OF)} meta={`As of ${formatDay(AS_OF)} · ${cards.length} records`} />
       </div>
 
-      <TileBox className={SPAN} title="Is the benefit catching up with the spend?" hint="cumulative at each month end">
+      <TileBox className={SPAN} title="Spend against benefit" hint="cumulative">
         <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
           <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
             <span aria-hidden className="h-[2px] w-4" style={{ background: "var(--accent)" }} />
             Committed
           </span>
           <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
-            <span aria-hidden className="h-[2px] w-4" style={{ background: "var(--status-success)" }} />
-            Annualised benefit of live
+            <span aria-hidden className="h-[2px] w-4" style={{ background: "var(--tone-info-fg)" }} />
+            Benefit of live
           </span>
         </div>
         <TimeChart
           data={valueSeries(months)}
           series={[
             { key: "investment", name: "Committed", colour: "var(--accent)" },
-            { key: "benefit", name: "Benefit", colour: "var(--status-success)" },
+            // Clay, not a second green: accent-green against success-green read as one
+            // line crossing itself.
+            { key: "benefit", name: "Benefit", colour: "var(--tone-info-fg)" },
           ]}
           yFormat={usd}
         />
@@ -502,9 +560,9 @@ function ValueTab({ cards, months }: { cards: UseCaseCard[]; months: typeof PORT
           left a column of empty page under it. */}
       <div className={cn(SPAN, "grid items-start gap-4 lg:grid-cols-2")}>
         <div className="flex min-w-0 flex-col gap-4">
-          <TileBox title="Where the money sits" hint="every record is in exactly one of these">
+          <TileBox title="Money by state">
             <DataTable
-              columns={["State", "Records", "Committed", "Benefit / yr"]}
+              columns={["", "Records", "Committed", "Benefit"]}
               rows={money.map((state) => ({
                 key: state.key,
                 label: state.label,
@@ -514,7 +572,35 @@ function ValueTab({ cards, months }: { cards: UseCaseCard[]; months: typeof PORT
             />
           </TileBox>
 
-          <TileBox title="What shipped, and what was stopped" hint="newest first">
+          <TileBox title="In production" hint={`${prod.live} live`}>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <div className="text-[12px] text-[var(--text-label)]">Active users</div>
+                <div className="mt-1 text-[20px] font-semibold tracking-[-0.02em] text-[var(--text-primary)] [font-variant-numeric:tabular-nums]">
+                  {compactNumber(prod.activeUsers)}
+                </div>
+              </div>
+              <div>
+                <div className="text-[12px] text-[var(--text-label)]">Hours saved a year</div>
+                <div className="mt-1 text-[20px] font-semibold tracking-[-0.02em] text-[var(--text-primary)] [font-variant-numeric:tabular-nums]">
+                  {compactNumber(prod.hoursSaved)}
+                </div>
+              </div>
+            </div>
+            <div className="mt-4 border-t border-[var(--border-hairline)] pt-3.5">
+              <div className="mb-2.5 text-[12px] text-[var(--text-label)]">What kind of AI</div>
+              <StackedMeter
+                segments={capabilityMix(cards).map((row, index) => ({
+                  key: row.capability,
+                  label: row.capability,
+                  count: row.count,
+                  colour: CAPABILITY_FILL[index],
+                }))}
+              />
+            </div>
+          </TileBox>
+
+          <TileBox title="Outcomes" hint="newest first">
             <MiniList
               max={6}
               rows={outcomes.map((card) => ({
@@ -537,7 +623,7 @@ function ValueTab({ cards, months }: { cards: UseCaseCard[]; months: typeof PORT
           </TileBox>
         </div>
         <div className="flex min-w-0 flex-col gap-4">
-          <TileBox title="Is production hitting its targets?" hint={`${summary.met} of ${summary.total} met · measured against target`}>
+          <TileBox title="Production targets" hint={`${summary.met} of ${summary.total} met`}>
             <div className="flex flex-col gap-5">
               {Object.values(byRecord).map((rows) => (
                 <div key={rows[0].card.id} className="min-w-0">
@@ -573,10 +659,6 @@ function ValueTab({ cards, months }: { cards: UseCaseCard[]; months: typeof PORT
           </TileBox>
         </div>
       </div>
-
-      <div className={SPAN}>
-        <AskLine topics="value by function, payback per record, or what a single use case cost" />
-      </div>
     </div>
   );
 }
@@ -599,9 +681,6 @@ export default function PortfolioPage() {
   const board = useMemo(() => filterUseCasesByScope(USE_CASES, scope), [scope]);
   const months = useMemo(() => PORTFOLIO_SNAPSHOTS.slice(-period), [period]);
   const h = useMemo(() => headline(cards, months, AS_OF), [cards, months]);
-  // The seeded month-ends against the records they claim to describe. Silent when
-  // they agree; specific when they don't.
-  const problems = useMemo(() => reconcile(ALL_RECORDS, PORTFOLIO_SNAPSHOTS, PHASES, USE_CASES), []);
 
   return (
     <AppShell
@@ -672,29 +751,6 @@ export default function PortfolioPage() {
             <PortfolioFilterMenu scope={scope} onScopeChange={setScope} period={period} onPeriodChange={setPeriod} />
             <ProfileSwitcher currentUser={activeProfile} onUserChange={setActiveProfile} compact />
           </>
-        }
-        footer={
-          <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[var(--text-muted)]">
-            <span className="font-mono">As of {formatDay(AS_OF)}</span>
-            <span aria-hidden className="h-2.5 w-px bg-[var(--border-default)]" />
-            <span>
-              {USE_CASES.length} tracked, {ALL_RECORDS.length - USE_CASES.length} closed
-            </span>
-            <span aria-hidden className="h-2.5 w-px bg-[var(--border-default)]" />
-            {/* The seeded history has to keep agreeing with the records; when it
-                stops, the footer is where it says so. */}
-            {problems.length ? (
-              <Tag tone="warning" data-tip={problems.join("\n")} className={CHIP}>
-                <ShieldCheck size={11} />
-                {problems.length} {problems.length === 1 ? "figure disagrees" : "figures disagree"}
-              </Tag>
-            ) : (
-              <span className="inline-flex items-center gap-1.5">
-                <ShieldCheck size={11} className="text-[var(--status-success)]" />
-                Snapshots reconcile with the records
-              </span>
-            )}
-          </span>
         }
       >
         <div className="px-6 pb-10 pt-5">
