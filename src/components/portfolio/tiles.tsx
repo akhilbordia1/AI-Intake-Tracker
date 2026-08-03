@@ -40,8 +40,12 @@ export function SummaryPanel({
         </h3>
         {meta ? <span className="text-[12px] text-[var(--text-muted)]">{meta}</span> : null}
       </div>
+      {/* No reading measure on top of the box. An 86ch cap inside a panel already capped
+          at 1080px left every line stopping a few hundred pixels short of its own right
+          edge, so each bullet wrapped early against a wide empty gutter. The box is the
+          measure here — it's three lines, not an article. */}
       <div className="px-5 py-4">
-        <Markdown source={source} className="max-w-[86ch]" />
+        <Markdown source={source} />
       </div>
     </section>
   );
