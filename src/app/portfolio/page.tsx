@@ -318,9 +318,8 @@ function HealthTab({ cards, board, months }: { cards: UseCaseCard[]; board: UseC
     // label on the far left and its number a thousand pixels away on the right, which
     // is most of why this page was hard to read.
     <div className={TAB_GRID}>
-      <div className={SPAN}>
-        <SummaryPanel source={healthSummary(cards, months, PHASES, AS_OF)} meta={`As of ${formatDay(AS_OF)} · ${cards.length} records`} />
-      </div>
+      {/* Numbers first, then the read on them: the summary is an interpretation, and
+          an interpretation before its evidence asks to be taken on trust. */}
       <div className={SPAN}>
         <StatBand
           items={[
@@ -339,6 +338,14 @@ function HealthTab({ cards, board, months }: { cards: UseCaseCard[]; board: UseC
               tip: "Median days from intake to a first gate decision",
             },
           ]}
+        />
+      </div>
+
+      <div className={SPAN}>
+        <SummaryPanel
+          title="What this says"
+          source={healthSummary(cards, months, PHASES, AS_OF)}
+          meta={`As of ${formatDay(AS_OF)} · ${cards.length} records`}
         />
       </div>
 
@@ -435,9 +442,6 @@ function ValueTab({ cards, months }: { cards: UseCaseCard[]; months: typeof PORT
   return (
     <div className={TAB_GRID}>
       <div className={SPAN}>
-        <SummaryPanel source={valueSummary(cards, months, AS_OF)} meta={`As of ${formatDay(AS_OF)} · ${cards.length} records`} />
-      </div>
-      <div className={SPAN}>
         <StatBand
           items={[
             {
@@ -468,6 +472,10 @@ function ValueTab({ cards, months }: { cards: UseCaseCard[]; months: typeof PORT
         />
       </div>
 
+      <div className={SPAN}>
+        <SummaryPanel title="What this says" source={valueSummary(cards, months, AS_OF)} meta={`As of ${formatDay(AS_OF)} · ${cards.length} records`} />
+      </div>
+
       <TileBox className={SPAN} title="Is the benefit catching up with the spend?" hint="cumulative at each month end">
         <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
           <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
@@ -489,72 +497,82 @@ function ValueTab({ cards, months }: { cards: UseCaseCard[]; months: typeof PORT
         />
       </TileBox>
 
-      <TileBox title="Where the money sits" hint="every record is in exactly one of these">
-        <DataTable
-          columns={["State", "Records", "Committed", "Benefit / yr"]}
-          rows={money.map((state) => ({
-            key: state.key,
-            label: state.label,
-            values: [state.count, usd(state.investment), state.benefit ? usd(state.benefit) : "—"],
-            tip: `${state.label}\nRecords: ${state.count}\nInvestment: ${usd(state.investment)}\nAnnual benefit: ${usd(state.benefit)}`,
-          }))}
-        />
-      </TileBox>
+      {/* Two columns, each stacking its own tiles: letting the grid place them left
+          to right put the four-row money table beside the twelve-row KPI list and
+          left a column of empty page under it. */}
+      <div className={cn(SPAN, "grid items-start gap-4 lg:grid-cols-2")}>
+        <div className="flex min-w-0 flex-col gap-4">
+          <TileBox title="Where the money sits" hint="every record is in exactly one of these">
+            <DataTable
+              columns={["State", "Records", "Committed", "Benefit / yr"]}
+              rows={money.map((state) => ({
+                key: state.key,
+                label: state.label,
+                values: [state.count, usd(state.investment), state.benefit ? usd(state.benefit) : "—"],
+                tip: `${state.label}\nRecords: ${state.count}\nInvestment: ${usd(state.investment)}\nAnnual benefit: ${usd(state.benefit)}`,
+              }))}
+            />
+          </TileBox>
 
-      <TileBox title="Is production hitting its targets?" hint={`${summary.met} of ${summary.total} met · measured against target`}>
-        <div className="flex flex-col gap-5">
-          {Object.values(byRecord).map((rows) => (
-            <div key={rows[0].card.id} className="min-w-0">
-              <div className="flex min-w-0 items-baseline gap-2">
-                <Link
-                  href={rows[0].card.href}
-                  className="min-w-0 truncate text-[13px] font-medium text-[var(--text-primary)] hover:text-[var(--accent-strong)]"
-                >
-                  {rows[0].card.title}
-                </Link>
-                <span className="font-mono shrink-0 text-[11px] text-[var(--text-muted)]">{rows[0].card.id}</span>
-                {rows.every((row) => row.met) ? null : (
-                  <Tag tone="warning" className={cn(CHIP, "shrink-0")}>
-                    Behind
-                  </Tag>
-                )}
-              </div>
-              <div className="mt-1.5">
-                {rows.map((row) => (
-                  <TargetRow
-                    key={`${row.card.id}-${row.name}`}
-                    name={row.name}
-                    actual={row.actual}
-                    target={row.target}
-                    unit={row.unit}
-                    met={row.met}
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
+          <TileBox title="What shipped, and what was stopped" hint="newest first">
+            <MiniList
+              max={6}
+              rows={outcomes.map((card) => ({
+                key: card.id,
+                node: (
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <Link href={card.href} className="min-w-0 flex-1 truncate text-[13px] text-[var(--text-body)] hover:text-[var(--accent-strong)]">
+                      {card.title}
+                    </Link>
+                    <Tag tone={LIFECYCLE_TONE[card.lifecycle]} className={cn(CHIP, "shrink-0")}>
+                      {card.lifecycle}
+                    </Tag>
+                    <span className="font-mono shrink-0 text-[11px] text-[var(--text-muted)]">
+                      {formatDay(card.liveSince ?? card.closedOn ?? AS_OF)}
+                    </span>
+                  </div>
+                ),
+              }))}
+            />
+          </TileBox>
         </div>
-      </TileBox>
-
-      <TileBox title="What shipped, and what was stopped" hint="newest first">
-        <MiniList
-          max={6}
-          rows={outcomes.map((card) => ({
-            key: card.id,
-            node: (
-              <div className="flex min-w-0 items-center gap-2.5">
-                <Link href={card.href} className="min-w-0 flex-1 truncate text-[13px] text-[var(--text-body)] hover:text-[var(--accent-strong)]">
-                  {card.title}
-                </Link>
-                <Tag tone={LIFECYCLE_TONE[card.lifecycle]} className={cn(CHIP, "shrink-0")}>
-                  {card.lifecycle}
-                </Tag>
-                <span className="font-mono shrink-0 text-[11px] text-[var(--text-muted)]">{formatDay(card.liveSince ?? card.closedOn ?? AS_OF)}</span>
-              </div>
-            ),
-          }))}
-        />
-      </TileBox>
+        <div className="flex min-w-0 flex-col gap-4">
+          <TileBox title="Is production hitting its targets?" hint={`${summary.met} of ${summary.total} met · measured against target`}>
+            <div className="flex flex-col gap-5">
+              {Object.values(byRecord).map((rows) => (
+                <div key={rows[0].card.id} className="min-w-0">
+                  <div className="flex min-w-0 items-baseline gap-2">
+                    <Link
+                      href={rows[0].card.href}
+                      className="min-w-0 truncate text-[13px] font-medium text-[var(--text-primary)] hover:text-[var(--accent-strong)]"
+                    >
+                      {rows[0].card.title}
+                    </Link>
+                    <span className="font-mono shrink-0 text-[11px] text-[var(--text-muted)]">{rows[0].card.id}</span>
+                    {rows.every((row) => row.met) ? null : (
+                      <Tag tone="warning" className={cn(CHIP, "shrink-0")}>
+                        Behind
+                      </Tag>
+                    )}
+                  </div>
+                  <div className="mt-1.5">
+                    {rows.map((row) => (
+                      <TargetRow
+                        key={`${row.card.id}-${row.name}`}
+                        name={row.name}
+                        actual={row.actual}
+                        target={row.target}
+                        unit={row.unit}
+                        met={row.met}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </TileBox>
+        </div>
+      </div>
 
       <div className={SPAN}>
         <AskLine topics="value by function, payback per record, or what a single use case cost" />

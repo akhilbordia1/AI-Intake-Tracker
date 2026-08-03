@@ -125,11 +125,15 @@ export function PanelTabs({
         const active = tab.id === activeId;
         const shape = cn(
           "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[10px] text-[13px] transition",
+          "outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]",
           compact ? "w-9 justify-center" : "px-3",
           active
             ? "border border-[var(--border-default)] bg-white font-semibold text-[var(--text-primary)] "
             : "text-[var(--text-body)] hover:bg-[var(--surface-hover)]",
         );
+        // A tooltip only where the icon is the whole label. On a labelled tab it just
+        // repeats the word you're already reading.
+        const tip = compact ? tab.label : undefined;
         const inner = (
           <>
             {tab.icon ? <span className={cn("shrink-0", active ? "text-[var(--accent)]" : "text-[var(--text-muted)]")}>{tab.icon}</span> : null}
@@ -137,7 +141,7 @@ export function PanelTabs({
           </>
         );
         return tab.href && !active ? (
-          <Link key={tab.id} href={tab.href} data-tip={tab.label} aria-label={tab.label} className={shape}>
+          <Link key={tab.id} href={tab.href} data-tip={tip} aria-label={compact ? tab.label : undefined} className={shape}>
             {inner}
           </Link>
         ) : (
@@ -146,8 +150,8 @@ export function PanelTabs({
             type="button"
             onClick={() => onSelect?.(tab.id)}
             aria-current={active ? "page" : undefined}
-            data-tip={tab.label}
-            aria-label={tab.label}
+            data-tip={tip}
+            aria-label={compact ? tab.label : undefined}
             className={shape}
           >
             {inner}

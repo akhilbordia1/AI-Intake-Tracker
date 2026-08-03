@@ -1,5 +1,6 @@
 "use client";
 
+import { Sparkles } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Markdown } from "@/components/document-record/markdown";
@@ -16,14 +17,23 @@ import { cn } from "@/lib/cn";
 // easier to compare than angles. Only a real time axis gets a chart runtime (see
 // `time-chart.tsx`).
 
-// The answer, before the evidence — a headline sentence and three supporting lines,
-// authored as Markdown so the copy can come from a model. Set on the muted surface
-// with an accent edge: it reads as the assistant talking, not as another tile.
-export function SummaryPanel({ source, meta }: { source: string; meta?: string }) {
+// The assistant's read on the numbers above it — a headline sentence and three
+// supporting lines, authored as Markdown so the copy can come from a model. Titled,
+// on the muted surface with an accent edge, so it reads as something written rather
+// than as another tile of figures.
+export function SummaryPanel({ title, source, meta }: { title: string; source: string; meta?: string }) {
   return (
-    <section className="rounded-[10px] border border-[var(--border-default)] border-l-2 border-l-[var(--accent)] bg-[var(--surface-muted)] px-5 py-4">
-      <Markdown source={source} className="max-w-[86ch]" />
-      {meta ? <p className="mt-3 text-[11px] text-[var(--text-muted)]">{meta}</p> : null}
+    <section className="rounded-[10px] border border-[var(--border-default)] border-l-2 border-l-[var(--accent)] bg-[var(--surface-muted)]">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-[var(--border-hairline)] px-5 py-3">
+        <h3 className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[var(--text-primary)]">
+          <Sparkles size={13} className="text-[var(--accent)]" />
+          {title}
+        </h3>
+        {meta ? <span className="text-[12px] text-[var(--text-muted)]">{meta}</span> : null}
+      </div>
+      <div className="px-5 py-4">
+        <Markdown source={source} className="max-w-[86ch]" />
+      </div>
     </section>
   );
 }
