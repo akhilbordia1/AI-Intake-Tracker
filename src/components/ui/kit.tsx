@@ -439,7 +439,9 @@ export function ChipOverflow({
       ))}
       {hidden.length ? (
         <span
-          data-tip={hidden.map((item) => item.label).join("\n")}
+          // A heading, because the tooltip layer sets a multi-line tip's first line
+          // as one — without it the first hidden chip would read as the title.
+          data-tip={["Also tagged", ...hidden.map((item) => item.label)].join("\n")}
           className={cn(CHIP, "font-mono bg-[var(--surface-strong)] px-1.5 text-[var(--text-label)]")}
         >
           +{hidden.length}

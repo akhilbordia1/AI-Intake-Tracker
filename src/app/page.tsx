@@ -5,6 +5,7 @@ import {
   ArrowRight,
   CalendarDays,
   ChevronDown,
+  ChevronRight,
   CircleDot,
   Columns3,
   FileText,
@@ -24,7 +25,7 @@ import { createPortal } from "react-dom";
 import { AppShell, ContentPanel, PanelBreadcrumb, PanelTabs, RailHeader, useRailMode } from "@/components/app-shell";
 import { ChatHistoryButton, useChatSessions, type ChatSession, type ChatTurn } from "@/components/chat/chat-history";
 import { JumpToTop } from "@/components/chat/chat-ui";
-import { MiniChatRail } from "@/components/chat/mini-chat-rail";
+import { MiniChatRail, type RailAnswer } from "@/components/chat/mini-chat-rail";
 import { PersonAvatar, ProfileSwitcher } from "@/components/profile";
 import {
   Button,
@@ -81,7 +82,7 @@ type UseCaseCard = {
 // The tracker rail's responder: answers the starter questions (and anything with
 // the same keywords) straight from the registry rather than a canned line.
 // ai-upgrade: swap the keyword matching for a real model call.
-function answerAboutPortfolio(question: string, person: string): string | undefined {
+function answerAboutPortfolio(question: string, person: string): RailAnswer | undefined {
   const asked = question.toLowerCase();
   const list = (cards: UseCaseCard[], describe: (card: UseCaseCard) => string) =>
     cards.map((card) => `• ${card.id} ${card.title} — ${describe(card)}`).join("\n");
@@ -90,13 +91,16 @@ function answerAboutPortfolio(question: string, person: string): string | undefi
     const mine = useCases.filter((card) => card.needsAttention && card.actionOwner === person);
     const others = useCases.filter((card) => card.needsAttention && card.actionOwner !== person);
     if (mine.length) {
-      return `${mine.length === 1 ? "One use case needs" : `${mine.length} use cases need`} ${person}:\n\n${list(
-        mine,
-        (card) => `${card.attentionTask ?? "review"}${card.pendingFor ? `, waiting ${card.pendingFor}` : ""}`,
-      )}`;
+      return {
+        text: `${mine.length === 1 ? "One use case needs" : `${mine.length} use cases need`} ${person}:`,
+        detail: <ChatCardList cards={mine} />,
+      };
     }
     return others.length
-      ? `Nothing is waiting on ${person}. Elsewhere, ${others.length} use ${others.length === 1 ? "case needs" : "cases need"} attention:\n\n${list(others, (card) => `${card.attentionTask ?? "review"} (${card.actionOwner})`)}`
+      ? {
+          text: `Nothing is waiting on ${person}. Elsewhere, ${others.length} use ${others.length === 1 ? "case needs" : "cases need"} attention:`,
+          detail: <ChatCardList cards={others} />,
+        }
       : `Nothing needs attention right now.`;
   }
 
@@ -121,6 +125,53 @@ function answerAboutPortfolio(question: string, person: string): string | undefi
   }
 
   return undefined;
+}
+
+// A list answer, as cards — but not the board's card. In a conversation the
+// answer is "these two, and what to do about them", so a chat card carries only
+// that: the use case, the action, how long it's been waiting. Description, chips
+// and owner belong on the board, where you're comparing cards rather than
+// reading a reply.
+function ChatUseCaseCard({ card }: { card: UseCaseCard }) {
+  return (
+    // Two lines and nothing else: the title, then the record's own facts — id, the
+    // action, how long it's waited — as one quiet meta line. The chevron only
+    // appears on hover, so a list of these reads as an answer rather than a row of
+    // buttons.
+    <Link
+      href={card.href}
+      className="group flex items-center gap-2.5 rounded-[10px] border border-[var(--border-default)] bg-[var(--surface)] px-3 py-2.5 transition hover:border-[var(--border-input)] hover:bg-[var(--surface-muted)]"
+    >
+      <StageIcon stage={card.substage} size={14} className="shrink-0 text-[var(--text-muted)]" />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[13px] font-semibold leading-[1.35] text-[var(--text-primary)] transition group-hover:text-[var(--accent-strong)]">
+          {card.title}
+        </span>
+        <span className="mt-1 flex min-w-0 items-center gap-1.5 text-[11px] leading-[1.4] text-[var(--text-muted)]">
+          <span className="font-mono shrink-0">{card.id}</span>
+          <span aria-hidden className="h-2.5 w-px shrink-0 bg-[var(--border-default)]" />
+          <span className="min-w-0 truncate font-medium text-[var(--accent-strong)]">{getAttentionMessage(card)}</span>
+          {card.pendingFor ? (
+            <>
+              <span aria-hidden className="h-2.5 w-px shrink-0 bg-[var(--border-default)]" />
+              <span className="shrink-0">Waiting {card.pendingFor}</span>
+            </>
+          ) : null}
+        </span>
+      </span>
+      <ChevronRight size={14} className="shrink-0 text-[var(--text-muted)] opacity-0 transition group-hover:opacity-100" />
+    </Link>
+  );
+}
+
+function ChatCardList({ cards }: { cards: UseCaseCard[] }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      {cards.map((card) => (
+        <ChatUseCaseCard key={card.id} card={card} />
+      ))}
+    </div>
+  );
 }
 
 // Earlier conversations on the registry. Hardcoded like the rest of the

@@ -41,9 +41,12 @@ export type ChatLineProps = {
   time?: string;
   activity?: string;
   running?: boolean;
+  // Rich payload under an assistant line — cards the answer is *about*, rather
+  // than a bulleted retelling of them in prose.
+  detail?: ReactNode;
 };
 
-export function ChatLine({ role = "assistant", text, recap = false, time, activity, running = false }: ChatLineProps) {
+export function ChatLine({ role = "assistant", text, recap = false, time, activity, running = false, detail }: ChatLineProps) {
   if (activity) {
     return (
       <div className="bubble-in-left flex items-baseline gap-2 text-[12px] leading-[1.6]">
@@ -62,8 +65,11 @@ export function ChatLine({ role = "assistant", text, recap = false, time, activi
 
   if (recap || role === "assistant") {
     return (
-      <div className={cn("bubble-in-left max-w-[88%] py-0.5 text-[var(--text-body)]", BODY)}>
+      // A line carrying cards takes the full width — the 88% measure is for prose,
+      // and cards squeezed into it wrap their own chips.
+      <div className={cn("bubble-in-left py-0.5 text-[var(--text-body)]", detail ? "max-w-full" : "max-w-[88%]", BODY)}>
         <Collapsible text={text} />
+        {detail ? <div className="mt-2.5">{detail}</div> : null}
       </div>
     );
   }

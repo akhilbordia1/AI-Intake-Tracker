@@ -1,10 +1,10 @@
 "use client";
 
-import { Lightbulb, Sparkles } from "lucide-react";
-import Link from "next/link";
+import { Lightbulb } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 
+import { AppShell, RailHeader } from "@/components/app-shell";
 import { ChatComposer, ChatStartScreen } from "@/components/chat/chat-ui";
 
 // ── Start a use case ──
@@ -12,10 +12,14 @@ import { ChatComposer, ChatStartScreen } from "@/components/chat/chat-ui";
 // full screen, and sending hands the idea to the record's guided flow, which asks
 // the follow-ups and fills the Ideation stage.
 
+// A suggestion is a nudge, not the sentence: the pill names the idea in three
+// words, and picking it drops the full opening line into the composer for the user
+// to finish. Full sentences as pills wrapped to three lines and read as prose you
+// were meant to study rather than tap.
 const EXAMPLES = [
-  "An assistant that summarises clinical trial protocols for our medical writers",
-  "Something that drafts support replies from approved knowledge articles",
-  "A tool that extracts fields from supplier invoices for AP review",
+  { label: "Protocol summariser", draft: "An assistant that summarises clinical trial protocols for our medical writers" },
+  { label: "Support reply drafter", draft: "Something that drafts support replies from approved knowledge articles" },
+  { label: "Invoice field extraction", draft: "A tool that extracts fields from supplier invoices for AP review" },
 ];
 
 export default function StartUseCasePage() {
@@ -30,33 +34,30 @@ export default function StartUseCasePage() {
   }
 
   return (
-    <main className="chat-glow flex h-screen flex-col overflow-hidden bg-[var(--shell-canvas)] text-[var(--text-primary)]">
-      <header className="flex h-14 shrink-0 items-center gap-2 border-b border-[var(--border-hairline)] px-4">
-        <Link
-          href="/"
-          data-tip="All use cases"
-          aria-label="All use cases"
-          className="grid h-7 w-7 shrink-0 place-items-center rounded-[8px] bg-[var(--accent)] text-white transition hover:bg-[var(--accent-hover)]"
-        >
-          <Sparkles size={15} />
-        </Link>
-        <span className="px-0.5 text-[15px] font-medium text-[var(--text-primary)]">New use case</span>
-      </header>
-
-      <div className="flex min-h-0 flex-1 flex-col px-4 pb-4">
+    // Literally the shell in its expanded-rail state, so the frame, the gutters and
+    // the header's place in the row are the same code as the registry's full-width
+    // chat — not a page that resembles it. Collapse and restore both put the
+    // conversation back in the side panel on the registry, because that is what
+    // this chat is when it isn't full width.
+    <AppShell
+      railExpanded
+      railHeader={
+        <RailHeader expanded onToggleExpand={() => router.push("/")} onToggleCollapse={() => router.push("/")} onNewChat={() => setIdea("")} />
+      }
+      rail={
         <ChatStartScreen
           size="lg"
           title="What do you want to build?"
           lead="Describe the idea in your own words — the problem, who it's for, and what good looks like. I'll ask the follow-ups and fill in the record as we go."
           // Same pill as the stage chats: the glyph is what marks a suggestion as
           // something to tap rather than a tag to read.
-          starters={EXAMPLES.map((label, index) => ({ id: String(index), label, icon: <Lightbulb size={13} /> }))}
+          starters={EXAMPLES.map((example, index) => ({ id: String(index), ...example, icon: <Lightbulb size={13} /> }))}
           onPick={(item) => {
-            setIdea(item.label);
+            setIdea(item.draft);
             const input = inputRef.current;
             if (input) {
               input.focus();
-              requestAnimationFrame(() => input.setSelectionRange(item.label.length, item.label.length));
+              requestAnimationFrame(() => input.setSelectionRange(item.draft.length, item.draft.length));
             }
           }}
         >
@@ -75,14 +76,10 @@ export default function StartUseCasePage() {
             size="lg"
             padded={false}
           />
-          <p className="mt-3 text-center text-[12px] text-[var(--text-muted)]">
-            Not ready?{" "}
-            <Link href="/" className="font-medium text-[var(--accent)] transition hover:text-[var(--accent-strong)]">
-              Back to the registry
-            </Link>
-          </p>
         </ChatStartScreen>
-      </div>
-    </main>
+      }
+    >
+      {null}
+    </AppShell>
   );
 }

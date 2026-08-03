@@ -206,6 +206,100 @@ export const STAGE_INTROS: Record<string, string> = {
   Adoption: "The rollout waves, and how uptake is going.",
 };
 
+// ── What each field means ──
+// Shown in place of a value while a field is still empty: a label says what is
+// being asked, this says what counts as an answer. Keyed by label, so fields that
+// recur across stages ("Overall risk level") share one definition. Keep them to a
+// line and specific to the field — a generic restatement of the label reads as
+// filler, which is exactly what the blank row was.
+export const FIELD_GISTS: Record<string, string> = {
+  // Ideation
+  "Proposed use case name": "A short working name people will recognise it by",
+  "Problem statement": "The work being done today, and why it's slow or inconsistent",
+  "Business objective": "The outcome that makes this worth funding",
+  "Accountable business owner": "The person answerable for the outcome, not the build",
+  "Business function or area": "The function that owns the process this touches",
+  "Target users and teams": "Who uses it, and roughly how many",
+  "Rollout geography": "Regions in scope — this drives data-residency review",
+  "Data sources and systems": "Systems it reads from, named",
+  "Data sensitivity class": "The most sensitive data it touches, at its class",
+  "AI capability and approach": "The technique — summarisation, retrieval, classification, agentic",
+  "GxP / regulated use impact": "Whether output reaches regulated or submitted documentation",
+  "Delivery timeline": "When it's needed by, and what fixes that date",
+  "Indicative budget envelope": "A range, before the business case sharpens it",
+
+  // Qualification
+  "Human oversight level": "How often a person checks output before it's used",
+  "Decision impact level": "Whether output informs, influences or makes the decision",
+  "Duplication check result": "Whether something in the registry already does this",
+
+  // Prioritisation
+  "Business value score": "Size of the benefit, scored against the portfolio",
+  "Technical feasibility": "How ready the data, platform and skills are",
+  "Delivery complexity": "Integrations, change effort and moving parts",
+  "Estimated build cost": "Build and first-year run, before the full case",
+  "Strategic alignment": "Fit with the stated strategic priorities",
+  "Overall priority score": "The composite that sequences this against the rest",
+
+  // Triage
+  "Risk governance tier": "Light, standard or full — sets the assessment path",
+  "Compliance assessment required": "Whether compliance must review before build",
+  "Triage rationale and notes": "Why this tier, in the words of whoever set it",
+
+  // Assessment
+  "Personal data (PII) in scope": "Whether identifiable personal data reaches the model",
+  "Model risk level": "Consequence of the model being wrong or drifting",
+  "Ethical risk level": "Fairness, transparency and misuse exposure",
+  "Data hosting risk level": "Where data sits and who can reach it",
+  "Overall risk level": "The rating that decides which controls apply",
+  "Compliance checks": "The reviews this use case has to clear",
+
+  // Business case
+  "Current annual volume": "How much of this work happens today, per year",
+  "Current cost per review": "What one unit of the work costs now",
+  "Projected time savings": "Time saved per unit, as a percentage",
+  "Projected annual savings": "Benefit per year once it's live",
+  "Total investment required": "Build, licences and run, together",
+  "Payback period (months)": "How long until benefit covers investment",
+  "3-year net value (NPV)": "Net value over three years, discounted",
+
+  // GTAC
+  "Go / No-Go board call": "The board's decision on funding this",
+  "ROI payback period": "Payback the board is signing up to",
+  "Board recommendation": "What the board concluded, and on what grounds",
+  "Board conditions to proceed": "What must be true before build starts",
+
+  // Plan & KPI
+  "Delivery plan and sequencing": "The phases in order, with how long each takes",
+  "KPIs and measurement targets": "The metrics judged at go-live, with target numbers",
+  "Targets locked for delivery": "The approvals and sign-offs the plan commits to",
+
+  // Solution blueprint
+  "Solution capability": "What the solution does, in architecture terms",
+  "Human review checkpoint": "Where a person sits in the flow, and what they sign",
+  "Access control and identity": "How access is granted and proven",
+  "Audit trail & retention": "What is logged, and for how long",
+  "Retraining cadence": "When the model is reviewed and retrained",
+
+  // Solutionise and production
+  "Build & configure": "State of the build against the plan",
+  "Pilot (US & EU)": "Pilot outcome in the regions it ran in",
+  "CSV documentation": "Validation evidence and who approved it",
+  "Production deployment": "What is live, and where",
+
+  // Monitoring
+  "Review time reduction": "Actual time saved, against target",
+  "Writer satisfaction (CSAT)": "Measured satisfaction, against target",
+  "Summary accuracy vs baseline": "Accuracy against the pre-AI baseline",
+  "Adoption rate (eligible users)": "Share of eligible users actually using it",
+
+  // Adoption
+  "Training completed": "Users trained, out of those who need it",
+  "Change management comms": "What has gone out, to whom",
+  "Ongoing support model": "Who supports it once the project closes",
+  "User feedback loop": "How feedback is collected and acted on",
+};
+
 export type Gate = {
   id: string;
   name: string;

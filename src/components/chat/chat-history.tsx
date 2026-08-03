@@ -1,7 +1,7 @@
 "use client";
 
 import { History, MessageSquare } from "lucide-react";
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 
 import { ChatLine, ChatTimeDivider } from "@/components/chat/chat-ui";
@@ -12,7 +12,7 @@ import { IconButton, MenuDivider, MenuItem, MenuLabel, MenuSurface } from "@/com
 // plus anything the user archives by starting a new chat. The menu is portalled
 // like the stage path, because the rail clips its own overflow.
 
-export type ChatTurn = { role: "assistant" | "user"; text: string; time?: string; activity?: string };
+export type ChatTurn = { role: "assistant" | "user"; text: string; time?: string; activity?: string; detail?: ReactNode };
 
 export type ChatSession = {
   id: string;
@@ -173,7 +173,7 @@ export function PastChatTranscript({
         >
           <ChatTimeDivider />
           {session.turns.map((turn, index) => (
-            <ChatLine key={index} role={turn.role} text={turn.text} time={turn.time} activity={turn.activity} />
+            <ChatLine key={index} role={turn.role} text={turn.text} time={turn.time} activity={turn.activity} detail={turn.detail} />
           ))}
           <p className="pt-2 text-[11px] text-[var(--text-muted)]">{`${session.title} · ${session.when} — this conversation is closed.`}</p>
         </div>

@@ -8,6 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run build` — production build (also runs `tsc` typecheck + static prerender; use this to verify)
 - `npm run lint` — ESLint (`eslint-config-next` core-web-vitals + typescript)
 - `npm run start` — serve the production build
+- `npm run icons` — re-export every icon the app imports to `icons/*.svg` (+ a README table of where each is used), read straight out of `lucide-react`. Run it after adding or removing a lucide import; don't hand-edit the SVGs.
 
 No test framework is set up. Verify changes with `npx tsc --noEmit`, `npm run lint`, and `npm run build` (all three should be clean).
 
@@ -33,6 +34,8 @@ A **prototype/demo** UI (no backend, no persistence) for an enterprise AI use-ca
 - `buildFieldSpec(label, value)` inspects the label/value and picks a `FieldKind`: `currency` (value starts GBP/USD/EUR/£/$/€) → `CurrencyField`; `scale` (`n/m`) → `RatingStepper`; `level` (ordinal sets in `ORDINAL_SETS`, e.g. Low/Medium/High) → `LevelSlider`; `select` (>5 options) → dropdown; short enums → `Segmented`, longer → `RadioGroup`; multi-select → `CardMultiSelect` if label in `CARD_FIELDS` else `ChipMultiSelect`; long text → `SmartTextarea`; else `SmartText`.
 - Option lists come from `choiceOptions(label, value)`; multi-select items from `listItems(value)` (splits on `; , ->`). Editing which control a field gets means editing these helpers, not the components.
 - Every stage — open or completed — renders through `StageFieldsGrid`, which renders the *same* control in both modes (read mode makes it inert and strips its chrome via `.read-field` / `.read-choice`). The **Plan** stage is bespoke (`PlanStageForm`: squad picker, milestone timeline, lockable metrics) registered in `BESPOKE_STAGE_FORMS`; it shares the stage header (`StageFormHeader`) with the grid.
+- Two AI reads sit on top of the recorded data, both written from `lifecycle.ts` values (`ai-upgrade:` marks where a model call would go): `GtacRecommendation` (detail-record) puts a compact for/against above the GTAC fields, and `RiskSummaryModal` (`risk-modal.tsx`, a native `<dialog>`) opens off the record header's risk chip. Its content is a single Markdown string (`summary()`), rendered by a four-tag renderer (`## `, `- `, paragraphs, `**bold**`) — so the copy can come from an `.md` file or a model without touching layout.
+- `/intake` *is* the shell in its expanded-rail state: `AppShell railExpanded` + `RailHeader` + the shared `ChatStartScreen`, so its spacing is the same code as the registry's full-width chat. Both header controls return to `/`.
 
 **Reusable field kit — `src/components/forms/fields.tsx`.** All form controls live here (`SmartText`, `SmartTextarea`, `SearchableSelect`, `Segmented`, `RadioGroup`, `RatingStepper`, `LevelSlider`, `ChipMultiSelect`, `CardMultiSelect`, `CurrencyField`, `DateField`, `CompletionMeter`, `SaveStatus`). Every field takes `FieldChrome` props (`label`, `required`, `hint`, `error`, `hideHeader`). Pass `hideHeader` when the label is rendered externally (the `/detail` label-left row layout does this). `DateField` is a custom calendar in a `createPortal` popover (escapes overflow-clipping) — there are no native date inputs.
 

@@ -120,9 +120,11 @@ metadata strip. Use `<Fact label="Risk tier">…</Fact>` (`label · value`) inst
 notices, panels-within-panels · `14px` the composer and the content panel ·
 `rounded-full` tags, avatars, nodes, the send button.
 
-Elevation is nearly flat: `--shadow-sm` for a resting card, `--shadow-card` for the
-content panel, `--shadow-menu` for popovers/portals, `--shadow-modal` for sheets.
-Prefer a hairline over a shadow.
+**There is no elevation.** Every `--shadow-*` token resolves to `none`: depth is a
+hairline, a fill one step off the surface, and — for a floating layer — a dimmed
+backdrop. The tokens still exist, and every call site still references them, so
+turning elevation back on is one edit in `globals.css` rather than a sweep. Focus
+rings are not elevation; they keep their own `box-shadow`.
 
 ---
 
@@ -135,9 +137,9 @@ From `src/components/ui/kit.tsx`:
   `sm` (h-9/13px, default) and `md` (h-10/14px — sized against the 40px fields
   they sit beside). Every action button in the app is
   one of these, so Submit stage and New use case are the same object. Press and
-  focus are shared across tones — the resting lift (`--shadow-btn-raised` /
-  `--shadow-btn-primary`) becomes `--shadow-btn-pressed` on `:active`, and focus
-  is an offset accent ring, never a recoloured edge.
+  focus are shared across tones — `:active` nudges the face down a pixel (the
+  shadow tokens it also sets are `none`), and focus is an offset accent ring, never
+  a recoloured edge.
 - **`IconButton`** — square icon-only control, 28–32px, for chrome and steppers.
 - **`Tag`** — status chip; tone-driven, 11px, pill.
 - **`cardClass({ selected, interactive })`** — the one card shape.
@@ -204,6 +206,20 @@ dot doesn't grow a box it never had). Dropped means `display: none` — holding 
 space left the answer floating wherever the earlier options had been. A single-line
 pill row keeps its height; a wrapping multi-select can lose a line, the one place
 this trades movement for a legible answer.
+
+**An empty field says what it means.** A stripped read control with no value is an
+invisible box, so a blank row shows the field's definition (`FIELD_GISTS` in
+`lifecycle.ts`) in a third type register — the lighter serif, italic, 14px, at
+`--text-faint` — so it can't be read as either the sans label above it or the sans
+value it replaces. A definition differs on every row; a status phrase ("Not captured yet")
+repeats twelve times down a stage and stops being read. The line sits inside the
+control's own height, so entering edit moves nothing below it.
+
+**Tooltips.** One line is a phrase. More than that is written as lines, first line
+the heading and the rest `Label: value` — the layer sets the labels back and rules
+them off the heading, so a hover that carries a record's detail reads as a small
+table instead of a paragraph in a black box. A multi-line tip therefore needs a
+real heading as its first line.
 
 A field's width is set on its row wrapper, never inside a control: the "Capturing…"
 overlay covers that wrapper, so a cap set deeper leaves the overlay spanning the

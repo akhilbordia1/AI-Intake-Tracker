@@ -2,6 +2,7 @@
 
 import { USE_CASE } from "@/data/document-workflow-form-schema";
 import {
+  FIELD_GISTS,
   GATE_TONE,
   OUTCOME_ROW,
   RECORD_ACTIVITY,
@@ -14,6 +15,7 @@ import {
   gateForStage,
   nextStageIndex,
   pathPosition,
+  stageValue,
   type StageItem,
 } from "@/data/lifecycle";
 import { RecordDetailsSheet } from "@/components/document-record/record-details-sheet";
@@ -521,7 +523,23 @@ function DocumentField({
     );
   }
 
-  const read = (
+  // Nothing recorded yet: the inert control is a box with its fill and lines
+  // stripped — i.e. invisible — so the row read as a label above dead air. Fill
+  // the blank with what the field *means* instead: it differs on every row, so it
+  // teaches rather than repeating "not captured" twelve times. Sized well under
+  // the value ramp (13px muted vs 16px primary) so it can't be mistaken for data,
+  // and it keeps the control's height so entering edit moves nothing below it.
+  const blank = isFieldEmpty(value) && !loading;
+  const read = blank ? (
+    <div className={cn("flex items-center", field.kind === "long" ? "min-h-[42px]" : "min-h-10")}>
+      {/* A third register: the label is sans and small, an answer is sans and large,
+          so the definition is the lighter serif the product uses for prose, in
+          italic at the faintest text tone. It can't be mistaken for either. */}
+      <span className="font-serif-body text-[14px] italic leading-[1.5] text-[var(--text-faint)]">
+        {FIELD_GISTS[field.label] ?? "Not captured yet"}
+      </span>
+    </div>
+  ) : (
     <fieldset
       disabled
       className={cn(inset, "pointer-events-none", INPUT_KINDS.has(field.kind) && "read-field", CHOICE_KINDS.has(field.kind) && "read-choice")}
@@ -681,6 +699,71 @@ function StageFormHeader({
   );
 }
 
+// ── The board's decision, read by the agent ──
+// GTAC is a judgement, not a lookup: the numbers are already in the record, spread
+// across the business case, the assessment and prioritisation. This puts the case
+// for and against in one place so the board member can disagree with something
+// specific rather than re-reading three stages.
+// ai-upgrade: the argument is assembled from recorded values below. Swap it for a
+// model call over the record.
+function DecisionColumn({ title, tone, items }: { title: string; tone: string; items: string[] }) {
+  return (
+    <div className="min-w-0">
+      <h4 className="text-[11px] font-semibold uppercase tracking-[0.06em]" style={{ color: tone }}>
+        {title}
+      </h4>
+      <ul className="mt-2 flex flex-col gap-1.5">
+        {items.map((item) => (
+          <li key={item} className="flex gap-1.5 text-[12px] leading-[1.5] text-[var(--text-body)]">
+            <span aria-hidden className="mt-[7px] h-[3px] w-[3px] shrink-0 rounded-full" style={{ background: tone }} />
+            <span className="min-w-0">{item}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function GtacRecommendation() {
+  const value = (stage: string, label: string) => stageValue(stage, label) ?? "—";
+
+  return (
+    <section aria-label="Read on this decision" className="mt-6 rounded-[10px] border border-[var(--border-default)] bg-[var(--surface-muted)]">
+      <div className="flex items-center gap-2 border-b border-[var(--border-hairline)] px-4 py-2.5">
+        <Sparkles size={13} className="shrink-0 text-[var(--accent)]" />
+        <span className="text-[12px] font-semibold text-[var(--text-primary)]">Recommend GO</span>
+      </div>
+
+      {/* A rule between the two sides, not just a gap: the columns are an argument
+          with each other, so the divider is the point. */}
+      <div className="grid sm:grid-cols-2">
+        <div className="px-4 py-3.5">
+          <DecisionColumn
+            title="For"
+            tone="var(--status-success)"
+            items={[
+              `Payback ${value("GTAC", "ROI payback period")}, well inside the five-year bar.`,
+              `${value("Business Case", "Projected annual savings")}/yr on ${value("Business Case", "Total investment required")}; ${value("Business Case", "3-year net value (NPV)")} over three years.`,
+              `${value("Assessment", "Overall risk level")} risk, no personal data, writer sign-off in place.`,
+            ]}
+          />
+        </div>
+        <div className="border-t border-[var(--border-hairline)] px-4 py-3.5 sm:border-l sm:border-t-0">
+          <DecisionColumn
+            title="Against"
+            tone="var(--tone-warning-fg)"
+            items={[
+              `Assumes ${value("Business Case", "Projected time savings")} saved; pilot is at ${value("Monitoring and tracking", "Review time reduction")}.`,
+              `Adoption ${value("Monitoring and tracking", "Adoption rate (eligible users)")} in pilot.`,
+              "GxP-adjacent: CSV validation before build, not after.",
+            ]}
+          />
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function StageFieldsGrid({
   stage,
   s,
@@ -715,6 +798,11 @@ function StageFieldsGrid({
       aria-label={`${stage.name} stage`}
     >
       <StageFormHeader stage={stage} s={s} currentUser={currentUser} canEdit={canEdit} isComplete={isComplete} isSkipped={isSkipped} heading={heading} />
+
+      {/* A decision stage gets the agent's read on the decision before the fields
+          that record it — this is the one stage where the answer is a judgement
+          rather than a fact to look up. */}
+      {stage.name === "GTAC" && !isSkipped ? <GtacRecommendation /> : null}
 
       {/* One column, on a reading measure: a two-up grid tied every row's height
           to its tallest cell and left long values fighting for half the width. */}

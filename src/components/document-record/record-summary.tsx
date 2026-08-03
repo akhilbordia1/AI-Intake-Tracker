@@ -1,8 +1,10 @@
 "use client";
 
 import { CalendarDays, ShieldCheck } from "lucide-react";
+import { useState } from "react";
 
 import { PersonAvatar } from "@/components/profile";
+import { RiskSummaryModal } from "@/components/document-record/risk-modal";
 import { CHIP, Tag, type Tone } from "@/components/ui/kit";
 import { USE_CASE } from "@/data/document-workflow-form-schema";
 import { ACTIVE_STAGE_INDEX, RECORD_DETAILS, STAGES, gateForStage, stageValue, type Gate } from "@/data/lifecycle";
@@ -37,10 +39,52 @@ function gateStatusTone(status: Gate["status"]): Tone {
   return "neutral";
 }
 
+// ── What the two status chips say on hover ──
+// A chip has room for one fact; the hover is where the rest of the assessment
+// lives, so the reader doesn't have to open the record's Details sheet to learn
+// what "Medium risk" or "R3 · In review" is made of. `\n` renders as lines in the
+// shared tooltip layer.
+const first = (items: string[], keep: number) => {
+  const shown = items.slice(0, keep).join(", ");
+  return items.length > keep ? `${shown} +${items.length - keep}` : shown;
+};
+
+// First line is the heading; the rest are `Label: value` rows the tooltip layer
+// sets as a small table.
+const tipLines = (heading: string, rows: (readonly [string, string | undefined | null])[]) =>
+  [heading, ...rows.filter(([, value]) => value).map(([label, value]) => `${label}: ${value}`)].join("\n");
+
+function riskTip(tier: string, overallRisk?: string) {
+  const checks = (stageValue("Assessment", "Compliance checks") ?? "")
+    .split(";")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  return tipLines(`${tier} assessment tier`, [
+    ["Overall risk", overallRisk],
+    ["Model risk", stageValue("Assessment", "Model risk level")],
+    ["Ethical risk", stageValue("Assessment", "Ethical risk level")],
+    ["Data hosting", stageValue("Assessment", "Data hosting risk level")],
+    ["Personal data", stageValue("Assessment", "Personal data (PII) in scope")],
+    ["Checks", checks.length ? first(checks, 3) : null],
+  ]);
+}
+
+function gateTip(gate: Gate) {
+  return tipLines(`${gate.id} · ${gate.name}`, [
+    ["Status", gate.status],
+    ["Approver", gate.approver],
+    ["Decided", gate.decided],
+    ["Evidence", gate.artifacts.length ? first(gate.artifacts, 2) : null],
+    ["Conditions", gate.conditions.length ? first(gate.conditions, 1) : null],
+  ]);
+}
+
 // `divider` draws the rule beneath the block — the record page needs it, because
 // the stage form scrolls under it. Where the next thing is a boxed table, the box
 // is the edge and whitespace does the separating.
 export function RecordSummary({ currentUser, divider = true }: { currentUser: string; divider?: boolean }) {
+  const [riskOpen, setRiskOpen] = useState(false);
   const activeStage = STAGES[ACTIVE_STAGE_INDEX];
   const tier = stageValue("Triage", "Risk governance tier");
   const overallRisk = stageValue("Assessment", "Overall risk level");
@@ -72,21 +116,25 @@ export function RecordSummary({ currentUser, divider = true }: { currentUser: st
 
         <MetaRule />
         <span className="flex shrink-0 items-center gap-1.5">
+          {/* The one chip that opens something: the risk rating is the record fact
+              people most often need explained, so it's the door to the summary. */}
           {tier ? (
-            <Tag
-              tone={riskTone(overallRisk)}
-              icon={<ShieldCheck size={11} />}
-              data-tip={`Risk tier — ${tier}${overallRisk ? `, ${overallRisk.toLowerCase()} overall risk` : ""}`}
-              className={CHIP}
+            <button
+              type="button"
+              onClick={() => setRiskOpen(true)}
+              data-tip={riskTip(tier, overallRisk)}
+              className="rounded-full outline-none transition focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface)]"
             >
-              {overallRisk ? `${overallRisk} risk` : `${tier} assessment`}
-            </Tag>
+              <Tag tone={riskTone(overallRisk)} icon={<ShieldCheck size={11} />} className={cn(CHIP, "hover:brightness-[0.97]")}>
+                {overallRisk ? `${overallRisk} risk` : `${tier} assessment`}
+              </Tag>
+            </button>
           ) : null}
           {gateOnActive ? (
             <Tag
               tone={gateStatusTone(gateOnActive.status)}
               icon={<ShieldCheck size={11} />}
-              data-tip={`${gateOnActive.name} — approver ${gateOnActive.approver}`}
+              data-tip={gateTip(gateOnActive)}
               className={CHIP}
             >
               <span className="font-mono">{gateOnActive.id}</span> · {gateOnActive.status}
@@ -94,6 +142,8 @@ export function RecordSummary({ currentUser, divider = true }: { currentUser: st
           ) : null}
         </span>
       </div>
+
+      <RiskSummaryModal open={riskOpen} onClose={() => setRiskOpen(false)} />
     </div>
   );
 }

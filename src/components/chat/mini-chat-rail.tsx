@@ -20,6 +20,11 @@ const NEW_IDEA_RE = /\b(new use case|new ticket|raise|submit|start|create|build|
 // chats use.
 export type RailStarter = string | { label: string; draft?: string; icon?: ReactNode };
 
+// What a responder gives back: a line of prose, or a line plus the records it is
+// about, rendered as cards. A list of use cases reads better as the cards the user
+// already knows from the board than as bullets repeating their fields.
+export type RailAnswer = string | { text: string; detail?: ReactNode };
+
 export function MiniChatRail({
   intro,
   starters,
@@ -37,7 +42,7 @@ export function MiniChatRail({
   intro: string;
   starters: RailStarter[];
   // Route-supplied responder: returns undefined when it has nothing specific.
-  answer?: (question: string) => string | undefined;
+  answer?: (question: string) => RailAnswer | undefined;
   reply: string;
   placeholder?: string;
   // The empty state shown before the first message: a headline and the intro as a
@@ -87,11 +92,9 @@ export function MiniChatRail({
       router.push(`${newIdeaHref}?idea=${encodeURIComponent(message)}`);
       return;
     }
-    setTurns((current) => [
-      ...current,
-      { role: "user", text: message, time: formatChatTime() },
-      { role: "assistant", text: answer?.(message) ?? reply },
-    ]);
+    const answered = answer?.(message) ?? reply;
+    const said = typeof answered === "string" ? { text: answered } : answered;
+    setTurns((current) => [...current, { role: "user", text: message, time: formatChatTime() }, { role: "assistant", ...said }]);
   }
 
   const suggestions = starters
@@ -157,7 +160,7 @@ export function MiniChatRail({
         <ChatTimeDivider />
         <ChatLine text={intro} />
         {turns.map((turn, index) => (
-          <ChatLine key={index} role={turn.role} text={turn.text} time={turn.time} activity={turn.activity} />
+          <ChatLine key={index} role={turn.role} text={turn.text} time={turn.time} activity={turn.activity} detail={turn.detail} />
         ))}
       </div>
       <ChatDock>{composer}</ChatDock>

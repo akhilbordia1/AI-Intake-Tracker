@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "icons": "node scripts/export-icons.mjs"
   },
   "dependencies": {
     "@solar-icons/react": "^1.1.1",
