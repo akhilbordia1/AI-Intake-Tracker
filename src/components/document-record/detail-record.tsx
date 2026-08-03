@@ -2243,11 +2243,15 @@ const STAGE_STARTERS: Record<string, { owner: StarterSpec[]; viewer: StarterSpec
   "Plan & KPI": {
     owner: [
       { icon: "spark", label: "Draft the delivery plan", fill: ["Delivery plan and sequencing"] },
-      { icon: "info", label: "Which KPIs do we lock?", fill: ["KPIs and measurement targets", "Targets locked for delivery"] },
+      // One prompt per group of KPIs rather than one for a single packed field: the stage
+      // now declares a baseline and a target per measure, and value and quality are
+      // different conversations with the business.
+      { icon: "info", label: "Set the value targets", fill: ["Active users", "Hours saved a year", "Return on build cost (ROI)"] },
+      { icon: "info", label: "Set the quality targets", fill: ["Review time reduction", "Summary accuracy", "Writer satisfaction (CSAT)", "Targets locked for delivery"] },
     ],
     viewer: [
-      { icon: "info", label: "What are the KPIs?", read: ["KPIs and measurement targets", "Targets locked for delivery"] },
-      { icon: "doc", label: "What's the delivery plan?", read: ["Delivery plan and sequencing"] },
+      { icon: "info", label: "What are the KPIs?", read: ["Active users", "Hours saved a year", "Return on build cost (ROI)", "Summary accuracy"] },
+      { icon: "doc", label: "What's the delivery plan?", read: ["Delivery plan and sequencing", "Targets locked for delivery"] },
     ],
   },
   "Solution blue print": {
@@ -2272,12 +2276,12 @@ const STAGE_STARTERS: Record<string, { owner: StarterSpec[]; viewer: StarterSpec
   },
   "Monitoring and tracking": {
     owner: [
-      { icon: "spark", label: "Log the latest metrics", fill: ["Review time reduction", "Summary accuracy vs baseline", "Writer satisfaction (CSAT)"] },
-      { icon: "info", label: "Where's adoption at?", fill: ["Adoption rate (eligible users)"] },
+      { icon: "spark", label: "Log the latest metrics", fill: ["Review time reduction", "Summary accuracy", "Writer satisfaction (CSAT)"] },
+      { icon: "info", label: "Log the value delivered", fill: ["Active users", "Hours saved a year", "Return on build cost (ROI)"] },
     ],
     viewer: [
-      { icon: "info", label: "Is it hitting its targets?", read: ["Review time reduction", "Summary accuracy vs baseline"] },
-      { icon: "doc", label: "How do users rate it?", read: ["Writer satisfaction (CSAT)", "Adoption rate (eligible users)"] },
+      { icon: "info", label: "Is it hitting its targets?", read: ["Review time reduction", "Summary accuracy", "Return on build cost (ROI)"] },
+      { icon: "doc", label: "How do users rate it?", read: ["Writer satisfaction (CSAT)", "Active users"] },
     ],
   },
   Adoption: {

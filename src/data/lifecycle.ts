@@ -108,9 +108,20 @@ export const STAGES = [
   {
     name: "Plan & KPI",
     owner: "Dana K.",
+    // One row per KPI, each declaring where it starts and where it has to get to. This
+    // used to be a single "KPIs and measurement targets" string holding three targets and
+    // no baselines — which meant nothing could be measured against it, and the four
+    // metrics Monitoring reports on didn't line up with it by name. The labels here are
+    // deliberately identical to the Monitoring rows below; `reconcileRecordKpis()` fails
+    // loudly if a target declared here stops matching the one reported there.
     rows: [
       ["Delivery plan and sequencing", "CSV & Responsible AI review (3w) -> Build & configure (8w) -> Pilot 2 sites (4w) -> Global rollout (6w)"],
-      ["KPIs and measurement targets", "Protocol review time -30%; Summary accuracy >=95%; Adoption >=75% of eligible users"],
+      ["Active users", "0 now → 45 users target"],
+      ["Hours saved a year", "0 now → 2,160 h target"],
+      ["Writer satisfaction (CSAT)", "71% now → 80% target"],
+      ["Return on build cost (ROI)", "0% now → 159% target"],
+      ["Review time reduction", "0% now → 30% target"],
+      ["Summary accuracy", "82% now → 95% target"],
       ["Targets locked for delivery", "Validation plan approved; pilot sign-off; full go-live in ~21 weeks"],
     ],
   },
@@ -138,11 +149,17 @@ export const STAGES = [
   {
     name: "Monitoring and tracking",
     owner: "Rohan Desai",
+    // The current value for every KPI planned above, same labels and same units, in the
+    // order they were planned. "Adoption rate 68%" became "Active users 41" — a share of
+    // the eligible sixty says how many people were *offered* it; the count says how many
+    // use it, which is what the target was set in.
     rows: [
-      ["Review time reduction", "27% of 30% target"],
+      ["Active users", "41 of 45 users target"],
+      ["Hours saved a year", "1,950 of 2,160 h target"],
       ["Writer satisfaction (CSAT)", "84% of 80% target"],
-      ["Summary accuracy vs baseline", "96.5% of 95% target"],
-      ["Adoption rate (eligible users)", "68% of 75% target"],
+      ["Return on build cost (ROI)", "143% of 159% target"],
+      ["Review time reduction", "27% of 30% target"],
+      ["Summary accuracy", "96.5% of 95% target"],
     ],
   },
   {
@@ -271,9 +288,10 @@ export const FIELD_GISTS: Record<string, string> = {
   "Board recommendation": "What the board concluded, and on what grounds",
   "Board conditions to proceed": "What must be true before build starts",
 
-  // Plan & KPI
+  // Plan & KPI — the four KPI labels are shared with Monitoring, so one gist serves both
+  // stages: at planning the field asks for a baseline and a target, at monitoring for the
+  // current value. The definition of the *measure* is the same either way.
   "Delivery plan and sequencing": "The phases in order, with how long each takes",
-  "KPIs and measurement targets": "The metrics judged at go-live, with target numbers",
   "Targets locked for delivery": "The approvals and sign-offs the plan commits to",
 
   // Solution blueprint
@@ -289,11 +307,13 @@ export const FIELD_GISTS: Record<string, string> = {
   "CSV documentation": "Validation evidence and who approved it",
   "Production deployment": "What is live, and where",
 
-  // Monitoring
-  "Review time reduction": "Actual time saved, against target",
-  "Writer satisfaction (CSAT)": "Measured satisfaction, against target",
-  "Summary accuracy vs baseline": "Accuracy against the pre-AI baseline",
-  "Adoption rate (eligible users)": "Share of eligible users actually using it",
+  // The six KPIs, planned in one stage and reported in the next under the same labels
+  "Active users": "How many of the eligible users actually use it",
+  "Hours saved a year": "Time given back across the whole population, annualised",
+  "Writer satisfaction (CSAT)": "How the people doing the work rate it",
+  "Return on build cost (ROI)": "Annual benefit as a share of what it cost to build",
+  "Review time reduction": "How much faster a review is than it was",
+  "Summary accuracy": "How often the output is right, against the manual baseline",
 
   // Adoption
   "Training completed": "Users trained, out of those who need it",

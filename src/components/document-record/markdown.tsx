@@ -37,7 +37,15 @@ function inline(text: string): ReactNode[] {
     if (part.startsWith("[")) {
       const [, label, href] = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(part) ?? [];
       return href ? (
-        <a key={index} href={href} className="font-medium text-[var(--accent)] underline decoration-[var(--accent-border)] underline-offset-2">
+        // The underline carries it, not a colour. Every hue in this palette already means
+        // something — the accent is a measure, green is passing, clay is a second series —
+        // so a coloured link inside prose reads as a status on the word it marks. Text
+        // colour with a quiet rule under it says "this opens" and nothing else.
+        <a
+          key={index}
+          href={href}
+          className="font-medium text-[var(--text-primary)] underline decoration-[var(--border-input)] underline-offset-2 transition hover:decoration-[var(--text-primary)]"
+        >
           {label}
         </a>
       ) : (

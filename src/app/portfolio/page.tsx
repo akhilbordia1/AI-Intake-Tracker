@@ -31,7 +31,6 @@ import {
   aging,
   attainmentSummary,
   blockers,
-  cycleFootnote,
   daysBetween,
   capabilityMix,
   capacityByOwner,
@@ -209,7 +208,8 @@ function answerForLeader(question: string, cards: UseCaseCard[], person: string)
     return {
       text: `By month: ${months
         .map(
-          (month) => `${month.label} ${month.submitted} raised, ${month.approved} approved, ${month.closed} closed${month.partial ? " (so far)" : ""}`,
+          (month) =>
+            `${month.label} ${month.submitted} raised, ${month.approved} approved, ${month.closed} closed${month.partial ? " (so far)" : ""}`,
         )
         .join("; ")}.`,
       followUps: ["Where is it clogging?", "How are gate decisions going?"],
@@ -442,7 +442,6 @@ function HealthTab({
   const stalled = blockers(board);
   const aged = aging(board, AS_OF);
   const beat = pulse(cards, months, AS_OF);
-  const weakest = [...beat.parts].sort((a, b) => a.ratio - b.ratio)[0];
   const span = months.length > 1 ? `${months[0].label} → ${months[months.length - 1].label}` : undefined;
 
   // One row per record that isn't moving: the blocked ones first, then whatever has
@@ -520,9 +519,7 @@ function HealthTab({
         className={SPAN}
         title="Pipeline"
         hint={`${cards.length} ever raised`}
-        footer={[cycleFootnote(cycle, PHASES), scoped ? "The monthly line is portfolio-wide; the scope filter narrows the table only." : null]
-          .filter(Boolean)
-          .join(" ")}
+        footer={scoped ? "The monthly line is portfolio-wide; the scope filter narrows the table only." : undefined}
       >
         <PhaseFlowTable cards={cards} flow={flow} cycle={cycle} />
         <div className="mt-5 border-t border-[var(--border-hairline)] pt-4">
@@ -539,40 +536,58 @@ function HealthTab({
         </div>
       </TileBox>
 
-      <TileBox title="Blockers" hint={`of ${board.length} on the board`}>
-        <MiniList
-          rows={notMoving.map((row) => ({
-            key: row.card.id,
-            node: (
-              <div className="flex min-w-0 items-center gap-2.5">
-                <Link
-                  href={row.card.href}
-                  className="min-w-0 flex-1 truncate text-[13px] font-medium text-[var(--text-primary)] hover:text-[var(--accent-strong)]"
-                >
-                  {row.card.title}
-                </Link>
-                <StatusDot
-                  tone={row.why === "Sitting" ? "quiet" : "bad"}
-                  label={row.why === "Sitting" ? "Sitting" : `${row.card.gate?.id ?? ""} blocked`.trim()}
-                />
-                <span className="font-mono w-8 shrink-0 text-right text-[11px] text-[var(--text-muted)]">{row.days}d</span>
-                <PersonAvatar name={row.card.actionOwner} size={20} />
-              </div>
-            ),
-          }))}
-          more={(hidden) => `and ${hidden} more — the oldest has been ${notMoving[notMoving.length - 1]?.days ?? 0} days at one stage`}
-        />
-      </TileBox>
+      {/* These two are read as a pair — what's stuck, and how healthy that leaves the
+          system — so they share a row that stretches them to a common height. The tab grid
+          is `items-start` on purpose (a short tile shouldn't grow to match a tall one), so
+          the pairing is opted into here rather than turned on for everything. */}
+      <div className={cn(SPAN, "grid items-stretch gap-4 lg:grid-cols-2")}>
+        {/* "of 11 on the board" read as a fragment with its subject missing — the count it
+            belonged to is the visible row count. A plain denominator says the same thing. */}
+        <TileBox className="h-full" title="Blockers">
+          <MiniList
+            rows={notMoving.map((row) => ({
+              key: row.card.id,
+              node: (
+                // Fixed columns for the status, the days and the avatar. Left to size
+                // themselves, "R2 blocked" and "Sitting" put their dots in different places
+                // down the list, so four rows of the same shape read as four different ones.
+                <div className="flex min-w-0 items-center gap-3">
+                  <Link
+                    href={row.card.href}
+                    className="min-w-0 flex-1 truncate text-[13px] font-medium text-[var(--text-primary)] hover:text-[var(--accent-strong)]"
+                  >
+                    {row.card.title}
+                  </Link>
+                  <span className="w-[92px] shrink-0">
+                    <StatusDot
+                      tone={row.why === "Sitting" ? "quiet" : "bad"}
+                      label={row.why === "Sitting" ? "Sitting" : `${row.card.gate?.id ?? ""} blocked`.trim()}
+                    />
+                  </span>
+                  <span
+                    data-tip={`At ${shortStageLabel(row.card.substage)} since ${formatMonthDay(row.card.stageEntered)}`}
+                    className="font-mono w-8 shrink-0 text-right text-[12px] text-[var(--text-muted)] [font-variant-numeric:tabular-nums]"
+                  >
+                    {row.days}d
+                  </span>
+                  <PersonAvatar name={row.card.actionOwner} size={20} />
+                </div>
+              ),
+            }))}
+            more={(hidden) => `and ${hidden} more — the oldest has been ${notMoving[notMoving.length - 1]?.days ?? 0} days at one stage`}
+          />
+        </TileBox>
 
-      {/* The header said the score, the dial said the score, and a caption explained the
-          weighting — three sentences for one number. The header now counts the parts, the
-          dial keeps the score, and the weakest measure goes in the footer as a fact. */}
-      <TileBox title="Health Score" hint={`${beat.parts.length} measures, evenly weighted`} footer={`Weakest: ${weakest.label} at ${pct(weakest.ratio)}.`}>
-        {/* No word under the figure: the title already says what the number is, and
-            "83% · healthy" said the same thing twice in two registers. */}
-        <ScorePanel score={beat.score} parts={beat.parts} />
-      </TileBox>
-
+        {/* The header said the score, the dial said the score, and a caption explained the
+            weighting — three sentences for one number. No footer naming the weakest measure
+            either: the dial and the rows already mark it in the warning tone, and the row
+            says which one and by how much. */}
+        <TileBox className="h-full" title="Health Score">
+          {/* No word under the figure: the title already says what the number is, and
+              "83% · healthy" said the same thing twice in two registers. */}
+          <ScorePanel score={beat.score} parts={beat.parts} />
+        </TileBox>
+      </div>
     </div>
   );
 }
@@ -592,6 +607,8 @@ function ValueTab({ cards, months, scoped }: { cards: UseCaseCard[]; months: typ
   // Only the misses are worth naming: eight of ten targets are met, and a list of
   // eight rows saying "fine" is what made this block unreadable.
   const behind = kpiAttainment(cards).filter((row) => !row.met);
+  // The biggest unfunded ask — the one the money table's "still an ask" row is mostly made
+  // of, and the one decision worth the most.
 
   return (
     <div className={TAB_GRID}>
@@ -868,9 +885,10 @@ export default function PortfolioPage() {
             }}
             past={pastSession ? { session: pastSession, onBack: () => history.open(null) } : undefined}
             emptyTitle={`How's the portfolio, ${firstName(activeProfile)}?`}
-            intro={`${h.tracked} use cases have come through since ${h.since}. ${h.active} are in flight, ${h.blocked} aren't moving, and ${h.live} are live — ${usd(
-              h.investment,
-            )} committed against ${usd(h.benefit)} of annualised benefit. Ask me where it's clogging, or I'll write you the digest.`}
+            // Five numbers and an instruction became two numbers and none: the three
+            // starters directly below already say what to ask, so "ask me where it's
+            // clogging, or I'll write you the digest" was the buttons written out as prose.
+            intro={`${h.active} of ${h.tracked} use cases are in flight, and ${usd(h.investment)} is committed against ${usd(h.benefit)} of benefit.`}
             starters={[
               { label: "Brief me on the portfolio", icon: <Sparkles size={13} /> },
               { label: "Where is it clogging?", icon: <Activity size={13} /> },

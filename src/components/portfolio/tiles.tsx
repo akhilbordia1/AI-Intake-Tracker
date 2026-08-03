@@ -32,21 +32,24 @@ export function SummaryPanel({
   meta?: string;
 }) {
   return (
-    <section className="rounded-[10px] border border-[var(--border-default)] bg-[var(--surface-muted)]">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-[var(--border-hairline)] px-5 py-3">
-        <h3 className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[var(--text-primary)]">
+    // Told apart from a tile by quiet things rather than one loud one: a softer hairline
+    // instead of the tiles' full border, no rule under the header (a passage doesn't need
+    // its title boxed off), a tracked-caps label rather than a tile's noun, and prose a
+    // size up with more line height. Not the serif reading face — it was tried and it made
+    // three lines of numbers-heavy prose harder to read, which is the opposite of the point.
+    <section className="rounded-[10px] border border-[var(--border-hairline)] bg-[var(--surface-muted)] px-6 py-5">
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <h3 className="inline-flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-[0.07em] text-[var(--text-label)]">
           <Sparkles size={13} className="text-[var(--accent)]" />
           {title}
         </h3>
-        {meta ? <span className="text-[12px] text-[var(--text-muted)]">{meta}</span> : null}
+        {meta ? <span className="font-mono text-[11px] text-[var(--text-muted)]">{meta}</span> : null}
       </div>
       {/* No reading measure on top of the box. An 86ch cap inside a panel already capped
           at 1080px left every line stopping a few hundred pixels short of its own right
           edge, so each bullet wrapped early against a wide empty gutter. The box is the
           measure here — it's three lines, not an article. */}
-      <div className="px-5 py-4">
-        <Markdown source={source} />
-      </div>
+      <Markdown source={source} className="text-[15px] leading-[1.7]" />
     </section>
   );
 }
@@ -146,7 +149,13 @@ export function DataTable({
 // column read as four buttons, and the colour is doing the work anyway.
 export function StatusDot({ label, tone }: { label: string; tone: "good" | "warn" | "bad" | "quiet" }) {
   const colour =
-    tone === "good" ? "var(--status-success)" : tone === "warn" ? "var(--tone-warning-fg)" : tone === "bad" ? "var(--tone-danger-fg)" : "var(--text-faint)";
+    tone === "good"
+      ? "var(--status-success)"
+      : tone === "warn"
+        ? "var(--tone-warning-fg)"
+        : tone === "bad"
+          ? "var(--tone-danger-fg)"
+          : "var(--text-faint)";
   return (
     <span className="inline-flex shrink-0 items-center gap-1.5 text-[12px]" style={{ color: colour }}>
       <span aria-hidden className="h-1.5 w-1.5 rounded-full" style={{ background: colour }} />
@@ -162,7 +171,17 @@ export function StatusDot({ label, tone }: { label: string; tone: "good" | "warn
 
 // Six months of a measure, at the size of a word. Inline SVG rather than a chart
 // runtime: there is no axis to label, and the shape *is* the whole point.
-export function Sparkline({ values, colour = "var(--accent)", width = 64, height = 20 }: { values: number[]; colour?: string; width?: number; height?: number }) {
+export function Sparkline({
+  values,
+  colour = "var(--accent)",
+  width = 64,
+  height = 20,
+}: {
+  values: number[];
+  colour?: string;
+  width?: number;
+  height?: number;
+}) {
   if (values.length < 2) return null;
   const low = Math.min(...values);
   const high = Math.max(...values);
@@ -274,7 +293,9 @@ export function GroupBars({ groups }: { groups: { key: string; label: string; co
           <div className="flex min-w-0 items-baseline gap-2">
             <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: group.colour }} />
             <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--text-body)]">{group.label}</span>
-            <span className="font-mono shrink-0 text-[12px] font-medium text-[var(--text-primary)] [font-variant-numeric:tabular-nums]">{group.count}</span>
+            <span className="font-mono shrink-0 text-[12px] font-medium text-[var(--text-primary)] [font-variant-numeric:tabular-nums]">
+              {group.count}
+            </span>
           </div>
           <span className="mt-1.5 block h-2 overflow-hidden rounded-full bg-[var(--surface-strong)]">
             <span className="block h-full rounded-full" style={{ width: `${(group.count / total) * 100}%`, background: group.colour }} />
@@ -285,21 +306,29 @@ export function GroupBars({ groups }: { groups: { key: string; label: string; co
   );
 }
 
-// Where a measure sits: full marks, comfortable, or dragging. Four bars in one colour
-// made 100% and 75% look like the same news, which is the one thing a composite has to
-// tell you — so the fill carries the band and the eye finds the weak row first.
-function bandColour(ratio: number) {
-  if (ratio >= 0.95) return "var(--status-success)";
-  if (ratio >= 0.8) return "var(--accent)";
-  return "var(--tone-warning-fg)";
-}
+// One weak link, marked. Banding by threshold put 75% in warning ochre and 80% in the
+// accent — a hue change for five points, which reads as "one of these is broken" rather
+// than "this one is lowest". And because the accent and the success green are the same
+// family, 80% and 100% looked identical anyway, so the three bands were really two.
+// The measure that is actually lowest carries the warning tone; the rest are the accent.
+const bandColour = (ratio: number, weakest: number) => (ratio === weakest ? "var(--tone-warning-fg)" : "var(--accent)");
 
 // The dial, drawn as the thing it's a score of: one arc per measure, a quarter of the
 // circle each because they're evenly weighted, filled to its own level in its own band
 // colour. A single sweeping donut was decoration — it restated the number in its middle
 // and said nothing the rows didn't, and at a stroke heavy enough to read it dominated
 // the tile. Four arcs make the weighting visible and the weak quarter obvious.
-function PulseDial({ score, parts, caption }: { score: number; parts: { label: string; ratio: number }[]; caption?: string }) {
+function PulseDial({
+  score,
+  parts,
+  caption,
+  weakest,
+}: {
+  score: number;
+  parts: { label: string; ratio: number }[];
+  caption?: string;
+  weakest: number;
+}) {
   const size = 108;
   const stroke = 7;
   const radius = (size - stroke) / 2;
@@ -336,7 +365,7 @@ function PulseDial({ score, parts, caption }: { score: number; parts: { label: s
                   cy={size / 2}
                   r={radius}
                   fill="none"
-                  stroke={bandColour(part.ratio)}
+                  stroke={bandColour(part.ratio, weakest)}
                   strokeWidth={stroke}
                   strokeDasharray={`${filled} ${circumference - filled}`}
                   strokeDashoffset={offset}
@@ -359,9 +388,10 @@ function PulseDial({ score, parts, caption }: { score: number; parts: { label: s
 // A composite score, with the things it is made of underneath: one number on its own
 // hides its own reasoning, and a leader's first question is "made of what?".
 export function ScorePanel({ score, parts, caption }: { score: number; parts: { label: string; ratio: number }[]; caption?: string }) {
+  const weakest = Math.min(...parts.map((part) => part.ratio));
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-stretch sm:gap-6">
-      <PulseDial score={score} parts={parts} caption={caption} />
+      <PulseDial score={score} parts={parts} caption={caption} weakest={weakest} />
       {/* Hairline rows, and the bar takes whatever width is left: a fixed 64px bar
           stranded the percentages a long way from their labels. */}
       <div className="min-w-0 flex-1">
@@ -374,12 +404,12 @@ export function ScorePanel({ score, parts, caption }: { score: number; parts: { 
             <span className="relative h-1.5 w-[38%] max-w-[160px] shrink-0 overflow-hidden rounded-full bg-[var(--surface-strong)]">
               <span
                 className="absolute inset-y-0 left-0 rounded-full"
-                style={{ width: `${Math.round(Math.max(0, Math.min(1, part.ratio)) * 100)}%`, background: bandColour(part.ratio) }}
+                style={{ width: `${Math.round(Math.max(0, Math.min(1, part.ratio)) * 100)}%`, background: bandColour(part.ratio, weakest) }}
               />
             </span>
             <span
               className="font-mono w-9 shrink-0 text-right text-[12px] font-medium [font-variant-numeric:tabular-nums]"
-              style={{ color: bandColour(part.ratio) }}
+              style={{ color: part.ratio === weakest ? "var(--tone-warning-fg)" : "var(--text-primary)" }}
             >
               {Math.round(part.ratio * 100)}%
             </span>

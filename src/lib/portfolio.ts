@@ -121,16 +121,6 @@ export function phasesBySpeed(cycle: ReturnType<typeof medianCycleDaysByPhase>, 
   return phases.order.filter((phase) => (cycle[phase]?.sample ?? 0) > 0).sort((a, b) => cycle[b].days - cycle[a].days);
 }
 
-// How the phase medians were arrived at, in a line. This was a hover tip, which is a
-// bad home for the one caveat a leader has to know: a median that ignores everything
-// still sitting in a phase is easy to misread as "we clear this in a week".
-export function cycleFootnote(cycle: ReturnType<typeof medianCycleDaysByPhase>, phases: PhaseMap): string {
-  const measured = phases.order.reduce((total, phase) => total + (cycle[phase]?.sample ?? 0), 0);
-  const open = phases.order.reduce((total, phase) => total + (cycle[phase]?.open ?? 0), 0);
-  if (!measured) return "Nothing has left a phase yet, so there is no duration to report.";
-  return `Medians count the ${measured} phase passages that finished; ${open} ${open === 1 ? "record is" : "records are"} still in one and don't count yet.`;
-}
-
 export function decisionSpeedSeries(months: PortfolioMonth[]) {
   return months.map((month) => ({ label: month.label, days: month.medianDaysToDecision, partial: Boolean(month.partial) }));
 }
@@ -185,9 +175,7 @@ export function gateOutcomes(cards: UseCaseCard[]) {
 
 export function gateMix(cards: UseCaseCard[]) {
   const order: GateStatus[] = ["Passed", "In review", "Pending", "Blocked", "Rejected"];
-  return order
-    .map((status) => ({ status, count: cards.filter((card) => card.gate?.status === status).length }))
-    .filter((row) => row.count > 0);
+  return order.map((status) => ({ status, count: cards.filter((card) => card.gate?.status === status).length })).filter((row) => row.count > 0);
 }
 
 export function oldestOpenGate(cards: UseCaseCard[], asOf: string) {
@@ -320,12 +308,7 @@ export function paybackMonths(investment: number, annualBenefit: number): number
 }
 
 export function valueSeries(months: PortfolioMonth[]) {
-  return months.map((month) => ({
-    label: month.label,
-    investment: month.committedUsd,
-    benefit: month.benefitUsd,
-    partial: Boolean(month.partial),
-  }));
+  return months.map((month) => ({ label: month.label, investment: month.committedUsd, benefit: month.benefitUsd, partial: Boolean(month.partial) }));
 }
 
 export function valueByFunction(cards: UseCaseCard[], max = 6) {
@@ -342,12 +325,92 @@ export function valueByFunction(cards: UseCaseCard[], max = 6) {
 
 // ── KPI attainment ──
 
-// The record's own KPI rows are written as prose ("27% of 30% target"), so the same
-// parser serves both the seeded numbers and the deep record's strings.
+// The record writes its KPIs as prose, so these read them back. Two shapes, one per
+// stage: Plan & KPI declares "71% now → 80% target", Monitoring reports "84% of 80%
+// target". Numbers may carry thousands separators and a unit.
+const UNIT = "%|pts|days|months|users|h";
+const figure = (raw: string) => Number(raw.replace(/,/g, ""));
+
 export function parseTargetPair(value: string): { actual: number; target: number; unit: string } | null {
-  const match = /([\d.]+)\s*(%|pts|days)?\s+of\s+([\d.]+)\s*(%|pts|days)?/i.exec(value);
+  const match = new RegExp(`([\\d,.]+)\\s*(${UNIT})?\\s+of\\s+([\\d,.]+)\\s*(${UNIT})?`, "i").exec(value);
   if (!match) return null;
-  return { actual: Number(match[1]), target: Number(match[3]), unit: match[2] ?? match[4] ?? "" };
+  return { actual: figure(match[1]), target: figure(match[3]), unit: match[2] ?? match[4] ?? "" };
+}
+
+// The Plan stage's half: what it was before this shipped, and what it has to reach. A
+// baseline is the number a target is worth anything against — "45 active users" says
+// nothing until you know it started at nought.
+export function parseBaselineTarget(value: string): { baseline: number; target: number; unit: string } | null {
+  const match = new RegExp(`([\\d,.]+)\\s*(${UNIT})?\\s*(?:now|today)?\\s*(?:→|->)\\s*([\\d,.]+)\\s*(${UNIT})?`, "i").exec(value);
+  if (!match) return null;
+  return { baseline: figure(match[1]), target: figure(match[3]), unit: match[2] ?? match[4] ?? "" };
+}
+
+export type RecordKpi = {
+  name: string;
+  baseline: number;
+  target: number;
+  actual: number | null;
+  unit: string;
+  met: boolean;
+  // How far from baseline to target it has travelled — the fraction that actually
+  // answers "is this working", which `actual / target` doesn't when the baseline isn't nought.
+  progress: number;
+};
+
+// The deep record's KPIs, paired across the two stages that own them: Plan & KPI declares
+// the baseline and the target, Monitoring reports the current value, and they are matched
+// by label — which is why the labels are deliberately identical in both.
+export function recordKpis(stages: { name: string; rows: [string, string][] }[]): RecordKpi[] {
+  const rowsOf = (name: string) => stages.find((stage) => stage.name === name)?.rows ?? [];
+  const monitoring = new Map(rowsOf("Monitoring and tracking"));
+
+  return rowsOf("Plan & KPI").flatMap((row) => {
+    const planned = parseBaselineTarget(row[1]);
+    if (!planned) return [];
+    const reported = parseTargetPair(monitoring.get(row[0]) ?? "");
+    const span = planned.target - planned.baseline;
+    return [
+      {
+        name: row[0],
+        baseline: planned.baseline,
+        target: planned.target,
+        actual: reported ? reported.actual : null,
+        unit: planned.unit,
+        met: reported ? reported.actual >= planned.target : false,
+        progress: reported && span !== 0 ? Math.max(0, (reported.actual - planned.baseline) / span) : 0,
+      },
+    ];
+  });
+}
+
+// The two stages have to agree. A target declared at planning and a different one reported
+// at monitoring is the failure this catches: the record would be marking its own homework
+// against a number nobody signed off.
+export function reconcileRecordKpis(stages: { name: string; rows: [string, string][] }[]): string[] {
+  const problems: string[] = [];
+  const planned = recordKpis(stages);
+  if (!planned.length) problems.push("Plan & KPI declares no baseline → target rows");
+
+  const monitoring = new Map(stages.find((stage) => stage.name === "Monitoring and tracking")?.rows ?? []);
+  for (const kpi of planned) {
+    const reported = parseTargetPair(monitoring.get(kpi.name) ?? "");
+    if (!reported) {
+      problems.push(`${kpi.name}: planned at ${kpi.target}${kpi.unit}, but Monitoring reports no current value`);
+      continue;
+    }
+    if (reported.target !== kpi.target) {
+      problems.push(`${kpi.name}: planned target ${kpi.target}${kpi.unit}, Monitoring says ${reported.target}${reported.unit}`);
+    }
+    if (reported.unit !== kpi.unit) problems.push(`${kpi.name}: planned in ${kpi.unit || "no unit"}, reported in ${reported.unit || "no unit"}`);
+  }
+
+  // Anything Monitoring reports that planning never asked for.
+  for (const [label, value] of monitoring) {
+    if (!parseTargetPair(value)) continue;
+    if (!planned.some((kpi) => kpi.name === label)) problems.push(`${label}: reported at Monitoring but never planned`);
+  }
+  return problems;
 }
 
 export function kpiAttainment(cards: UseCaseCard[]) {
@@ -504,19 +567,29 @@ export function healthSummary(cards: UseCaseCard[], months: PortfolioMonth[], ph
   const stuck = aging(cards, asOf).slice(0, 2);
   const oldest = oldestOpenGate(cards, asOf);
 
+  // The things it names are the things you'd want to open, so they're links in the
+  // sentence rather than buttons under it: a row of "Open X" / "Unblock Y" buttons said
+  // the same words the paragraph had just said, one line lower. A link can't be bold —
+  // the inline forms don't nest — but it doesn't need to be, since it renders in the
+  // accent and underlined while the figures around it carry the bold.
+  const phaseLink = (phase: string) => `[${phase}](/?phase=${encodeURIComponent(phase)})`;
+  const recordLink = (card: UseCaseCard) => `[${card.title}](${card.href})`;
+
   return [
-    `**${h.active} of ${h.tracked} use cases are in flight**, and the system is getting faster: a gate decision takes ${h.decisionDays} days, ${
-      h.decisionTrend > 0 ? `${h.decisionTrend} fewer than in ${h.since}` : `${Math.abs(h.decisionTrend)} more than in ${h.since}`
+    `**${h.active} of ${h.tracked}** use cases are in flight, and the system is getting faster: a gate decision takes **${h.decisionDays} days**, ${
+      h.decisionTrend > 0 ? `**${h.decisionTrend} fewer** than in ${h.since}` : `**${Math.abs(h.decisionTrend)} more** than in ${h.since}`
     }.`,
     [
       slowest && fastest
-        ? `- **${slowest}** is the long pole at ${cycle[slowest].days} days a record, against ${cycle[fastest].days} in ${fastest}.`
+        ? `- ${phaseLink(slowest)} is the long pole at **${cycle[slowest].days} days** a record, against ${cycle[fastest].days} in ${fastest}.`
         : "- Not enough has moved through yet to compare phases.",
-      `- ${h.attention} ${h.attention === 1 ? "record needs" : "records need"} a decision today${
-        oldest ? `; the oldest open gate is ${oldest.card.gate?.id} on ${oldest.card.title}, ${oldest.days} days with ${oldest.card.actionOwner}` : ""
+      `- **${h.attention}** ${h.attention === 1 ? "record needs" : "records need"} a decision today${
+        oldest
+          ? `; the oldest open gate is ${oldest.card.gate?.id} on ${recordLink(oldest.card)}, **${oldest.days} days** with ${oldest.card.actionOwner}`
+          : ""
       }.`,
       stuck.length
-        ? `- ${stuck.map((row) => `**${row.card.title}** (${row.days}d at ${row.card.substage})`).join(" and ")} ${
+        ? `- ${stuck.map((row) => `${recordLink(row.card)} (**${row.days}d** at ${row.card.substage})`).join(" and ")} ${
             stuck.length === 1 ? "has" : "have"
           } not moved in over a week.`
         : "- Nothing has been sitting for more than a week.",
@@ -533,19 +606,25 @@ export function valueSummary(cards: UseCaseCard[], months: PortfolioMonth[], asO
   const rows = kpiAttainment(cards);
   const attainment = attainmentSummary(rows);
   const misses = rows.filter((row) => !row.met);
+  // The largest ask still waiting on a decision — the one number in the pipeline bucket
+  // worth opening, and the sentence names it rather than a button below repeating it.
+  const biggestAsk = [...cards].filter((card) => !card.funded && card.lifecycle === "Active").sort((a, b) => b.investmentUsd - a.investmentUsd)[0];
 
+  // The figures carry the bold, the connecting words don't. A whole bolded lead sentence
+  // emphasises nothing in particular; bolding only the money, the counts and the record
+  // names lets someone read the numbers straight down and the prose only if they want it.
   return [
-    `**${usd(h.investment)} committed against ${usd(h.benefit)} of annualised benefit**, which the ${h.live} live use cases repay in about ${
+    `**${usd(h.investment)}** committed against **${usd(h.benefit)}** of annualised benefit, which the **${h.live} live** use cases repay in about **${
       h.paybackMonths
-    } months.`,
+    } months**.`,
     [
-      `- The ${live?.count} live ones cost ${usd(live?.investment ?? 0)} and return ${usd(live?.benefit ?? 0)} a year.`,
-      `- ${attainment.met} of ${attainment.total} production targets are met${
-        misses.length ? `; behind on ${misses.map((row) => `${row.name.toLowerCase()} at ${row.card.title}`).join(" and ")}` : ""
+      `- The ${live?.count} live ones cost **${usd(live?.investment ?? 0)}** and return **${usd(live?.benefit ?? 0)}** a year.`,
+      `- **${attainment.met} of ${attainment.total}** production targets are met${
+        misses.length ? `; behind on ${misses.map((row) => `${row.name.toLowerCase()} at [${row.card.title}](${row.card.href})`).join(" and ")}` : ""
       }.`,
-      `- ${usd(pipeline?.investment ?? 0)} is still an ask across ${pipeline?.count} records, and ${usd(
-        stopped?.investment ?? 0,
-      )} of asks were stopped or parked.`,
+      `- **${usd(pipeline?.investment ?? 0)}** is still an ask across ${pipeline?.count} records${
+        biggestAsk ? `, the largest being [${biggestAsk.title}](${biggestAsk.href}) at **${usd(biggestAsk.investmentUsd)}**` : ""
+      }, and **${usd(stopped?.investment ?? 0)}** of asks were stopped or parked.`,
     ].join("\n"),
   ].join("\n\n");
 }
@@ -601,11 +680,32 @@ function demo() {
   const pair = parseTargetPair("27% of 30% target");
   assert(pair?.actual === 27 && pair?.target === 30 && pair.unit === "%", "parseTargetPair: hit");
   assert(parseTargetPair("Not recorded yet") === null, "parseTargetPair: miss");
+  const thousands = parseTargetPair("1,950 of 2,160 h target");
+  assert(thousands?.actual === 1950 && thousands?.target === 2160 && thousands.unit === "h", "parseTargetPair: separators and units");
+  const planned = parseBaselineTarget("71% now → 80% target");
+  assert(planned?.baseline === 71 && planned?.target === 80 && planned.unit === "%", "parseBaselineTarget: hit");
+  assert(parseBaselineTarget("0 now -> 2,160 h target")?.target === 2160, "parseBaselineTarget: ascii arrow and separators");
+  assert(parseBaselineTarget("84% of 80% target") === null, "parseBaselineTarget: a reported value is not a plan");
 
-  const phases: PhaseMap = {
-    order: ["Early", "Late"],
-    phaseOf: (substage) => (substage === "Idea" ? "Early" : "Late"),
-  };
+  // Paired across the two stages, with progress measured from the baseline rather than
+  // from nought — the whole reason a baseline is recorded.
+  const kpiStages = [
+    { name: "Plan & KPI", rows: [["CSAT", "71% now → 80% target"] as [string, string]] },
+    { name: "Monitoring and tracking", rows: [["CSAT", "84% of 80% target"] as [string, string]] },
+  ];
+  const [csat] = recordKpis(kpiStages);
+  assert(csat.baseline === 71 && csat.target === 80 && csat.actual === 84 && csat.met, "recordKpis: pairs the two stages");
+  assert(csat.progress > 1.4 && csat.progress < 1.5, `recordKpis: progress runs from the baseline (${csat.progress})`);
+  assert(reconcileRecordKpis(kpiStages).length === 0, "reconcileRecordKpis: agreeing stages");
+  const drifted = [kpiStages[0], { name: "Monitoring and tracking", rows: [["CSAT", "84% of 90% target"] as [string, string]] }];
+  assert(reconcileRecordKpis(drifted).length === 1, "reconcileRecordKpis: a moved target is one message");
+  const orphan = [
+    kpiStages[0],
+    { name: "Monitoring and tracking", rows: [...kpiStages[1].rows, ["ROI", "143% of 159% target"] as [string, string]] },
+  ];
+  assert(reconcileRecordKpis(orphan).length === 1, "reconcileRecordKpis: reported but never planned");
+
+  const phases: PhaseMap = { order: ["Early", "Late"], phaseOf: (substage) => (substage === "Idea" ? "Early" : "Late") };
   const card = (over: Partial<UseCaseCard>): UseCaseCard => ({
     id: "UC-1",
     title: "Fixture",
@@ -636,8 +736,20 @@ function demo() {
   const fixture = [
     card({ id: "UC-1", created: "2026-01-04", stageEntered: "2026-01-20" }),
     card({ id: "UC-2", substage: "Build", phaseEntered: { Early: "2026-01-02", Late: "2026-01-12" }, stageEntered: "2026-02-01" }),
-    card({ id: "UC-3", lifecycle: "Rejected", closedOn: "2026-02-10", gate: { id: "R2", status: "Rejected" as GateStatus }, gateDecided: "2026-02-10" }),
-    card({ id: "UC-4", lifecycle: "On hold", closedOn: "2026-02-06", gate: { id: "R2", status: "Blocked" as GateStatus }, gateDecided: "2026-02-06" }),
+    card({
+      id: "UC-3",
+      lifecycle: "Rejected",
+      closedOn: "2026-02-10",
+      gate: { id: "R2", status: "Rejected" as GateStatus },
+      gateDecided: "2026-02-10",
+    }),
+    card({
+      id: "UC-4",
+      lifecycle: "On hold",
+      closedOn: "2026-02-06",
+      gate: { id: "R2", status: "Blocked" as GateStatus },
+      gateDecided: "2026-02-06",
+    }),
   ];
 
   const wip = wipByPhase(fixture, phases);
@@ -652,10 +764,6 @@ function demo() {
   const cycle = medianCycleDaysByPhase(fixture, phases);
   assert(cycle.Late.sample === 0 && cycle.Late.open === 1, "cycle: a record still in a phase has no duration yet");
   assert(phasesBySpeed(cycle, phases).length === 1, "phasesBySpeed: skips phases with nothing measured");
-  // The footnote has to report what is still sitting, or it is decoration: three
-  // passages through Early finished (one onward, two closed), and two records — UC-1 in
-  // Early, UC-2 in Late — have not left the phase they are in.
-  assert(cycleFootnote(cycle, phases) === "Medians count the 3 phase passages that finished; 2 records are still in one and don't count yet.", "cycleFootnote");
 
   const months: PortfolioMonth[] = [
     {
@@ -714,12 +822,27 @@ function demo() {
 // layer with no aliased value imports) are what let node load it.
 async function checkSeed() {
   const { ALL_RECORDS, USE_CASES, PORTFOLIO_SNAPSHOTS, AS_OF } = await import("../data/registry.ts");
-  const { STAGE_GROUPS, phaseForStage } = await import("../data/lifecycle.ts");
+  const { STAGE_GROUPS, STAGES, FIELD_GISTS, phaseForStage } = await import("../data/lifecycle.ts");
   const phases: PhaseMap = { order: Object.keys(STAGE_GROUPS), phaseOf: phaseForStage };
   const problems = reconcile(ALL_RECORDS, PORTFOLIO_SNAPSHOTS, phases, USE_CASES);
   if (problems.length) throw new Error(`seed does not reconcile:\n  ${problems.join("\n  ")}`);
   const h = headline(ALL_RECORDS, PORTFOLIO_SNAPSHOTS, AS_OF);
   console.log(`seed reconciles — ${h.tracked} records, ${h.active} in flight, ${usd(h.investment)} committed, ${usd(h.benefit)} of benefit`);
+
+  // The record plans its KPIs in one stage and reports them in the next. Edit a target in
+  // either place and this says which one stopped agreeing.
+  const kpiProblems = reconcileRecordKpis(STAGES);
+  if (kpiProblems.length) throw new Error(`record KPIs do not reconcile:\n  ${kpiProblems.join("\n  ")}`);
+  // Every field still needs its definition, or a blank record shows dead air where the
+  // gist should be. Cheap to check here, and it's the one place that knows both.
+  const missing = STAGES.flatMap((stage) => stage.rows.filter(([label]) => !FIELD_GISTS[label]).map(([label]) => `${stage.name} :: ${label}`));
+  if (missing.length) throw new Error(`fields with no FIELD_GISTS entry:\n  ${missing.join("\n  ")}`);
+  const kpis = recordKpis(STAGES);
+  console.log(
+    `record KPIs reconcile — ${kpis.length} planned and reported, ${kpis.filter((kpi) => kpi.met).length} met (${kpis
+      .map((kpi) => `${kpi.name} ${kpi.actual}${kpi.unit}/${kpi.target}${kpi.unit}`)
+      .join(", ")})`,
+  );
 }
 
 if (process.env.RUN_DEMO) {

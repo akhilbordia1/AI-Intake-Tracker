@@ -38,7 +38,9 @@ function values() {
     gateName: gate.name.toLowerCase(),
     gateStatus: gate.status.toLowerCase(),
     gateApprover: gate.approver,
-    accuracyTarget: stageValue("Plan & KPI", "KPIs and measurement targets")?.match(/\d+%/)?.[0] ?? "95%",
+    // The accuracy target is a planned KPI now, one row per measure, so it's read from
+    // that row rather than scraped out of a packed "KPIs and targets" string.
+    accuracyTarget: stageValue("Plan & KPI", "Summary accuracy")?.match(/(\d+(?:\.\d+)?)%\s*target/)?.[0].replace(/\s*target/, "") ?? "95%",
   };
 }
 
