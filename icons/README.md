@@ -7,7 +7,7 @@ Each SVG is a 24×24 stroke icon with `stroke="currentColor"` and `stroke-width=
 takes the colour of its container. The app renders them at 11–18px; set `width`/`height`
 to the size you need rather than scaling with CSS transforms.
 
-60 icons.
+59 icons.
 
 | Icon | File | Used in |
 | --- | --- | --- |
@@ -56,7 +56,7 @@ to the size you need rather than scaling with CSS transforms.
 | PanelLeftOpen | `panel-left-open.svg` | `src/components/app-shell.tsx` |
 | PenTool | `pen-tool.svg` | `src/components/ui/kit.tsx` |
 | Pencil | `pencil.svg` | `src/components/document-record/detail-record.tsx` |
-| PieChart | `chart-pie.svg` | `src/app/page.tsx`, `src/app/portfolio/page.tsx` |
+| PieChart | `chart-pie.svg` | `src/app/page.tsx` |
 | Plus | `plus.svg` | `src/app/page.tsx`, `src/components/forms/fields.tsx` |
 | Rocket | `rocket.svg` | `src/components/ui/kit.tsx` |
 | RotateCcw | `rotate-ccw.svg` | `src/components/document-record/detail-record.tsx`, `src/components/document-record/record-details-sheet.tsx` |
@@ -67,7 +67,6 @@ to the size you need rather than scaling with CSS transforms.
 | Split | `split.svg` | `src/components/ui/kit.tsx` |
 | Table2 | `table-2.svg` | `src/app/page.tsx` |
 | Target | `target.svg` | `src/components/ui/kit.tsx` |
-| TrendingDown | `trending-down.svg` | `src/app/portfolio/page.tsx` |
 | User | `user.svg` | `src/app/overview/page.tsx`, `src/app/page.tsx` |
 | Users | `users.svg` | `src/components/document-record/record-details-sheet.tsx`, `src/components/ui/kit.tsx` |
 | X | `x.svg` | `src/components/document-record/detail-record.tsx`, `src/components/document-record/markdown-modal.tsx`, `src/components/document-record/record-details-sheet.tsx` |

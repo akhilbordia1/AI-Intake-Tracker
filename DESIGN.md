@@ -217,16 +217,21 @@ control's own height, so entering edit moves nothing below it.
 
 **Data display.** Bars, not pies. Counts and shares are drawn from the same parts
 the rest of the app is made of — a hairline box (`TileBox`), a label + mono value +
-`ProgressBar` row (`BarList`), a single stacked bar with a legend (`StackedMeter`),
-grouped div bars for months (`MonthBars`), and a four-cell headline band whose values
-are `.font-display` at 28px (`StatBand`), all in
-`src/components/portfolio/tiles.tsx`. A donut's angles and legend are a different
+`ProgressBar` row (`BarList`), a capped list with an honest overflow line
+(`MiniList`), and a four-cell headline band whose values are `.font-display` at 28px
+(`StatBand`), all in `src/components/portfolio/tiles.tsx`. A donut's angles and legend are a different
 visual language from a product built of hairlines, and lengths are easier to compare.
 One chart runtime exists — recharts, in `time-chart.tsx` — used only where there is a
 real time axis to label (two lines on `/portfolio`), themed entirely from tokens, and
-guarded so it draws nothing during the prerender. Colour stays meaningful: the accent
-for the measure, `--risk-low/medium/high` where the scale is ordinal, and
-`--avatar-1..6` as the one categorical ramp. A tile that truncates says so.
+guarded so it draws nothing during the prerender. Colour stays meaningful: the accent carries the measure, and a
+category only gets its own hue when the category *is* the point.
+
+**A reading page states its answer.** A screen of tiles makes the reader derive the
+point, so each view opens with `ReadLine` — one sentence of prose, in the serif, built
+from the same derivations the tiles use — and every tile's hint is a plain sentence
+rather than a count. Four blocks per view is the ceiling; anything cut goes to the
+rail, and an `AskLine` at the foot says so, so the omission reads as a choice instead
+of a gap.
 
 **Tooltips.** One line is a phrase. More than that is written as lines, first line
 the heading and the rest `Label: value` — the layer sets the labels back and rules

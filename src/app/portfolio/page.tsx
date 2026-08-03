@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, Coins, PieChart, ShieldCheck, SlidersHorizontal, Sparkles, TrendingDown } from "lucide-react";
+import { Activity, Coins, ShieldCheck, SlidersHorizontal, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 
@@ -10,20 +10,18 @@ import { ChatCardList } from "@/components/chat/chat-use-case-card";
 import { JumpToTop } from "@/components/chat/chat-ui";
 import { MiniChatRail, type RailAnswer } from "@/components/chat/mini-chat-rail";
 import { Markdown } from "@/components/document-record/markdown";
-import { BarList, MiniList, MonthBars, StackedMeter, StatBand, TileBox } from "@/components/portfolio/tiles";
+import { AskLine, BarList, MiniList, ReadLine, StatBand, TileBox } from "@/components/portfolio/tiles";
 import { TimeChart } from "@/components/portfolio/time-chart";
 import { PersonAvatar, ProfileSwitcher } from "@/components/profile";
 import {
   Button,
   CHIP,
-  Fact,
   MenuDivider,
   MenuItem,
   MenuLabel,
   MenuSurface,
   PHASE_TONES,
   PhaseIcon,
-  ProgressRing,
   Tag,
 } from "@/components/ui/kit";
 import { MarkdownModal } from "@/components/document-record/markdown-modal";
@@ -80,18 +78,6 @@ import { useClickOutside } from "@/lib/use-click-outside";
 
 // Phase membership stays in `lifecycle.ts`; the derivations take it as an argument.
 const PHASES: PhaseMap = { order: Object.keys(STAGE_GROUPS), phaseOf: phaseForStage };
-
-// Risk tiers get the sequential ramp, not the tone triplets: the point is that Full
-// is *more* than Standard, which a hue rotation doesn't say.
-const RISK_FILL: Record<string, string> = {
-  Lightweight: "var(--risk-low-fg)",
-  Standard: "var(--risk-medium-fg)",
-  Full: "var(--risk-high-fg)",
-};
-
-// The only categorical colour on the page, so a function keeps one colour the way a
-// person keeps one avatar.
-const FUNCTION_FILL = ["var(--avatar-1-fg)", "var(--avatar-2-fg)", "var(--avatar-3-fg)", "var(--avatar-4-fg)", "var(--avatar-5-fg)", "var(--avatar-6-fg)"];
 
 // ── Earlier conversations, in the same voice as the other rails ──
 const LEADERSHIP_HISTORY: ChatSession[] = [
@@ -166,6 +152,31 @@ function answerForLeader(question: string, cards: UseCaseCard[], person: string)
       text: `${usd(h.investment)} committed, ${usd(h.benefit)} of annualised benefit from the ${h.live} live — about ${h.paybackMonths} months to pay back.`,
       detail: <Markdown source={moneyTable(cards)} />,
     };
+  }
+
+  if (/gate|approv|pass rate|decision|reject/.test(asked)) {
+    const gates = gateOutcomes(cards);
+    const oldest = oldestOpenGate(cards, AS_OF);
+    return `${pct(gates.passRate)} of ${gates.decided} gate decisions have been approvals — ${gates.passed} passed, ${gates.negative} blocked or rejected. ${
+      gates.open
+    } are open${oldest ? `, the oldest ${oldest.card.gate?.id} on ${oldest.card.title}, ${oldest.days} days with ${oldest.card.actionOwner}` : ""}. Current mix: ${gateMix(
+      cards,
+    )
+      .map((row) => `${row.count} ${row.status.toLowerCase()}`)
+      .join(", ")}.`;
+  }
+
+  if (/throughput|raised|intake volume|per month|how many came/.test(asked)) {
+    const months = throughput(PORTFOLIO_SNAPSHOTS);
+    return `By month: ${months
+      .map((month) => `${month.label} ${month.submitted} raised, ${month.approved} approved, ${month.closed} closed${month.partial ? " (so far)" : ""}`)
+      .join("; ")}.`;
+  }
+
+  if (/function|department|business unit|which team/.test(asked)) {
+    return `By function: ${valueByFunction(cards)
+      .map((row) => `${row.fn} ${usd(row.investment)} across ${row.count}`)
+      .join(", ")}.`;
   }
 
   if (/risk|tier|exposure|compliance/.test(asked)) {
@@ -275,17 +286,20 @@ function PortfolioFilterMenu({
 }
 
 // ── Health ──
+// Four blocks and a sentence. The earlier version put eight tiles on one page and
+// left the reader to work out which mattered; a leadership view has to say the
+// answer first and keep the evidence to what supports it. Gate outcomes, the risk
+// mix and owner load moved into the rail — they're follow-up questions, not the
+// headline, and the assistant answers them in one line each.
 
 function HealthTab({ cards, board, months }: { cards: UseCaseCard[]; board: UseCaseCard[]; months: typeof PORTFOLIO_SNAPSHOTS }) {
   const h = headline(cards, months, AS_OF);
   const flow = funnel(board, PHASES);
   const cycle = medianCycleDaysByPhase(cards, PHASES);
-  const gates = gateOutcomes(cards);
-  const oldest = oldestOpenGate(cards, AS_OF);
+  const ranked = phasesBySpeed(cycle, PHASES);
+  const slow = ranked[0];
   const stalled = blockers(board);
   const aged = aging(board, AS_OF);
-  const load = capacityByOwner(cards, AS_OF);
-  const tiers = riskMix(cards);
 
   // One row per record that isn't moving: the blocked ones first, then whatever has
   // simply been sitting. A record can be both; it appears once.
@@ -298,11 +312,22 @@ function HealthTab({ cards, board, months }: { cards: UseCaseCard[]; board: UseC
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Built as one string, not as JSX fragments: interpolating clauses between
+          elements left spaces sitting in front of the commas. */}
+      <ReadLine>
+        <strong className="font-semibold text-[var(--text-primary)]">{h.active} use cases are in flight.</strong>{" "}
+        {`${h.attention} need a decision today and ${h.blocked} ${h.blocked === 1 ? "isn't" : "aren't"} moving at all. A gate decision takes ${
+          h.decisionDays
+        } days, ${h.decisionTrend > 0 ? `${h.decisionTrend} fewer than in ${h.since}` : `${Math.abs(h.decisionTrend)} more than in ${h.since}`}${
+          slow ? `. ${slow} is the longest phase at ${cycle[slow].days} days` : ""
+        }.`}
+      </ReadLine>
+
       <StatBand
         items={[
           { label: "In flight", value: String(h.active), delta: `${h.tracked} ever raised`, tip: "Records with an active lifecycle" },
           { label: "Needs a decision", value: String(h.attention), delta: `${h.aged} over a week old`, tip: "Records flagged for their action owner" },
-          { label: "Not moving", value: String(h.blocked), delta: `${h.openGates} gates open`, tip: "Blocked, rejected or on hold" },
+          { label: "Not moving", value: String(h.blocked), delta: `${h.openGates} gates open`, tip: "Parked, or blocked at a gate" },
           {
             label: "Days to a decision",
             value: String(h.decisionDays),
@@ -312,7 +337,7 @@ function HealthTab({ cards, board, months }: { cards: UseCaseCard[]; board: UseC
         ]}
       />
 
-      <TileBox title="Flow through the lifecycle" hint={`${board.length} on the board`}>
+      <TileBox title="Where the work is sitting" hint={`${board.length} on the board, by phase`}>
         <BarList
           rows={flow.map((row) => ({
             key: row.phase,
@@ -325,7 +350,7 @@ function HealthTab({ cards, board, months }: { cards: UseCaseCard[]; board: UseC
             ),
             value: String(row.count),
             ratio: row.share,
-            meta: cycle[row.phase]?.sample ? `${cycle[row.phase].days}d median` : `${cycle[row.phase]?.open ?? 0} still there`,
+            meta: cycle[row.phase]?.sample ? `${cycle[row.phase].days}d typical` : `${cycle[row.phase]?.open ?? 0} still here`,
             tip: `${row.phase}\nStages: ${row.stages.map(shortStageLabel).join(", ") || "none occupied"}\n${
               cycle[row.phase]?.sample
                 ? `Median time in phase: ${cycle[row.phase].days} days, measured on ${cycle[row.phase].sample} records that have left it`
@@ -335,41 +360,7 @@ function HealthTab({ cards, board, months }: { cards: UseCaseCard[]; board: UseC
         />
       </TileBox>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <TileBox title="Throughput" hint={`${months.length} months`}>
-          <MonthBars
-            months={throughput(months).map((month) => ({
-              label: month.label,
-              partial: month.partial,
-              values: { submitted: month.submitted, approved: month.approved, closed: month.closed },
-            }))}
-            series={[
-              { key: "submitted", name: "Raised", colour: "var(--accent)" },
-              { key: "approved", name: "Approved at a gate", colour: "var(--status-success)" },
-              { key: "closed", name: "Closed or killed", colour: "var(--tone-danger-fg)" },
-            ]}
-          />
-        </TileBox>
-
-        <TileBox
-          title="Time to a decision"
-          hint={
-            <span className="inline-flex items-center gap-1.5">
-              <TrendingDown size={13} className="text-[var(--status-success)]" />
-              {h.decisionTrend > 0 ? `${h.decisionTrend} days faster` : "no improvement"}
-            </span>
-          }
-        >
-          <TimeChart
-            data={decisionSpeedSeries(months)}
-            series={[{ key: "days", name: "Days", colour: "var(--accent)" }]}
-            reference={{ y: 15, label: "15d target" }}
-            yFormat={(value) => `${value}d`}
-          />
-        </TileBox>
-      </div>
-
-      <TileBox title="What's not moving" hint={`${notMoving.length} of ${board.length}`}>
+      <TileBox title="What needs unblocking" hint="parked, blocked, or a week in the same stage">
         <MiniList
           rows={notMoving.map((row) => ({
             key: row.card.id,
@@ -378,7 +369,6 @@ function HealthTab({ cards, board, months }: { cards: UseCaseCard[]; board: UseC
                 <Link href={row.card.href} className="min-w-0 flex-1 truncate text-[13px] font-medium text-[var(--text-primary)] hover:text-[var(--accent-strong)]">
                   {row.card.title}
                 </Link>
-                <span className="font-mono shrink-0 text-[11px] text-[var(--text-muted)]">{row.card.id}</span>
                 <Tag
                   tone={row.card.gate?.status ? GATE_STATUS_TONE[row.card.gate.status] : LIFECYCLE_TONE[row.card.lifecycle]}
                   className={cn(CHIP, "shrink-0")}
@@ -394,63 +384,16 @@ function HealthTab({ cards, board, months }: { cards: UseCaseCard[]; board: UseC
         />
       </TileBox>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <TileBox title="Gate outcomes" hint={`${gates.decided} decisions`}>
-          <div className="flex items-center gap-4">
-            <span className="relative shrink-0">
-              <ProgressRing ratio={gates.passRate} size={64} stroke={5} />
-              <span className="font-mono absolute inset-0 grid place-items-center text-[13px] font-medium text-[var(--text-primary)]">
-                {pct(gates.passRate)}
-              </span>
-            </span>
-            <div className="min-w-0 flex-1">
-              <BarList
-                rows={gateMix(cards).map((row) => ({
-                  key: row.status,
-                  label: <span className="truncate">{row.status}</span>,
-                  value: String(row.count),
-                  ratio: row.count / (cards.length || 1),
-                }))}
-              />
-            </div>
-          </div>
-          <div className="mt-3 border-t border-[var(--border-hairline)] pt-3">
-            <Fact label="Oldest open gate">
-              {oldest ? `${oldest.card.gate?.id} on ${oldest.card.title} — ${oldest.days} days with ${oldest.card.actionOwner}` : "none open"}
-            </Fact>
-          </div>
-        </TileBox>
-
-        <TileBox title="Risk mix" hint={`${cards.length} records`}>
-          <StackedMeter
-            segments={tiers.map((row) => ({ key: row.tier, label: row.tier, count: row.count, colour: RISK_FILL[row.tier] }))}
-          />
-          <div className="mt-4 border-t border-[var(--border-hairline)] pt-3">
-            <Fact label="Full-tier assessments">
-              {cards.filter((card) => card.riskTier === "Full").length} of {cards.length} — the ones that need the whole review path
-            </Fact>
-          </div>
-        </TileBox>
-      </div>
-
-      <TileBox title="Owner load" hint="open records, by whose turn it is">
-        <BarList
-          rows={load.map((row) => ({
-            key: row.owner,
-            label: (
-              <>
-                <PersonAvatar name={row.owner} size={20} highlight={row.owner === CURRENT_USER} />
-                <span className={cn("truncate", row.owner === CURRENT_USER && "font-semibold text-[var(--text-primary)]")}>{row.owner}</span>
-                {row.attention ? <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--tone-warning-fg)]" /> : null}
-              </>
-            ),
-            value: String(row.open),
-            ratio: row.open / Math.max(1, load[0]?.open ?? 1),
-            meta: `oldest ${row.oldestDays}d`,
-            tip: `${row.owner}\nOpen records: ${row.open}\nNeeding a decision: ${row.attention}`,
-          }))}
+      <TileBox title="Are decisions getting faster?" hint="median days from intake to a first gate decision">
+        <TimeChart
+          data={decisionSpeedSeries(months)}
+          series={[{ key: "days", name: "Days", colour: "var(--accent)" }]}
+          reference={{ y: 15, label: "15d target" }}
+          yFormat={(value) => `${value}d`}
         />
       </TileBox>
+
+      <AskLine topics="gate outcomes, the risk mix, owner load or throughput by month" />
     </div>
   );
 }
@@ -462,7 +405,6 @@ function ValueTab({ cards, months }: { cards: UseCaseCard[]; months: typeof PORT
   const money = moneyByState(cards);
   const attainment = kpiAttainment(cards);
   const summary = attainmentSummary(attainment);
-  const functions = valueByFunction(cards);
   const outcomes = [...cards]
     .filter((card) => card.liveSince || card.closedOn)
     .sort((a, b) => (b.liveSince ?? b.closedOn ?? "").localeCompare(a.liveSince ?? a.closedOn ?? ""));
@@ -476,6 +418,13 @@ function ValueTab({ cards, months }: { cards: UseCaseCard[]; months: typeof PORT
 
   return (
     <div className="flex flex-col gap-4">
+      <ReadLine>
+        <strong className="font-semibold text-[var(--text-primary)]">{`${usd(h.investment)} committed, ${usd(h.benefit)} coming back a year.`}</strong>{" "}
+        {`That's the ${h.live} live use cases paying for the whole committed book in about ${h.paybackMonths} months, with ${summary.met} of ${
+          summary.total
+        } production targets currently met.`}
+      </ReadLine>
+
       <StatBand
         items={[
           { label: "Committed", value: usd(h.investment), delta: `${money[0].count + money[1].count} funded records`, tip: "Investment on live and funded work" },
@@ -486,11 +435,11 @@ function ValueTab({ cards, months }: { cards: UseCaseCard[]; months: typeof PORT
             delta: "committed against live benefit",
             tip: "Committed investment divided by the annualised benefit of what is live",
           },
-          { label: "Live", value: String(h.live), delta: `${summary.met} of ${summary.total} targets met`, tip: "Records running in production" },
+          { label: "Targets met", value: `${summary.met}/${summary.total}`, delta: `across ${h.live} live`, tip: "KPIs measured in production against their target" },
         ]}
       />
 
-      <TileBox title="Investment against benefit" hint="cumulative, month end">
+      <TileBox title="Is the benefit catching up with the spend?" hint="cumulative at each month end">
         <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
           <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
             <span aria-hidden className="h-[2px] w-4" style={{ background: "var(--accent)" }} />
@@ -511,7 +460,7 @@ function ValueTab({ cards, months }: { cards: UseCaseCard[]; months: typeof PORT
         />
       </TileBox>
 
-      <TileBox title="Where the money is" hint={`${cards.length} records`}>
+      <TileBox title="Where the money sits" hint="every record is in exactly one of these">
         <BarList
           rows={money.map((state) => ({
             key: state.key,
@@ -529,15 +478,7 @@ function ValueTab({ cards, months }: { cards: UseCaseCard[]; months: typeof PORT
         />
       </TileBox>
 
-      <TileBox
-        title="KPI attainment"
-        hint={
-          <span className="inline-flex items-center gap-2">
-            <ProgressRing ratio={summary.ratio} size={18} stroke={2} complete={summary.ratio >= 1} />
-            {summary.met} of {summary.total} targets met
-          </span>
-        }
-      >
+      <TileBox title="Is production hitting its targets?" hint={`${summary.met} of ${summary.total} met, by record`}>
         <div className="flex flex-col gap-4">
           {Object.values(byRecord).map((rows) => (
             <div key={rows[0].card.id} className="min-w-0">
@@ -554,9 +495,11 @@ function ValueTab({ cards, months }: { cards: UseCaseCard[]; months: typeof PORT
                   label: (
                     <>
                       <span className="truncate">{row.name}</span>
-                      <Tag tone={row.met ? "success" : "warning"} className={cn(CHIP, "shrink-0")}>
-                        {row.met ? "Met" : "Behind"}
-                      </Tag>
+                      {row.met ? null : (
+                        <Tag tone="warning" className={cn(CHIP, "shrink-0")}>
+                          Behind
+                        </Tag>
+                      )}
                     </>
                   ),
                   value: `${row.actual}${row.unit} / ${row.target}${row.unit}`,
@@ -568,45 +511,27 @@ function ValueTab({ cards, months }: { cards: UseCaseCard[]; months: typeof PORT
         </div>
       </TileBox>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <TileBox title="Value by function" hint="investment, with benefit alongside">
-          <BarList
-            rows={functions.map((row, index) => ({
-              key: row.fn,
-              label: (
-                <>
-                  <span className="truncate">{row.fn}</span>
-                  <span className={cn(CHIP, "font-mono shrink-0 bg-[var(--surface-strong)] text-[var(--text-label)]")}>{row.count}</span>
-                </>
-              ),
-              value: usd(row.investment),
-              ratio: row.investment / Math.max(1, ...functions.map((entry) => entry.investment)),
-              meta: `${usd(row.benefit)} benefit`,
-              colour: FUNCTION_FILL[index % FUNCTION_FILL.length],
-            }))}
-          />
-        </TileBox>
+      <TileBox title="What shipped, and what was stopped" hint="newest first">
+        <MiniList
+          max={6}
+          rows={outcomes.map((card) => ({
+            key: card.id,
+            node: (
+              <div className="flex min-w-0 items-center gap-2.5">
+                <Link href={card.href} className="min-w-0 flex-1 truncate text-[13px] text-[var(--text-body)] hover:text-[var(--accent-strong)]">
+                  {card.title}
+                </Link>
+                <Tag tone={LIFECYCLE_TONE[card.lifecycle]} className={cn(CHIP, "shrink-0")}>
+                  {card.lifecycle}
+                </Tag>
+                <span className="font-mono shrink-0 text-[11px] text-[var(--text-muted)]">{formatDay(card.liveSince ?? card.closedOn ?? AS_OF)}</span>
+              </div>
+            ),
+          }))}
+        />
+      </TileBox>
 
-        <TileBox title="Outcomes" hint="what shipped, and what was stopped">
-          <MiniList
-            max={6}
-            rows={outcomes.map((card) => ({
-              key: card.id,
-              node: (
-                <div className="flex min-w-0 items-center gap-2.5">
-                  <Link href={card.href} className="min-w-0 flex-1 truncate text-[13px] text-[var(--text-body)] hover:text-[var(--accent-strong)]">
-                    {card.title}
-                  </Link>
-                  <Tag tone={LIFECYCLE_TONE[card.lifecycle]} className={cn(CHIP, "shrink-0")}>
-                    {card.lifecycle}
-                  </Tag>
-                  <span className="font-mono shrink-0 text-[11px] text-[var(--text-muted)]">{formatDay(card.liveSince ?? card.closedOn ?? AS_OF)}</span>
-                </div>
-              ),
-            }))}
-          />
-        </TileBox>
-      </div>
+      <AskLine topics="value by function, payback per record, or what a single use case cost" />
     </div>
   );
 }
@@ -679,7 +604,6 @@ export default function PortfolioPage() {
       }
     >
       <ContentPanel
-        icon={<PieChart size={16} />}
         breadcrumb={<PanelBreadcrumb items={[{ label: "All use cases", href: "/" }, { label: "Portfolio" }]} />}
         titleMeta={
           <span

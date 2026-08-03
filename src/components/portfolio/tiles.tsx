@@ -6,10 +6,31 @@ import { ProgressBar, SectionHeading, cardClass } from "@/components/ui/kit";
 import { cn } from "@/lib/cn";
 
 // ── The portfolio's drawing parts ──
-// Six shapes cover both tabs. All hand-drawn from the product's own hairlines and
-// fills — bars rather than pies, because a hole and a legend is a different visual
-// language from the rest of the app, and angles are harder to compare than lengths.
-// Only a real time axis gets a chart runtime (see `time-chart.tsx`).
+// Five shapes cover both views, and that ceiling is the point: a leadership page is
+// read, not explored, so it says its answer in a sentence (`ReadLine`), backs it with
+// at most four blocks, and names what it left out (`AskLine`). All hand-drawn from
+// the product's own hairlines and fills — bars rather than pies, because a hole and a
+// legend is a different visual language from the rest of the app, and lengths are
+// easier to compare than angles. Only a real time axis gets a chart runtime (see
+// `time-chart.tsx`).
+
+// The answer, before the evidence. A leadership page that opens with tiles makes the
+// reader derive the point; this states it in a sentence, in the prose serif, and lets
+// the blocks below be the backing.
+export function ReadLine({ children }: { children: ReactNode }) {
+  return <p className="font-serif-body max-w-[80ch] text-[15px] leading-[1.65] text-[var(--text-body)]">{children}</p>;
+}
+
+// What this page deliberately doesn't show. Everything cut from the tiles is one
+// question away in the rail, so the page can stay short without the numbers being
+// lost — and saying so is what makes the omission read as a choice.
+export function AskLine({ topics }: { topics: string }) {
+  return (
+    <p className="text-[12px] text-[var(--text-muted)]">
+      Ask the assistant for {topics} — it reads the same numbers as this page.
+    </p>
+  );
+}
 
 // The one container: a hairline box with a serif heading and an optional hint on
 // the right. Everything on the page sits in one of these.
@@ -101,91 +122,6 @@ export function BarList({ rows, className }: { rows: BarRow[]; className?: strin
           )}
         </div>
       ))}
-    </div>
-  );
-}
-
-// Grouped monthly bars, drawn as divs. A month is a column of three bars; the
-// current month is hatched, because half a month isn't a data point. The hover card
-// is the app's own chart tooltip, revealed by the group.
-export function MonthBars({
-  months,
-  series,
-}: {
-  months: { label: string; partial?: boolean; values: Record<string, number> }[];
-  series: { key: string; name: string; colour: string }[];
-}) {
-  const peak = Math.max(1, ...months.flatMap((month) => series.map((entry) => month.values[entry.key] ?? 0)));
-
-  return (
-    <div>
-      <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1.5">
-        {series.map((entry) => (
-          <span key={entry.key} className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
-            <span aria-hidden className="h-2 w-2 rounded-[2px]" style={{ background: entry.colour }} />
-            {entry.name}
-          </span>
-        ))}
-      </div>
-      <div className="flex h-[132px] items-end gap-2">
-        {months.map((month) => (
-          <div key={month.label} className="group relative flex h-full min-w-0 flex-1 flex-col justify-end">
-            <div className="ui-chart-tooltip group-hover:opacity-100">
-              <div className="ui-chart-tooltip-title">
-                {month.label}
-                {month.partial ? " (so far)" : ""}
-              </div>
-              {series.map((entry) => (
-                <div key={entry.key} className="ui-chart-tooltip-sub">
-                  {entry.name}: {month.values[entry.key] ?? 0}
-                </div>
-              ))}
-            </div>
-            <div className="flex h-full items-end justify-center gap-[3px]">
-              {series.map((entry) => {
-                const value = month.values[entry.key] ?? 0;
-                return (
-                  <span
-                    key={entry.key}
-                    className="w-2.5 rounded-t-[2px] transition-[height]"
-                    style={{
-                      height: `${Math.max(value ? 4 : 1, (value / peak) * 100)}%`,
-                      background: entry.colour,
-                      // A month still running reads as provisional.
-                      opacity: month.partial ? 0.55 : 1,
-                    }}
-                  />
-                );
-              })}
-            </div>
-            <div className="mt-2 text-center text-[11px] text-[var(--text-muted)]">{month.label}</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// One bar split into segments, plus a legend. This is the app's answer to a donut:
-// same information, same hairline language, and lengths you can actually compare.
-export function StackedMeter({ segments }: { segments: { key: string; label: string; count: number; colour: string; fg?: string }[] }) {
-  const total = segments.reduce((sum, segment) => sum + segment.count, 0) || 1;
-  return (
-    <div>
-      <span className="flex h-2.5 overflow-hidden rounded-full bg-[var(--surface-strong)]">
-        {segments.map((segment) => (
-          <span key={segment.key} style={{ width: `${(segment.count / total) * 100}%`, background: segment.colour }} />
-        ))}
-      </span>
-      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
-        {segments.map((segment) => (
-          <span key={segment.key} className="inline-flex items-center gap-1.5 text-[12px] text-[var(--text-body)]">
-            <span aria-hidden className="h-2 w-2 rounded-full" style={{ background: segment.colour }} />
-            {segment.label}
-            <span className="font-mono text-[11px] text-[var(--text-muted)]">{segment.count}</span>
-          </span>
-        ))}
-      </div>
     </div>
   );
 }

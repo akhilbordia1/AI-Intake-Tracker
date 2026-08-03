@@ -9,25 +9,19 @@ import { useClickOutside } from "@/lib/use-click-outside";
 
 // Switchable user profiles. Names match the stage owners so "owned by you"
 // can light up as you switch.
+// Six profiles, not fourteen: a switcher is for trying on a role, and every name
+// here has something waiting for it on at least one surface. Between them they cover
+// both models — records on the board (Nisha, Priya, Rohan) and stages on the deep
+// record (Noah, Lena, Dana) — so switching always changes what a screen says.
+// Anyone else who owns a card still renders (avatars derive initials from the name);
+// they just aren't someone you can *be*.
 export const PEOPLE: Array<{ name: string; role: string }> = [
-  // The registry's owners come first: switching to one of them is what makes "what
-  // needs my attention?" answer with something. (Before they were listed, every
-  // profile in the switcher owned zero cards and the question dead-ended.)
   { name: "Nisha Patel", role: "Governance Lead" },
+  { name: "Noah R.", role: "Delivery Lead" },
   { name: "Priya Rao", role: "Delivery Manager" },
   { name: "Rohan Desai", role: "Product Owner" },
-  { name: "Elena Weber", role: "Business Analyst" },
-  { name: "Mira Kapoor", role: "Intake Coordinator" },
-  { name: "Aarav Mehta", role: "Finance Systems Lead" },
-  { name: "Daniel Cho", role: "Marketing Ops Lead" },
-  // The deep record's stage owners.
   { name: "Lena Osei", role: "Risk Assessor" },
   { name: "Dana K.", role: "AI CoE Lead" },
-  { name: "Priya N.", role: "Portfolio Lead" },
-  { name: "Amara J.", role: "AI Core Team" },
-  { name: "Victor H.", role: "GTAC Chair" },
-  { name: "Noah R.", role: "Delivery Lead" },
-  { name: "Marco B.", role: "Adoption Lead" },
 ];
 
 // A person's colour is derived from their name, so it's the same on the board, in
