@@ -4,7 +4,6 @@ import Link from "next/link";
 import {
   ArrowRight,
   CalendarDays,
-  ChevronDown,
   CircleDot,
   Columns3,
   FileText,
@@ -13,7 +12,6 @@ import {
   Plus,
   Search,
   ShieldCheck,
-  SlidersHorizontal,
   Sparkles,
   Table2,
   User,
@@ -33,6 +31,7 @@ import {
   ButtonLink,
   CHIP,
   ChipOverflow,
+  FilterMenuButton,
   IconButton,
   MenuDivider,
   MenuItem,
@@ -470,26 +469,13 @@ function FilterMenu({
 
   return (
     <div ref={menuRef} className="relative">
-      <button
-        type="button"
+      <FilterMenuButton
+        open={open}
+        activeCount={activeCount}
+        tip={`Grouped ${groupLabel.toLowerCase()}`}
+        label={`Filters — grouped ${groupLabel.toLowerCase()}`}
         onClick={() => setOpen(!open)}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        data-tip={`Grouped ${groupLabel.toLowerCase()}`}
-        aria-label={`Filters — grouped ${groupLabel.toLowerCase()}`}
-        className={[
-          "inline-flex h-9 items-center gap-1.5 rounded-[8px] border px-3 text-[13px] transition",
-          open || activeCount > 0
-            ? "border-[var(--accent-ring)] bg-[var(--surface-hover)] text-[var(--accent-strong)]"
-            : "border-[var(--border-default)] bg-[var(--surface)] text-[var(--text-body)] hover:border-[var(--border-input)] hover:bg-[var(--surface-hover)]",
-        ].join(" ")}
-      >
-        <SlidersHorizontal size={14} />
-        {activeCount > 0 ? (
-          <span className="rounded-full bg-[var(--accent)] px-1.5 text-[11px] font-semibold leading-[17px] text-white">{activeCount}</span>
-        ) : null}
-        <ChevronDown size={13} className={["text-[var(--text-muted)] transition", open ? "rotate-180" : ""].join(" ")} />
-      </button>
+      />
 
       {open ? (
         <MenuSurface className="absolute right-0 top-11 z-30 w-[236px]">

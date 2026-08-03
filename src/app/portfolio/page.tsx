@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, CircleSlash, Coins, Inbox, Layers, SlidersHorizontal, Sparkles, Target, Timer, TrendingUp } from "lucide-react";
+import { Activity, CircleSlash, Coins, Inbox, Layers, Sparkles, Target, Timer, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 
@@ -13,7 +13,7 @@ import { Markdown } from "@/components/document-record/markdown";
 import { DataTable, GroupBars, MiniList, ScorePanel, StatBand, StatusDot, SummaryPanel, TileBox, TileEmpty } from "@/components/portfolio/tiles";
 import { TimeChart } from "@/components/portfolio/time-chart";
 import { PersonAvatar, ProfileSwitcher } from "@/components/profile";
-import { Button, CHIP, MenuDivider, MenuItem, MenuLabel, MenuSurface, PHASE_TONES, PhaseIcon, ProgressBar, Tag } from "@/components/ui/kit";
+import { CHIP, FilterMenuButton, MenuDivider, MenuItem, MenuLabel, MenuSurface, PHASE_TONES, PhaseIcon, Tag } from "@/components/ui/kit";
 import { STAGE_GROUPS, firstName, phaseForStage, shortStageLabel } from "@/data/lifecycle";
 import {
   ALL_RECORDS,
@@ -283,6 +283,9 @@ function thinkingBeatFor(question: string) {
 }
 
 // Scope and period in one menu, the way the tracker groups its own view controls.
+// One name per scope, so the menu row and the button's tooltip can't disagree.
+const SCOPE_LABEL: Record<ScopeFilter, string> = { all: "Whole portfolio", team: "Core team", my: "Mine" };
+
 const PERIODS: Array<{ key: 3 | 6; label: string }> = [
   { key: 3, label: "Last 3 months" },
   { key: 6, label: "Last 6 months" },
@@ -305,10 +308,16 @@ function PortfolioFilterMenu({
 
   return (
     <div ref={menuRef} className="relative">
-      <Button tone="quiet" onClick={() => setOpen(!open)} aria-expanded={open} data-tip="Scope and period">
-        <SlidersHorizontal size={14} />
-        View
-      </Button>
+      {/* The same control the tracker's filter uses. This was a borderless quiet button
+          labelled "View" — the two had drifted apart, and this one gave no sign that a
+          scope or period had been narrowed. */}
+      <FilterMenuButton
+        open={open}
+        activeCount={(scope === "all" ? 0 : 1) + (period === 6 ? 0 : 1)}
+        tip={`${SCOPE_LABEL[scope]} · ${PERIODS.find((option) => option.key === period)?.label.toLowerCase()}`}
+        label={`Filters — ${SCOPE_LABEL[scope].toLowerCase()}`}
+        onClick={() => setOpen(!open)}
+      />
       {open ? (
         <MenuSurface className="absolute right-0 top-11 z-30 w-[220px]">
           <MenuLabel>Scope</MenuLabel>
@@ -321,7 +330,7 @@ function PortfolioFilterMenu({
                 setOpen(false);
               }}
             >
-              {key === "all" ? "Whole portfolio" : key === "team" ? "Core team" : "Mine"}
+              {SCOPE_LABEL[key]}
             </MenuItem>
           ))}
           <MenuDivider />
@@ -344,9 +353,14 @@ function PortfolioFilterMenu({
   );
 }
 
-// One row per phase, four facts across it. The bar is scaled to the fullest phase, not
-// to the board total, so the shape of the queue is legible when nothing holds more than
-// a third of the work. Every row opens the board filtered to that phase.
+// One row per phase. Every row opens the board filtered to that phase.
+//
+// The "on the board" bar used to be the count scaled to the fullest phase — 4, 3, 3, 1
+// drawn as 100%, 75%, 75%, 25%, which is a picture of the number sitting next to it and
+// nothing more. It carries the queue instead: the whole bar is the phase's count, and the
+// part of it waiting on a decision is filled in the warning tone. That answers "how much
+// of this pile is stuck on us", which no single number in the row did, and it absorbs the
+// Waiting column rather than repeating it.
 function PhaseFlowTable({
   cards,
   flow,
@@ -364,12 +378,11 @@ function PhaseFlowTable({
     <div className="min-w-0">
       {/* Grid, not a table: the "on the board" cell holds a bar, and a bar in a <td>
           fights the mono right-alignment every other figure column wants. */}
-      <div className="grid grid-cols-[minmax(0,1fr)_minmax(84px,150px)_64px_84px_64px] items-center gap-x-3 border-b border-[var(--border-hairline)] pb-2 text-[11px] font-medium text-[var(--text-muted)]">
+      <div className="grid grid-cols-[minmax(170px,240px)_minmax(0,1fr)_96px_104px] items-center gap-x-6 border-b border-[var(--border-hairline)] pb-2 text-[11px] font-medium text-[var(--text-muted)]">
         <span>Phase</span>
         <span>On the Board</span>
         <span className="text-right">Reached</span>
         <span className="text-right">Typical Days</span>
-        <span className="text-right">Waiting</span>
       </div>
       {flow.map((row, index) => {
         const conv = reached[index];
@@ -377,39 +390,49 @@ function PhaseFlowTable({
         return (
           <div
             key={row.phase}
-            className="grid grid-cols-[minmax(0,1fr)_minmax(84px,150px)_64px_84px_64px] items-center gap-x-3 border-b border-[var(--border-hairline)] py-2.5 last:border-b-0"
+            className="grid grid-cols-[minmax(170px,240px)_minmax(0,1fr)_96px_104px] items-center gap-x-6 border-b border-[var(--border-hairline)] py-2.5 last:border-b-0"
           >
             <Link
               href={`/?phase=${encodeURIComponent(row.phase)}`}
               data-tip={`${row.phase}\nStages: ${row.stages.map(shortStageLabel).join(", ") || "none occupied"}\nOpens the board filtered to this phase`}
               className="flex min-w-0 items-center gap-2 text-[13px] text-[var(--text-body)] transition hover:text-[var(--accent-strong)]"
             >
-              <span className="font-mono shrink-0 text-[11px] text-[var(--text-faint)]">{index + 1}</span>
+              {/* No step number: the rows are already in lifecycle order, and the glyph
+                  identifies the phase — numbering them was a third marker for one thing. */}
               <PhaseIcon phase={row.phase} size={13} style={{ color: `var(--tone-${PHASE_TONES[row.phase] ?? "neutral"}-fg)` }} />
               <span className="truncate">{row.phase}</span>
             </Link>
-            <span className="flex min-w-0 items-center gap-2">
+            <span
+              className="flex min-w-0 max-w-[260px] items-center gap-2"
+              data-tip={
+                row.attention
+                  ? `${row.count} on the board, ${row.attention} waiting on a decision`
+                  : `${row.count} on the board, none waiting on a decision`
+              }
+            >
               <span className="font-mono w-4 shrink-0 text-[12px] font-medium text-[var(--text-primary)]">{row.count}</span>
-              <ProgressBar ratio={row.count / busiest} className="h-2 min-w-0 flex-1" />
+              <span className="flex h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-[var(--surface-strong)]">
+                {/* Width against the fullest phase so the bars stay comparable; the split
+                    inside it is this phase's own. */}
+                <span className="flex" style={{ width: `${(row.count / busiest) * 100}%` }}>
+                  <span style={{ width: `${(1 - row.attention / (row.count || 1)) * 100}%`, background: "var(--accent)" }} />
+                  <span style={{ width: `${(row.attention / (row.count || 1)) * 100}%`, background: "var(--tone-warning-fg)" }} />
+                </span>
+              </span>
+              {row.attention ? <span className="font-mono shrink-0 text-[11px] text-[var(--tone-warning-fg)]">{row.attention} waiting</span> : null}
             </span>
             <span className="font-mono text-right text-[12px] text-[var(--text-primary)]" data-tip={`${conv.reached} of ${cards.length} ever raised`}>
               {pct(conv.share)}
             </span>
-            <span className="font-mono text-right text-[12px] text-[var(--text-primary)]">
-              {time?.sample ? (
-                <>
-                  {time.days}d<span className="ml-1 text-[11px] text-[var(--text-muted)]">/{time.sample}</span>
-                </>
-              ) : (
-                <span className="text-[var(--text-faint)]">—</span>
-              )}
-            </span>
-            <span className="text-right">
-              {row.attention ? (
-                <span className="font-mono text-[12px] font-medium text-[var(--tone-warning-fg)]">{row.attention}</span>
-              ) : (
-                <span className="font-mono text-[12px] text-[var(--text-faint)]">—</span>
-              )}
+            <span
+              className="font-mono text-right text-[12px] text-[var(--text-primary)]"
+              data-tip={
+                time?.sample
+                  ? `Median of ${time.sample} ${time.sample === 1 ? "record" : "records"} that have left this phase${time.open ? `; ${time.open} still in it` : ""}`
+                  : "Nothing has left this phase yet"
+              }
+            >
+              {time?.sample ? `${time.days}d` : <span className="text-[var(--text-faint)]">—</span>}
             </span>
           </div>
         );
@@ -523,14 +546,22 @@ function HealthTab({
       >
         <PhaseFlowTable cards={cards} flow={flow} cycle={cycle} />
         <div className="mt-5 border-t border-[var(--border-hairline)] pt-4">
-          <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-            <span className="text-[12px] text-[var(--text-label)]">Decision Time</span>
+          {/* The target moves off the plot and into this row, as a dashed swatch — the
+              same shape the value chart uses for its two series. On the plot its label sat
+              at the top right, which is exactly where a line coming down from 24 days to 14
+              passes through. */}
+          <div className="mb-2.5 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+            <span className="mr-auto text-[12px] text-[var(--text-label)]">Decision Time</span>
             <span className="text-[11px] text-[var(--text-muted)]">median days, intake to first gate</span>
+            <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
+              <span aria-hidden className="h-0 w-4 border-t border-dashed border-[var(--border-input)]" />
+              {DECISION_TARGET_DAYS}d target
+            </span>
           </div>
           <TimeChart
             data={decisionSpeedSeries(months)}
             series={[{ key: "days", name: "Days", colour: "var(--accent)" }]}
-            reference={{ y: DECISION_TARGET_DAYS, label: `${DECISION_TARGET_DAYS}d target` }}
+            reference={{ y: DECISION_TARGET_DAYS }}
             yFormat={(value) => `${value}d`}
           />
         </div>
@@ -662,12 +693,7 @@ function ValueTab({ cards, months, scoped }: { cards: UseCaseCard[]; months: typ
       <TileBox
         className={SPAN}
         title="Spend and Return"
-        footer={[
-          "Benefit is only earned once a record is live; on every other row it's the case being made.",
-          scoped ? "The monthly lines are portfolio-wide; the table narrows with the scope." : null,
-        ]
-          .filter(Boolean)
-          .join(" ")}
+        footer={scoped ? "The monthly lines are portfolio-wide; the table narrows with the scope." : undefined}
       >
         <DataTable
           columns={["State", "Records", "Committed", "Benefit a Year"]}

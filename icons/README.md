@@ -23,7 +23,7 @@ to the size you need rather than scaling with CSS transforms.
 | CalendarDays | `calendar-days.svg` | `src/app/tracker-view.tsx`, `src/components/document-record/record-details-sheet.tsx`, `src/components/forms/fields.tsx` |
 | Check | `check.svg` | `src/components/chat/chat-ui.tsx`, `src/components/document-record/detail-record.tsx`, `src/components/document-record/record-details-sheet.tsx`, `src/components/forms/fields.tsx`, `src/components/profile.tsx`, `src/components/ui/kit.tsx` |
 | CheckCircle2 | `circle-check.svg` | `src/app/overview/page.tsx` |
-| ChevronDown | `chevron-down.svg` | `src/app/tracker-view.tsx`, `src/components/document-record/detail-record.tsx`, `src/components/forms/fields.tsx`, `src/components/profile.tsx` |
+| ChevronDown | `chevron-down.svg` | `src/components/document-record/detail-record.tsx`, `src/components/forms/fields.tsx`, `src/components/profile.tsx`, `src/components/ui/kit.tsx` |
 | ChevronLeft | `chevron-left.svg` | `src/components/document-record/detail-record.tsx`, `src/components/forms/fields.tsx` |
 | ChevronRight | `chevron-right.svg` | `src/components/app-shell.tsx`, `src/components/chat/chat-use-case-card.tsx`, `src/components/document-record/detail-record.tsx`, `src/components/forms/fields.tsx` |
 | Circle | `circle.svg` | `src/app/overview/page.tsx` |
@@ -63,7 +63,7 @@ to the size you need rather than scaling with CSS transforms.
 | RotateCcw | `rotate-ccw.svg` | `src/components/document-record/detail-record.tsx`, `src/components/document-record/record-details-sheet.tsx` |
 | Search | `search.svg` | `src/app/tracker-view.tsx`, `src/components/forms/fields.tsx` |
 | ShieldCheck | `shield-check.svg` | `src/app/tracker-view.tsx`, `src/components/document-record/detail-record.tsx`, `src/components/document-record/record-details-sheet.tsx`, `src/components/document-record/record-summary.tsx`, `src/components/ui/kit.tsx` |
-| SlidersHorizontal | `sliders-horizontal.svg` | `src/app/portfolio/page.tsx`, `src/app/tracker-view.tsx` |
+| SlidersHorizontal | `sliders-horizontal.svg` | `src/components/ui/kit.tsx` |
 | Sparkles | `sparkles.svg` | `src/app/portfolio/page.tsx`, `src/app/tracker-view.tsx`, `src/components/chat/chat-ui.tsx`, `src/components/document-record/detail-record.tsx`, `src/components/document-record/record-details-sheet.tsx`, `src/components/document-record/record-summary.tsx`, `src/components/forms/fields.tsx`, `src/components/portfolio/tiles.tsx` |
 | Split | `split.svg` | `src/components/ui/kit.tsx` |
 | Table2 | `table-2.svg` | `src/app/tracker-view.tsx` |

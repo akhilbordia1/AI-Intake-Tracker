@@ -5,6 +5,7 @@ import {
   ArrowUpDown,
   Check,
   Calculator,
+  ChevronDown,
   Filter,
   Gavel,
   Hammer,
@@ -14,6 +15,7 @@ import {
   PenTool,
   Rocket,
   ShieldCheck,
+  SlidersHorizontal,
   Split,
   Target,
   Users,
@@ -270,6 +272,50 @@ export function ProgressBar({ ratio, complete = false, className }: { ratio: num
 // One shape for every popover list in the product: a rounded surface with a
 // hairline and a soft shadow, an optional muted section label, rows with an icon
 // on the left and meta on the right, and hairline dividers between groups.
+
+// The control that opens one, when what it opens is a set of filters. Both the
+// tracker and the portfolio had hand-rolled this and they had already drifted — one
+// bordered with a count badge and a chevron, the other a borderless quiet button
+// labelled "View". Same job, so it lives here: the glyph alone (the tooltip says what
+// is set), a count of anything moved off its default, and the accent while it is open
+// or filtered, so a narrowed view is visible without opening the menu.
+export function FilterMenuButton({
+  open,
+  activeCount = 0,
+  tip,
+  label,
+  onClick,
+}: {
+  open: boolean;
+  activeCount?: number;
+  tip: string;
+  // For screen readers; the button itself is glyph-only.
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-haspopup="menu"
+      aria-expanded={open}
+      data-tip={tip}
+      aria-label={label}
+      className={cn(
+        "inline-flex h-9 items-center gap-1.5 rounded-[8px] border px-3 text-[13px] transition",
+        open || activeCount > 0
+          ? "border-[var(--accent-ring)] bg-[var(--surface-hover)] text-[var(--accent-strong)]"
+          : "border-[var(--border-default)] bg-[var(--surface)] text-[var(--text-body)] hover:border-[var(--border-input)] hover:bg-[var(--surface-hover)]",
+      )}
+    >
+      <SlidersHorizontal size={14} />
+      {activeCount > 0 ? (
+        <span className="rounded-full bg-[var(--accent)] px-1.5 text-[11px] font-semibold leading-[17px] text-white">{activeCount}</span>
+      ) : null}
+      <ChevronDown size={13} className={cn("text-[var(--text-muted)] transition", open && "rotate-180")} />
+    </button>
+  );
+}
 
 export function MenuSurface({ className, children, ...rest }: ComponentProps<"div">) {
   return (

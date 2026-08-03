@@ -47,16 +47,20 @@ function TokenTooltip({
 export function TimeChart({
   data,
   series,
-  height = 168,
+  height = 210,
   yFormat,
   reference,
 }: {
   data: Row[];
   series: { key: string; name: string; colour: string }[];
+  // 210, not 168: at the tile's full width a shorter plot is a thin band, and six
+  // y-labels stacked inside it read as a grid with a line lost in it.
   height?: number;
   yFormat?: (value: number) => string;
-  // A target line, where the metric has one worth drawing.
-  reference?: { y: number; label: string };
+  // A target line, where the metric has one worth drawing. The label is optional and
+  // usually left off — written into the caption above the chart instead, because
+  // `insideTopRight` puts it exactly where a descending line already is.
+  reference?: { y: number; label?: string };
 }) {
   // ResponsiveContainer measures the DOM, so it has nothing to measure during the
   // static prerender. Reserve the space on the server, draw on the client —
@@ -71,20 +75,30 @@ export function TimeChart({
       <ResponsiveContainer width="100%" height="100%">
         {/* No negative left margin: pulling the plot left clipped the widest y label
             ($1.8M) against the tile edge. The axis reserves its own width instead. */}
-        <LineChart data={data} margin={{ top: 6, right: 12, bottom: 0, left: 0 }}>
+        <LineChart data={data} margin={{ top: 10, right: 8, bottom: 0, left: 0 }}>
           <CartesianGrid vertical={false} stroke="var(--border-hairline)" />
           <XAxis
             dataKey="label"
             tick={{ fontSize: 11, fill: "var(--text-muted)", fontFamily: "var(--mono)" }}
             tickLine={false}
             axisLine={{ stroke: "var(--border-default)" }}
+            // The first and last points sat on the axes themselves. A little padding
+            // gives them somewhere to be, and `interval={0}` keeps every month labelled
+            // rather than letting recharts drop every other one as the tile narrows.
+            padding={{ left: 12, right: 12 }}
+            interval={0}
+            tickMargin={8}
           />
           <YAxis
             tick={{ fontSize: 11, fill: "var(--text-muted)", fontFamily: "var(--mono)" }}
             tickLine={false}
             axisLine={false}
-            width={64}
+            width={58}
             tickMargin={6}
+            // Four gridlines, not the six recharts picks by default: the lines are
+            // scaffolding for reading a value, and one every 25% is enough to do that.
+            tickCount={4}
+            allowDecimals={false}
             tickFormatter={(value: number) => (yFormat ? yFormat(value) : String(value))}
           />
           {reference ? (
@@ -92,7 +106,7 @@ export function TimeChart({
               y={reference.y}
               stroke="var(--border-input)"
               strokeDasharray="4 4"
-              label={{ value: reference.label, position: "insideTopRight", fontSize: 10, fill: "var(--text-faint)" }}
+              label={reference.label ? { value: reference.label, position: "insideTopRight", fontSize: 10, fill: "var(--text-faint)" } : undefined}
             />
           ) : null}
           <Tooltip content={<TokenTooltip yFormat={yFormat} />} cursor={{ stroke: "var(--border-input)", strokeDasharray: "3 3" }} />

@@ -34,9 +34,12 @@ export function SummaryPanel({
   return (
     // Told apart from a tile by quiet things rather than one loud one: a softer hairline
     // instead of the tiles' full border, no rule under the header (a passage doesn't need
-    // its title boxed off), a tracked-caps label rather than a tile's noun, and prose a
-    // size up with more line height. Not the serif reading face — it was tried and it made
-    // three lines of numbers-heavy prose harder to read, which is the opposite of the point.
+    // its title boxed off), a tracked-caps label rather than a tile's noun, and the muted
+    // fill. Not by size — a 15px override made it the only thing on the page above the
+    // 13px tile rows, and 2px of extra height reads as a different app rather than a
+    // different kind of block. The prose keeps `Markdown`'s own 14px, which is what the
+    // record's problem statement and the risk summary are set in. Not the serif reading
+    // face either: it was tried, and it made three lines of figures harder to read.
     <section className="rounded-[10px] border border-[var(--border-hairline)] bg-[var(--surface-muted)] px-6 py-5">
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h3 className="inline-flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-[0.07em] text-[var(--text-label)]">
@@ -49,7 +52,7 @@ export function SummaryPanel({
           at 1080px left every line stopping a few hundred pixels short of its own right
           edge, so each bullet wrapped early against a wide empty gutter. The box is the
           measure here — it's three lines, not an article. */}
-      <Markdown source={source} className="text-[15px] leading-[1.7]" />
+      <Markdown source={source} />
     </section>
   );
 }
