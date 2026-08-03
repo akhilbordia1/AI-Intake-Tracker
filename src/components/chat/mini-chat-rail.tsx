@@ -29,6 +29,8 @@ export function MiniChatRail({
   intro,
   starters,
   answer,
+  thinking,
+  thinkingMs = 550,
   reply,
   onScrolledChange,
   scrollRef,
@@ -43,6 +45,13 @@ export function MiniChatRail({
   starters: RailStarter[];
   // Route-supplied responder: returns undefined when it has nothing specific.
   answer?: (question: string) => RailAnswer | undefined;
+  // An answer that reads six months of registry shouldn't arrive instantly — an
+  // instant reply reads as a lookup. Return a work step and the rail shows it
+  // (`ChatLine activity`) before replacing it with the answer. Opt-in: the rails
+  // that really are lookups pass nothing and stay immediate.
+  // ai-upgrade: the delay stands in for a real round-trip.
+  thinking?: (question: string) => { activity: string; text: string } | undefined;
+  thinkingMs?: number;
   reply: string;
   placeholder?: string;
   // The empty state shown before the first message: a headline and the intro as a
@@ -70,6 +79,10 @@ export function MiniChatRail({
   const [draft, setDraft] = useState("");
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const empty = turns.length === 0;
+  // Pending "thinking" swaps, cleared on unmount so a reply can't land in a rail
+  // that has already been replaced (switching profile remounts this).
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  useEffect(() => () => timers.current.forEach(clearTimeout), []);
 
   // The surface holds the archive, so it needs whatever is currently on screen.
   useEffect(() => {
@@ -94,7 +107,21 @@ export function MiniChatRail({
     }
     const answered = answer?.(message) ?? reply;
     const said = typeof answered === "string" ? { text: answered } : answered;
-    setTurns((current) => [...current, { role: "user", text: message, time: formatChatTime() }, { role: "assistant", ...said }]);
+    const beat = thinking?.(message);
+    const asked: ChatTurn = { role: "user", text: message, time: formatChatTime() };
+
+    if (!beat) {
+      setTurns((current) => [...current, asked, { role: "assistant", ...said }]);
+      return;
+    }
+
+    // Show the work step, then swap that turn for the answer — so the rail never
+    // grows two bubbles for one question.
+    setTurns((current) => [...current, asked, { role: "assistant", text: beat.text, activity: beat.activity }]);
+    const timer = setTimeout(() => {
+      setTurns((current) => [...current.slice(0, -1), { role: "assistant", ...said }]);
+    }, thinkingMs);
+    timers.current.push(timer);
   }
 
   const suggestions = starters

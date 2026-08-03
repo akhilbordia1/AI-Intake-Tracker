@@ -69,7 +69,7 @@ export function funnel(cards: UseCaseCard[], phases: PhaseMap) {
       // Which stages inside the phase are actually occupied — the phase name alone
       // doesn't say whether three records are queued at one stage or spread out.
       stages: [...new Set(inPhase.map((card) => card.substage))],
-      _counted: counts[phase],
+      counted: counts[phase],
     };
   });
 }
@@ -84,24 +84,34 @@ export function throughput(months: PortfolioMonth[]) {
   }));
 }
 
-// How long records sit in each phase. A record still in the phase counts up to
-// `asOf`, which is the point — a bottleneck is made of things that haven't left.
-export function medianCycleDaysByPhase(cards: UseCaseCard[], phases: PhaseMap, asOf: string) {
-  const result: Record<string, { days: number; sample: number }> = {};
+// How long a phase takes, measured only on records that have *left* it — a record
+// still sitting there has no duration yet, and counting it up to `asOf` would make
+// the last phase (where live records simply stay) look like the bottleneck. What is
+// still sitting is `open`, and `aging()` names them.
+export function medianCycleDaysByPhase(cards: UseCaseCard[], phases: PhaseMap) {
+  const result: Record<string, { days: number; sample: number; open: number }> = {};
   for (const [index, phase] of phases.order.entries()) {
     const spans: number[] = [];
+    let open = 0;
     for (const card of cards) {
       const entered = card.phaseEntered[phase];
       if (!entered) continue;
-      // Left when the next phase started; else when it closed or went live; else
-      // it's still there.
       const nextPhase = phases.order.slice(index + 1).find((later) => card.phaseEntered[later]);
-      const left = (nextPhase && card.phaseEntered[nextPhase]) || card.closedOn || card.liveSince || asOf;
+      const left = (nextPhase && card.phaseEntered[nextPhase]) || card.closedOn;
+      if (!left) {
+        open += 1;
+        continue;
+      }
       spans.push(Math.max(0, daysBetween(entered, left)));
     }
-    result[phase] = { days: median(spans), sample: spans.length };
+    result[phase] = { days: median(spans), sample: spans.length, open };
   }
   return result;
+}
+
+// The phases ranked slowest first, ignoring any with nothing to measure yet.
+export function phasesBySpeed(cycle: ReturnType<typeof medianCycleDaysByPhase>, phases: PhaseMap) {
+  return phases.order.filter((phase) => (cycle[phase]?.sample ?? 0) > 0).sort((a, b) => cycle[b].days - cycle[a].days);
 }
 
 export function decisionSpeedSeries(months: PortfolioMonth[]) {
@@ -110,12 +120,13 @@ export function decisionSpeedSeries(months: PortfolioMonth[]) {
 
 // ── Blockers and aging ──
 
-// The same definition the tracker's chat uses, so the two surfaces can't disagree
-// about what "not moving" means.
+// Not moving = parked, or blocked at a gate while still open. A rejected record is
+// *decided*, not stuck — the tracker lumps the two together because a board reader
+// wants both out of the way, but a portfolio has to tell "waiting on us" from
+// "answered no". The rejections show up under `moneyByState`'s stopped bucket and in
+// the outcomes ledger.
 export function blockers(cards: UseCaseCard[]) {
-  return cards.filter(
-    (card) => card.lifecycle === "On hold" || card.lifecycle === "Rejected" || card.gate?.status === "Blocked" || card.gate?.status === "Rejected",
-  );
+  return cards.filter((card) => card.lifecycle === "On hold" || (card.lifecycle === "Active" && card.gate?.status === "Blocked"));
 }
 
 export function aging(cards: UseCaseCard[], asOf: string, thresholdDays = 7) {
@@ -376,9 +387,10 @@ export function portfolioDigest(
   { full = true }: { full?: boolean } = {},
 ): string {
   const h = headline(cards, months, asOf);
-  const cycle = medianCycleDaysByPhase(cards, phases, asOf);
-  const slowest = [...phases.order].sort((a, b) => (cycle[b]?.days ?? 0) - (cycle[a]?.days ?? 0))[0];
-  const fastest = [...phases.order].sort((a, b) => (cycle[a]?.days ?? 0) - (cycle[b]?.days ?? 0))[0];
+  const cycle = medianCycleDaysByPhase(cards, phases);
+  const ranked = phasesBySpeed(cycle, phases);
+  const slowest = ranked[0] ?? phases.order[0];
+  const fastest = ranked[ranked.length - 1] ?? phases.order[0];
   const stuck = aging(cards, asOf).slice(0, 3);
   const money = moneyByState(cards);
   const attainment = attainmentSummary(kpiAttainment(cards));
@@ -422,8 +434,10 @@ ${attainment.met} of ${attainment.total} production targets are being met${
   const next = `## What I'd do next
 
 1. Clear the ${h.openGates} open gates — the oldest has been waiting ${oldestOpenGate(cards, asOf)?.days ?? 0} days.
-2. Decide on the ${h.blocked} records that aren't moving, rather than leaving them on the board.
-3. Hold intake steady: ${months[months.length - 1]?.submitted ?? 0} came in this month against ${median(months.map((month) => month.submitted))} a month typically.`;
+2. Unblock or park the ${h.blocked} ${h.blocked === 1 ? "record" : "records"} that aren't moving — a blocked gate is a decision nobody has taken.
+3. Watch intake: ${months[months.length - 1]?.submitted ?? 0} raised so far this month, against ${(
+    months.reduce((total, month) => total + month.submitted, 0) / months.length
+  ).toFixed(1)} a month over the period.`;
 
   const footer = `---
 
@@ -502,26 +516,31 @@ function demo() {
     card({ id: "UC-1", created: "2026-01-04", stageEntered: "2026-01-20" }),
     card({ id: "UC-2", substage: "Build", phaseEntered: { Early: "2026-01-02", Late: "2026-01-12" }, stageEntered: "2026-02-01" }),
     card({ id: "UC-3", lifecycle: "Rejected", closedOn: "2026-02-10", gate: { id: "R2", status: "Rejected" as GateStatus }, gateDecided: "2026-02-10" }),
+    card({ id: "UC-4", lifecycle: "On hold", closedOn: "2026-02-06", gate: { id: "R2", status: "Blocked" as GateStatus }, gateDecided: "2026-02-06" }),
   ];
 
   const wip = wipByPhase(fixture, phases);
-  assert(wip.Early === 2 && wip.Late === 1, "wipByPhase");
-  assert(funnel(fixture, phases)[0].share === 2 / 3, "funnel: share");
+  assert(wip.Early === 3 && wip.Late === 1, "wipByPhase");
+  assert(funnel(fixture, phases)[0].share === 3 / 4, "funnel: share");
   const aged = aging(fixture, "2026-02-08");
   assert(aged.length === 2 && aged[0].card.id === "UC-1", "aging: longest first, closed excluded");
   const gates = gateOutcomes(fixture);
-  assert(gates.decided === 1 && gates.passed === 0 && gates.passRate === 0, "gateOutcomes");
-  assert(blockers(fixture).length === 1, "blockers");
+  assert(gates.decided === 2 && gates.passed === 0 && gates.passRate === 0, "gateOutcomes");
+  const stuck = blockers(fixture);
+  assert(stuck.length === 1 && stuck[0].id === "UC-4", "blockers: parked counts, a rejection is a decision");
+  const cycle = medianCycleDaysByPhase(fixture, phases);
+  assert(cycle.Late.sample === 0 && cycle.Late.open === 1, "cycle: a record still in a phase has no duration yet");
+  assert(phasesBySpeed(cycle, phases).length === 1, "phasesBySpeed: skips phases with nothing measured");
 
   const months: PortfolioMonth[] = [
     {
       key: "2026-01",
       label: "Jan",
-      submitted: 3,
+      submitted: 4,
       approved: 0,
       live: 0,
       closed: 0,
-      wip: { Early: 2, Late: 1 },
+      wip: { Early: 3, Late: 1 },
       medianDaysToDecision: 20,
       committedUsd: 0,
       benefitUsd: 0,
@@ -532,8 +551,8 @@ function demo() {
       submitted: 0,
       approved: 0,
       live: 0,
-      closed: 1,
-      wip: { Early: 2, Late: 1 },
+      closed: 2,
+      wip: { Early: 3, Late: 1 },
       medianDaysToDecision: 18,
       committedUsd: 0,
       benefitUsd: 0,

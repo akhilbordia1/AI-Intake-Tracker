@@ -10,6 +10,7 @@ import {
   FileText,
   Flag,
   Inbox,
+  PieChart,
   Plus,
   Search,
   ShieldCheck,
@@ -299,6 +300,9 @@ export default function HomePage() {
             tabs={[
               { id: "board", label: "Board", icon: <Columns3 size={15} /> },
               { id: "table", label: "Table", icon: <Table2 size={15} /> },
+              // A peer view rather than a control: the portfolio is the same records
+              // read as a system, so it belongs in the row you switch views with.
+              { id: "portfolio", label: "Portfolio", href: "/portfolio", icon: <PieChart size={15} /> },
             ]}
           />
         }
