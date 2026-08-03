@@ -1,10 +1,11 @@
 "use client";
 
+import { CornerDownRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 
 import { PastChatTranscript, type ChatSession, type ChatTurn } from "@/components/chat/chat-history";
-import { ChatComposer, ChatDock, ChatLine, ChatStartScreen, ChatTimeDivider, formatChatTime } from "@/components/chat/chat-ui";
+import { ChatComposer, ChatDock, ChatLine, ChatStartScreen, ChatStarters, ChatTimeDivider, formatChatTime } from "@/components/chat/chat-ui";
 
 // A composer-only assistant rail for the routes that don't run a guided flow
 // (the tracker board and the record overview). Same chat kit as the record's
@@ -22,8 +23,10 @@ export type RailStarter = string | { label: string; draft?: string; icon?: React
 
 // What a responder gives back: a line of prose, or a line plus the records it is
 // about, rendered as cards. A list of use cases reads better as the cards the user
-// already knows from the board than as bullets repeating their fields.
-export type RailAnswer = string | { text: string; detail?: ReactNode };
+// already knows from the board than as bullets repeating their fields. `followUps` are
+// the two or three questions this answer opens up — the starters only ever appear on
+// the empty state, so without them the conversation dead-ends after one exchange.
+export type RailAnswer = string | { text: string; detail?: ReactNode; followUps?: string[] };
 
 export function MiniChatRail({
   intro,
@@ -128,6 +131,15 @@ export function MiniChatRail({
     .slice(0, 3)
     .map((starter, index) => (typeof starter === "string" ? { id: String(index), label: starter } : { id: String(index), ...starter }));
 
+  // The last turn's follow-ups, and only while it isn't still "thinking" — offering
+  // the next question before this one has landed reads as the answer being skipped.
+  const last = turns[turns.length - 1];
+  const follow = (last && last.role === "assistant" && !last.activity ? (last.followUps ?? []) : []).map((label, index) => ({
+    id: `follow-${index}`,
+    label,
+    icon: <CornerDownRight size={13} />,
+  }));
+
   // A draft suggestion hands over the opening words with the cursor at the end —
   // the user finishes the sentence and sends it themselves.
   function pick(item: { label: string; draft?: string }) {
@@ -189,6 +201,13 @@ export function MiniChatRail({
         {turns.map((turn, index) => (
           <ChatLine key={index} role={turn.role} text={turn.text} time={turn.time} activity={turn.activity} detail={turn.detail} />
         ))}
+        {/* Follow-ups belong to the newest answer only: left on every past turn they
+            pile up down the rail and read as a menu of everything ever offered. */}
+        {follow.length ? (
+          <div className="pt-0.5">
+            <ChatStarters padded={false} items={follow} onPick={(item) => send(item.label)} />
+          </div>
+        ) : null}
       </div>
       <ChatDock>{composer}</ChatDock>
     </div>

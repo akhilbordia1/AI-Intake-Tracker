@@ -18,7 +18,7 @@ export type StageItem = {
 export const STAGES = [
   {
     name: "Ideation",
-    owner: "Priya N.",
+    owner: "Priya Rao",
     rows: [
       ["Proposed use case name", "Protocol Digest Assistant"],
       [
@@ -40,7 +40,7 @@ export const STAGES = [
   },
   {
     name: "Qualification",
-    owner: "Priya N.",
+    owner: "Priya Rao",
     rows: [
       ["Human oversight level", "Always"],
       ["Data sensitivity class", "Confidential"],
@@ -50,7 +50,7 @@ export const STAGES = [
   },
   {
     name: "Prioritisation",
-    owner: "Marco B.",
+    owner: "Rohan Desai",
     rows: [
       ["Business value score", "4/5"],
       ["Technical feasibility", "4/5"],
@@ -83,7 +83,7 @@ export const STAGES = [
   },
   {
     name: "Business Case",
-    owner: "Amara J.",
+    owner: "Rohan Desai",
     rows: [
       ["Current annual volume", "~180 protocols/year"],
       ["Current cost per review", "USD 3,200"],
@@ -96,7 +96,7 @@ export const STAGES = [
   },
   {
     name: "GTAC",
-    owner: "Victor H.",
+    owner: "Nisha Patel",
     rows: [
       ["Go / No-Go board call", "GO"],
       ["ROI payback period", "~10 months"],
@@ -137,7 +137,7 @@ export const STAGES = [
   },
   {
     name: "Monitoring and tracking",
-    owner: "Marco B.",
+    owner: "Rohan Desai",
     rows: [
       ["Review time reduction", "27% of 30% target"],
       ["Writer satisfaction (CSAT)", "84% of 80% target"],
@@ -147,7 +147,7 @@ export const STAGES = [
   },
   {
     name: "Adoption",
-    owner: "Marco B.",
+    owner: "Priya Rao",
     rows: [
       ["Training completed", "55 of 60 users"],
       ["Change management comms", "Sent to all 3 regions"],
@@ -321,7 +321,7 @@ export const GATES: Gate[] = [
     name: "Screening gate",
     afterStage: "Triage",
     status: "Passed",
-    approver: "Priya N.",
+    approver: "Priya Rao",
     decided: "Jun 22, 2026",
     artifacts: ["Screening record", "Prohibited-use scan"],
     conditions: [],
@@ -332,7 +332,7 @@ export const GATES: Gate[] = [
     afterStage: "GTAC",
     // Waived with the stage it sits after: no board review, no board decision.
     status: "Waived",
-    approver: "Victor H.",
+    approver: "Nisha Patel",
     decided: "Jun 28, 2026",
     artifacts: ["Business case", "GTAC minutes", "Risk register"],
     conditions: ["PII redaction verified before deploy", "Multi-currency re-tested at R4"],
@@ -352,7 +352,7 @@ export const GATES: Gate[] = [
     name: "Post-deploy review",
     afterStage: "Monitoring and tracking",
     status: "Not started",
-    approver: "Marco B.",
+    approver: "Rohan Desai",
     decided: null,
     artifacts: [],
     conditions: [],
@@ -403,6 +403,19 @@ export const RECORD_DETAILS: [string, string][] = [
 // overview and the deep links into /detail agree on what's done.
 export const ACTIVE_STAGE_INDEX = STAGES.findIndex((stage) => stage.name === "Solutionise and Production");
 
+// ── The same twelve stages, with nothing captured ──
+// A use case that has just been raised: every field is present, every value is blank.
+// `/detail?blank=1` renders this instead of the seeded record, so the empty state can be
+// walked end to end — each field showing its definition from `FIELD_GISTS` rather than a
+// value. Derived from `STAGES` rather than authored, so a field added above cannot go
+// missing here, and the two can't drift.
+export const BLANK_STAGES: StageItem[] = STAGES.map((stage) => ({
+  ...stage,
+  rows: stage.rows.map(([label]) => [label, ""] as [string, string]),
+}));
+
+export const stagesFor = (blank: boolean) => (blank ? BLANK_STAGES : STAGES);
+
 // ── Skipped stages ──
 // Not every use case walks all twelve. A GTAC board review is waived when the
 // investment sits under the board's threshold, so the stage is neither done nor
@@ -421,7 +434,7 @@ export const SKIPPABLE_STAGES = new Set(["GTAC"]);
 export const SKIPPED_STAGES: Record<string, StageSkip> = {
   GTAC: {
     reason: "Investment under the 500K board threshold — sponsor approved it instead of the board.",
-    by: "Victor H.",
+    by: "Nisha Patel",
     when: "Jun 28, 2026",
   },
 };

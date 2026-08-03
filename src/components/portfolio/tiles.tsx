@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 
 import { Markdown } from "@/components/document-record/markdown";
 
-import { ProgressBar, ProgressRing, cardClass } from "@/components/ui/kit";
+import { cardClass } from "@/components/ui/kit";
 import { cn } from "@/lib/cn";
 
 // ── The portfolio's drawing parts ──
@@ -20,7 +20,17 @@ import { cn } from "@/lib/cn";
 // supporting lines, authored as Markdown so the copy can come from a model. The muted
 // fill and the glyph are enough to mark it as something written rather than another
 // tile of figures; an accent edge on top of that was one signal too many.
-export function SummaryPanel({ title, source, meta }: { title: string; source: string; meta?: string }) {
+export function SummaryPanel({
+  title,
+  source,
+  meta,
+}: {
+  title: string;
+  source: string;
+  // What the prose was written from, on the header's right. There is no footer bar: a
+  // ruled-off strip carrying one muted line was more chrome than the line was worth.
+  meta?: string;
+}) {
   return (
     <section className="rounded-[10px] border border-[var(--border-default)] bg-[var(--surface-muted)]">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-[var(--border-hairline)] px-5 py-3">
@@ -35,6 +45,12 @@ export function SummaryPanel({ title, source, meta }: { title: string; source: s
       </div>
     </section>
   );
+}
+
+// What a tile says when the scope filter has emptied it. One line in the tile's own
+// box, because a heading over blank space reads as a loading state that never resolves.
+export function TileEmpty({ children = "Nothing in this scope." }: { children?: ReactNode }) {
+  return <p className="py-1 text-[13px] text-[var(--text-muted)]">{children}</p>;
 }
 
 // The one container: a hairline box with a serif heading and an optional hint on
@@ -73,10 +89,15 @@ export function DataTable({
   columns,
   rows,
 }: {
-  // First column is the label (left, sans); the rest are figures (right, mono).
+  // First column is the label (left, sans); the rest are figures (right, mono). Name
+  // the first one too — a blank corner cell leaves the reader working out what the
+  // labels under it are a list of.
   columns: string[];
-  rows: { key: string; label: ReactNode; values: ReactNode[]; tip?: string }[];
+  // `tone` puts a coloured dot on the label, so a state that means "earning" and one
+  // that means "stopped" aren't the same weight of black text.
+  rows: { key: string; label: ReactNode; values: ReactNode[]; tip?: string; tone?: string }[];
 }) {
+  if (!rows.length) return <TileEmpty />;
   return (
     <table className="w-full border-collapse text-left">
       <thead>
@@ -96,10 +117,17 @@ export function DataTable({
       </thead>
       <tbody>
         {rows.map((row) => (
-          <tr key={row.key} data-tip={row.tip}>
-            <td className="border-b border-[var(--border-hairline)] py-2.5 text-[13px] text-[var(--text-body)]">{row.label}</td>
+          // No rule under the last row: the box's own edge is already there, and the
+          // two together read as an empty final row.
+          <tr key={row.key} data-tip={row.tip} className="border-b border-[var(--border-hairline)] last:border-b-0">
+            <td className="py-2.5 text-[13px] text-[var(--text-body)]">
+              <span className="flex min-w-0 items-center gap-2">
+                {row.tone ? <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: row.tone }} /> : null}
+                <span className="min-w-0 truncate">{row.label}</span>
+              </span>
+            </td>
             {row.values.map((value, index) => (
-              <td key={index} className="font-mono border-b border-[var(--border-hairline)] py-2.5 pl-4 text-right text-[13px] text-[var(--text-primary)]">
+              <td key={index} className="font-mono py-2.5 pl-4 text-right text-[13px] text-[var(--text-primary)] [font-variant-numeric:tabular-nums]">
                 {value}
               </td>
             ))}
@@ -123,45 +151,10 @@ export function StatusDot({ label, tone }: { label: string; tone: "good" | "warn
   );
 }
 
-// A measured value against its target. No bar: every production KPI sits within a few
-// points of its target, so a proportional bar was full for all of them and said
-// nothing. The gap is the fact, so the gap is what's drawn.
-export function TargetRow({
-  name,
-  actual,
-  target,
-  unit,
-  met,
-}: {
-  name: string;
-  actual: number;
-  target: number;
-  unit: string;
-  met: boolean;
-}) {
-  const delta = Math.round((actual - target) * 10) / 10;
-  return (
-    <div className="flex min-w-0 items-baseline gap-3 border-t border-[var(--border-hairline)] py-2 first:border-t-0">
-      <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--text-body)]">{name}</span>
-      <span className="font-mono shrink-0 text-[13px] font-medium text-[var(--text-primary)]">
-        {actual}
-        {unit}
-      </span>
-      <span className="font-mono shrink-0 text-[11px] text-[var(--text-muted)]">
-        {target}
-        {unit}
-      </span>
-      <span
-        className="font-mono w-[52px] shrink-0 text-right text-[11px] font-medium"
-        style={{ color: met ? "var(--status-success)" : "var(--tone-warning-fg)" }}
-      >
-        {delta > 0 ? "+" : ""}
-        {delta}
-        {unit}
-      </span>
-    </div>
-  );
-}
+// `TargetRow` (a KPI's measured value against its target) lived here while every one of
+// the ten production targets was printed. Only the misses are named now — the two that
+// are behind, written out in `portfolio/page.tsx` as "62% against 70%", because "62% of
+// 70%" reads as a fraction of a fraction and nobody parses it as a target.
 
 // Six months of a measure, at the size of a word. Inline SVG rather than a chart
 // runtime: there is no axis to label, and the shape *is* the whole point.
@@ -185,6 +178,9 @@ export function Sparkline({ values, colour = "var(--accent)", width = 64, height
 export type Stat = {
   label: string;
   value: string;
+  // The bar this number has to clear, printed beside it. Only where a target is
+  // really committed to — an invented one is worse than none.
+  target?: string;
   // The one-line "compared to what" under the number.
   delta?: string;
   // Colours that line: good, needs-attention, or plain.
@@ -192,6 +188,9 @@ export type Stat = {
   icon?: ReactNode;
   // Six-month shape of the same measure, drawn beside the number.
   trend?: number[];
+  // What the sparkline spans ("Feb → Jul"). A trend line with no stated baseline
+  // invites the reader to assume one.
+  trendLabel?: string;
   tip?: string;
 };
 
@@ -222,20 +221,26 @@ export function StatBand({ items }: { items: Stat[] }) {
             {/* Sans, not the display serif: Fraunces sets figures with old-style
                 numerals, so "$1.79M" and "8/10" came out uneven and slightly wrong at
                 a glance. Tabular so a row of cells lines up. */}
-            <span className="text-[26px] font-semibold leading-none tracking-[-0.02em] text-[var(--text-primary)] [font-variant-numeric:tabular-nums]">
-              {item.value}
+            <span className="flex min-w-0 items-baseline gap-1.5">
+              <span className="text-[26px] font-semibold leading-none tracking-[-0.02em] text-[var(--text-primary)] [font-variant-numeric:tabular-nums]">
+                {item.value}
+              </span>
+              {item.target ? <span className="font-mono shrink-0 text-[11px] text-[var(--text-muted)]">{item.target}</span> : null}
             </span>
             {item.trend ? <Sparkline values={item.trend} /> : null}
           </div>
-          {item.delta ? (
-            <div
-              className="font-mono truncate text-[11px]"
-              style={{
-                color:
-                  item.deltaTone === "good" ? "var(--status-success)" : item.deltaTone === "warn" ? "var(--tone-warning-fg)" : "var(--text-muted)",
-              }}
-            >
-              {item.delta}
+          {item.delta || item.trendLabel ? (
+            <div className="font-mono flex items-baseline justify-between gap-2 text-[11px]">
+              <span
+                className="min-w-0 truncate"
+                style={{
+                  color:
+                    item.deltaTone === "good" ? "var(--status-success)" : item.deltaTone === "warn" ? "var(--tone-warning-fg)" : "var(--text-muted)",
+                }}
+              >
+                {item.delta}
+              </span>
+              {item.trendLabel ? <span className="shrink-0 text-[var(--text-faint)]">{item.trendLabel}</span> : null}
             </div>
           ) : null}
         </div>
@@ -244,95 +249,138 @@ export function StatBand({ items }: { items: Stat[] }) {
   );
 }
 
-export type BarRow = {
-  key: string;
-  label: ReactNode;
-  // Right-hand number, in mono — the thing being compared.
-  value: string;
-  // 0–1; the bar is the comparison, the number is the fact.
-  ratio: number;
-  // A second fact on the right of the label row (median days, share, oldest).
-  meta?: ReactNode;
-  tip?: string;
-  href?: string;
-  // Overrides the accent fill — used only where a category keeps its own colour.
-  colour?: string;
-};
+// `BarList` (label · mono value · bar beneath) lived here until the three phase tiles
+// became one table. Nothing draws a list of bars any more, so it's gone rather than
+// kept warm — the phase bar is a `ProgressBar` in a grid cell in `portfolio/page.tsx`,
+// and shares of a whole are a `StackedMeter`.
 
-// The workhorse: label, mono value, bar beneath. Used for phases, gates, owners,
-// money states and functions, so five tiles read as one family.
-export function BarList({ rows, className }: { rows: BarRow[]; className?: string }) {
+// A small population split into a few groups: one row each, the count, and a bar to
+// compare lengths against. Two things were tried and dropped here — a stacked bar with a
+// legend under it (which stated the split twice, once as lengths and once as
+// percentages), and a dot per record (which, laid out in rows, is a bar chart drawn less
+// legibly). A row per group with its own bar is the plain answer, and the share is left
+// off because the bar already is the share.
+export function GroupBars({ groups }: { groups: { key: string; label: string; colour: string; count: number; tip?: string }[] }) {
+  const total = groups.reduce((sum, group) => sum + group.count, 0);
+  if (!total) return <TileEmpty />;
   return (
-    <div className={cn("flex flex-col gap-3", className)}>
-      {rows.map((row) => (
-        <div key={row.key} data-tip={row.tip} className="min-w-0">
-          <div className="flex min-w-0 items-baseline gap-2 text-[13px]">
-            <span className="flex min-w-0 flex-1 items-center gap-1.5 text-[var(--text-body)]">{row.label}</span>
-            {row.meta ? <span className="shrink-0 text-[11px] text-[var(--text-muted)]">{row.meta}</span> : null}
-            <span className="font-mono shrink-0 text-[12px] font-medium text-[var(--text-primary)]">{row.value}</span>
+    <div className="flex flex-col gap-2.5">
+      {groups.map((group) => (
+        <div key={group.key} data-tip={group.tip} className="min-w-0">
+          <div className="flex min-w-0 items-baseline gap-2">
+            <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: group.colour }} />
+            <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--text-body)]">{group.label}</span>
+            <span className="font-mono shrink-0 text-[12px] font-medium text-[var(--text-primary)] [font-variant-numeric:tabular-nums]">{group.count}</span>
           </div>
-          {/* h-2 over the kit's 3px: at a glance-distance a 3px bar disappears, and
-              tailwind-merge lets the later class win. */}
-          {row.colour ? (
-            <span className="mt-1.5 block h-2 overflow-hidden rounded-full bg-[var(--surface-strong)]">
-              <span className="block h-full rounded-full" style={{ width: `${Math.round(Math.max(0, Math.min(1, row.ratio)) * 100)}%`, background: row.colour }} />
-            </span>
-          ) : (
-            <ProgressBar ratio={row.ratio} className="mt-1.5 h-2" />
-          )}
+          <span className="mt-1.5 block h-2 overflow-hidden rounded-full bg-[var(--surface-strong)]">
+            <span className="block h-full rounded-full" style={{ width: `${(group.count / total) * 100}%`, background: group.colour }} />
+          </span>
         </div>
       ))}
     </div>
   );
 }
 
-// One bar split into segments plus a legend — the app's answer to a donut: same
-// information, same hairline language, and lengths you can compare.
-export function StackedMeter({ segments }: { segments: { key: string; label: string; count: number; colour: string }[] }) {
-  const total = segments.reduce((sum, segment) => sum + segment.count, 0) || 1;
+// Where a measure sits: full marks, comfortable, or dragging. Four bars in one colour
+// made 100% and 75% look like the same news, which is the one thing a composite has to
+// tell you — so the fill carries the band and the eye finds the weak row first.
+function bandColour(ratio: number) {
+  if (ratio >= 0.95) return "var(--status-success)";
+  if (ratio >= 0.8) return "var(--accent)";
+  return "var(--tone-warning-fg)";
+}
+
+// The dial, drawn as the thing it's a score of: one arc per measure, a quarter of the
+// circle each because they're evenly weighted, filled to its own level in its own band
+// colour. A single sweeping donut was decoration — it restated the number in its middle
+// and said nothing the rows didn't, and at a stroke heavy enough to read it dominated
+// the tile. Four arcs make the weighting visible and the weak quarter obvious.
+function PulseDial({ score, parts, caption }: { score: number; parts: { label: string; ratio: number }[]; caption?: string }) {
+  const size = 108;
+  const stroke = 7;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  // A slot per measure, minus a gap so the arcs read as four things and not one ring.
+  const gap = 7;
+  const slot = circumference / parts.length;
+  const arc = slot - gap;
+
   return (
-    <div>
-      <span className="flex h-2 overflow-hidden rounded-full bg-[var(--surface-strong)]">
-        {segments.map((segment) => (
-          <span key={segment.key} style={{ width: `${(segment.count / total) * 100}%`, background: segment.colour }} />
-        ))}
-      </span>
-      <div className="mt-3 flex flex-col gap-1.5">
-        {segments.map((segment) => (
-          <span key={segment.key} className="flex items-center gap-2 text-[12px] text-[var(--text-body)]">
-            <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: segment.colour }} />
-            <span className="min-w-0 flex-1 truncate">{segment.label}</span>
-            <span className="font-mono text-[11px] text-[var(--text-muted)]">{Math.round((segment.count / total) * 100)}%</span>
-            <span className="font-mono w-5 text-right text-[12px] text-[var(--text-primary)]">{segment.count}</span>
+    <span className="flex shrink-0 flex-col items-center justify-center">
+      <span className="relative inline-flex">
+        {/* Rotated so the first measure starts at twelve o'clock and they run clockwise
+            in the same order as the rows beside them. Butt caps, not round: at this
+            stroke a rounded cap on a nearly-empty arc renders as a stray pill. */}
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90">
+          {parts.map((part, index) => {
+            const filled = arc * Math.max(0, Math.min(1, part.ratio));
+            const offset = -index * slot;
+            return (
+              <g key={part.label} data-tip={`${part.label} · ${Math.round(part.ratio * 100)}%`}>
+                <circle
+                  cx={size / 2}
+                  cy={size / 2}
+                  r={radius}
+                  fill="none"
+                  stroke="var(--surface-strong)"
+                  strokeWidth={stroke}
+                  strokeDasharray={`${arc} ${circumference - arc}`}
+                  strokeDashoffset={offset}
+                />
+                <circle
+                  cx={size / 2}
+                  cy={size / 2}
+                  r={radius}
+                  fill="none"
+                  stroke={bandColour(part.ratio)}
+                  strokeWidth={stroke}
+                  strokeDasharray={`${filled} ${circumference - filled}`}
+                  strokeDashoffset={offset}
+                />
+              </g>
+            );
+          })}
+        </svg>
+        <span className="absolute inset-0 flex flex-col items-center justify-center gap-0.5">
+          <span className="text-[24px] font-semibold leading-none tracking-[-0.02em] text-[var(--text-primary)] [font-variant-numeric:tabular-nums]">
+            {Math.round(score * 100)}%
           </span>
-        ))}
-      </div>
-    </div>
+          {caption ? <span className="text-[11px] leading-none text-[var(--text-muted)]">{caption}</span> : null}
+        </span>
+      </span>
+    </span>
   );
 }
 
 // A composite score, with the things it is made of underneath: one number on its own
 // hides its own reasoning, and a leader's first question is "made of what?".
-export function ScorePanel({ score, parts, label }: { score: number; parts: { label: string; ratio: number }[]; label: string }) {
+export function ScorePanel({ score, parts, caption }: { score: number; parts: { label: string; ratio: number }[]; caption?: string }) {
   return (
-    <div className="flex items-center gap-5">
-      <span className="relative shrink-0">
-        <ProgressRing ratio={score} size={72} stroke={6} complete={score >= 0.9} />
-        <span className="absolute inset-0 grid place-items-center text-[15px] font-semibold text-[var(--text-primary)] [font-variant-numeric:tabular-nums]">
-          {Math.round(score * 100)}%
-        </span>
-      </span>
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-stretch sm:gap-6">
+      <PulseDial score={score} parts={parts} caption={caption} />
+      {/* Hairline rows, and the bar takes whatever width is left: a fixed 64px bar
+          stranded the percentages a long way from their labels. */}
       <div className="min-w-0 flex-1">
-        <div className="mb-2 text-[12px] text-[var(--text-label)]">{label}</div>
-        <div className="flex flex-col gap-1.5">
-          {parts.map((part) => (
-            <span key={part.label} className="flex items-center gap-2 text-[12px] text-[var(--text-body)]">
-              <span className="min-w-0 flex-1 truncate">{part.label}</span>
-              <ProgressBar ratio={part.ratio} className="h-1.5 w-16 shrink-0" />
-              <span className="font-mono w-8 shrink-0 text-right text-[11px] text-[var(--text-muted)]">{Math.round(part.ratio * 100)}%</span>
+        {parts.map((part, index) => (
+          <div key={part.label} className="flex min-w-0 items-center gap-3 border-t border-[var(--border-hairline)] py-2 first:border-t-0 sm:py-2.5">
+            {/* The index is what ties a row to its arc: two measures can land in the same
+                colour band, so colour alone doesn't identify which quarter is which. */}
+            <span className="font-mono shrink-0 text-[11px] text-[var(--text-faint)]">{index + 1}</span>
+            <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--text-body)]">{part.label}</span>
+            <span className="relative h-1.5 w-[38%] max-w-[160px] shrink-0 overflow-hidden rounded-full bg-[var(--surface-strong)]">
+              <span
+                className="absolute inset-y-0 left-0 rounded-full"
+                style={{ width: `${Math.round(Math.max(0, Math.min(1, part.ratio)) * 100)}%`, background: bandColour(part.ratio) }}
+              />
             </span>
-          ))}
-        </div>
+            <span
+              className="font-mono w-9 shrink-0 text-right text-[12px] font-medium [font-variant-numeric:tabular-nums]"
+              style={{ color: bandColour(part.ratio) }}
+            >
+              {Math.round(part.ratio * 100)}%
+            </span>
+          </div>
+        ))}
       </div>
     </div>
   );

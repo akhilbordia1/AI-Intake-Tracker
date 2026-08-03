@@ -67,8 +67,8 @@ function DetailValue({ label, value }: { label: string; value: string }) {
 
 const RECORD_COMMENTS: { by: string; when: string; text: string }[] = [
   { by: "Lena Osei", when: "2d ago", text: "Flagged one compliance check (GxP/GCP CSV) — tracking to close before build." },
-  { by: "Amara J.", when: "5d ago", text: "Business case looks solid; payback under a year. Recommending to GTAC." },
-  { by: "Priya N.", when: "1w ago", text: "Intake looks complete — routing to full assessment given GxP relevance." },
+  { by: "Rohan Desai", when: "5d ago", text: "Business case looks solid; payback under a year. Recommending to GTAC." },
+  { by: "Priya Rao", when: "1w ago", text: "Intake looks complete — routing to full assessment given GxP relevance." },
 ];
 
 const ACTIVITY_ICON: Record<(typeof RECORD_ACTIVITY)[number]["icon"], ReactNode> = {

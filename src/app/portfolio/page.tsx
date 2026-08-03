@@ -10,21 +10,10 @@ import { ChatCardList } from "@/components/chat/chat-use-case-card";
 import { JumpToTop } from "@/components/chat/chat-ui";
 import { MiniChatRail, type RailAnswer } from "@/components/chat/mini-chat-rail";
 import { Markdown } from "@/components/document-record/markdown";
-import {
-  BarList,
-  DataTable,
-  MiniList,
-  ScorePanel,
-  StackedMeter,
-  StatBand,
-  StatusDot,
-  SummaryPanel,
-  TargetRow,
-  TileBox,
-} from "@/components/portfolio/tiles";
+import { DataTable, GroupBars, MiniList, ScorePanel, StatBand, StatusDot, SummaryPanel, TileBox, TileEmpty } from "@/components/portfolio/tiles";
 import { TimeChart } from "@/components/portfolio/time-chart";
 import { PersonAvatar, ProfileSwitcher } from "@/components/profile";
-import { Button, CHIP, MenuDivider, MenuItem, MenuLabel, MenuSurface, PHASE_TONES, PhaseIcon, Tag } from "@/components/ui/kit";
+import { Button, CHIP, MenuDivider, MenuItem, MenuLabel, MenuSurface, PHASE_TONES, PhaseIcon, ProgressBar, Tag } from "@/components/ui/kit";
 import { STAGE_GROUPS, firstName, phaseForStage, shortStageLabel } from "@/data/lifecycle";
 import {
   ALL_RECORDS,
@@ -38,9 +27,11 @@ import {
   type UseCaseCard,
 } from "@/data/registry";
 import {
+  DECISION_TARGET_DAYS,
   aging,
   attainmentSummary,
   blockers,
+  cycleFootnote,
   daysBetween,
   capabilityMix,
   capacityByOwner,
@@ -48,6 +39,7 @@ import {
   conversion,
   decisionSpeedSeries,
   formatDay,
+  formatMonthDay,
   funnel,
   gateMix,
   gateOutcomes,
@@ -62,8 +54,11 @@ import {
   oldestOpenGate,
   pct,
   portfolioDigest,
+  productionRows,
   pulse,
   riskMix,
+  stoppedRows,
+  summaryProvenance,
   throughput,
   usd,
   valueByFunction,
@@ -90,6 +85,15 @@ const SPAN = "lg:col-span-2";
 // The one categorical ramp on the page: three kinds of AI, three hues that aren't the
 // accent (which means "the measure") or a status tone.
 const CAPABILITY_FILL = ["var(--avatar-5-fg)", "var(--avatar-1-fg)", "var(--avatar-2-fg)"];
+
+// Money states aren't a category — they're a state of health, so they take status
+// colour: earning, paid for, still asking, stopped.
+const MONEY_TONE: Record<string, string> = {
+  live: "var(--status-success)",
+  committed: "var(--accent)",
+  pipeline: "var(--text-faint)",
+  stopped: "var(--tone-warning-fg)",
+};
 
 // Phase membership stays in `lifecycle.ts`; the derivations take it as an argument.
 const PHASES: PhaseMap = { order: Object.keys(STAGE_GROUPS), phaseOf: phaseForStage };
@@ -136,6 +140,10 @@ const LEADERSHIP_HISTORY: ChatSession[] = [
 // The tracker's rail answers about records; this one answers about the system. The
 // one overlap is "what's not moving", which both can answer — the same assistant
 // shouldn't refuse a question because you asked it on the wrong page.
+//
+// Every branch also names where it can go next. The starters only exist on the empty
+// state, so an answer without follow-ups leaves the reader guessing what else this
+// thing knows — and each `followUps` string is phrased to land on another branch here.
 // ai-upgrade: swap the keyword matching for a real model call.
 function answerForLeader(question: string, cards: UseCaseCard[], person: string): RailAnswer | undefined {
   const asked = question.toLowerCase();
@@ -145,6 +153,7 @@ function answerForLeader(question: string, cards: UseCaseCard[], person: string)
     return {
       text: `Here's where it stands as of ${formatDay(AS_OF)}.`,
       detail: <Markdown source={portfolioDigest(cards, PORTFOLIO_SNAPSHOTS, PHASES, AS_OF)} />,
+      followUps: ["Where is it clogging?", "What's not moving?", "Which targets are we missing?"],
     };
   }
 
@@ -156,6 +165,7 @@ function answerForLeader(question: string, cards: UseCaseCard[], person: string)
       ? {
           text: `${stalled.length} ${stalled.length === 1 ? "record isn't" : "records aren't"} moving, and ${aged.length} have been in the same stage for over a week:`,
           detail: <ChatCardList cards={shown.slice(0, 5)} />,
+          followUps: ["Who has the most open?", "How are gate decisions going?", "Where is it clogging?"],
         }
       : "Everything on the board has moved in the last week.";
   }
@@ -165,72 +175,98 @@ function answerForLeader(question: string, cards: UseCaseCard[], person: string)
     const ranked = phasesBySpeed(cycle, PHASES);
     const slow = ranked[0];
     const fast = ranked[ranked.length - 1];
-    return `${slow} is the slow phase — a median of ${cycle[slow]?.days} days across ${cycle[slow]?.sample} records, against ${cycle[fast]?.days} in ${fast}. A gate decision now takes ${h.decisionDays} days, down from ${h.decisionDays + h.decisionTrend} in ${h.since}.`;
+    return {
+      text: `${slow} is the slow phase — a median of ${cycle[slow]?.days} days across ${cycle[slow]?.sample} records, against ${cycle[fast]?.days} in ${fast}. A gate decision now takes ${h.decisionDays} days, down from ${h.decisionDays + h.decisionTrend} in ${h.since}.`,
+      followUps: ["What's not moving?", "How many came in per month?", "Who has the most open?"],
+    };
   }
 
   if (/value|money|invest|benefit|payback|roi|saving|cost|spend/.test(asked)) {
     return {
       text: `${usd(h.investment)} committed, ${usd(h.benefit)} of annualised benefit from the ${h.live} live — about ${h.paybackMonths} months to pay back.`,
       detail: <Markdown source={moneyTable(cards)} />,
+      followUps: ["Which targets are we missing?", "Which business functions is it in?", "What's the risk mix?"],
     };
   }
 
   if (/gate|approv|pass rate|decision|reject/.test(asked)) {
     const gates = gateOutcomes(cards);
     const oldest = oldestOpenGate(cards, AS_OF);
-    return `${pct(gates.passRate)} of ${gates.decided} gate decisions have been approvals — ${gates.passed} passed, ${gates.negative} blocked or rejected. ${
-      gates.open
-    } are open${oldest ? `, the oldest ${oldest.card.gate?.id} on ${oldest.card.title}, ${oldest.days} days with ${oldest.card.actionOwner}` : ""}. Current mix: ${gateMix(
-      cards,
-    )
-      .map((row) => `${row.count} ${row.status.toLowerCase()}`)
-      .join(", ")}.`;
+    return {
+      text: `${pct(gates.passRate)} of ${gates.decided} gate decisions have been approvals — ${gates.passed} passed, ${gates.negative} blocked or rejected. ${
+        gates.open
+      } are open${oldest ? `, the oldest ${oldest.card.gate?.id} on ${oldest.card.title}, ${oldest.days} days with ${oldest.card.actionOwner}` : ""}. Current mix: ${gateMix(
+        cards,
+      )
+        .map((row) => `${row.count} ${row.status.toLowerCase()}`)
+        .join(", ")}.`,
+      followUps: ["What's not moving?", "What's the risk mix?", "Where is it clogging?"],
+    };
   }
 
   if (/throughput|raised|intake volume|per month|how many came/.test(asked)) {
     const months = throughput(PORTFOLIO_SNAPSHOTS);
-    return `By month: ${months
-      .map(
-        (month) => `${month.label} ${month.submitted} raised, ${month.approved} approved, ${month.closed} closed${month.partial ? " (so far)" : ""}`,
-      )
-      .join("; ")}.`;
+    return {
+      text: `By month: ${months
+        .map(
+          (month) => `${month.label} ${month.submitted} raised, ${month.approved} approved, ${month.closed} closed${month.partial ? " (so far)" : ""}`,
+        )
+        .join("; ")}.`,
+      followUps: ["Where is it clogging?", "How are gate decisions going?"],
+    };
   }
 
   if (/function|department|business unit|which team/.test(asked)) {
-    return `By function: ${valueByFunction(cards)
-      .map((row) => `${row.fn} ${usd(row.investment)} across ${row.count}`)
-      .join(", ")}.`;
+    return {
+      text: `By function: ${valueByFunction(cards)
+        .map((row) => `${row.fn} ${usd(row.investment)} across ${row.count}`)
+        .join(", ")}.`,
+      followUps: ["What's the value so far?", "What's the risk mix?"],
+    };
   }
 
   if (/risk|tier|exposure|compliance/.test(asked)) {
     const mix = riskMix(cards);
     const full = cards.filter((card) => card.riskTier === "Full");
-    return `${mix.map((row) => `${row.count} ${row.tier.toLowerCase()}`).join(", ")}. The full-tier ones are ${full
-      .map((card) => card.title)
-      .join(", ")} — those carry the assessments that take the longest.`;
+    return {
+      text: `${mix.map((row) => `${row.count} ${row.tier.toLowerCase()}`).join(", ")}. The full-tier ones are ${full
+        .map((card) => card.title)
+        .join(", ")} — those carry the assessments that take the longest.`,
+      followUps: ["Where is it clogging?", "How are gate decisions going?"],
+    };
   }
 
   if (/kpi|target|attainment|hitting|met|missing|performing/.test(asked)) {
     const rows = kpiAttainment(cards);
     const summary = attainmentSummary(rows);
     const misses = rows.filter((row) => !row.met);
-    return `${summary.met} of ${summary.total} production targets are being met. ${
-      misses.length
-        ? `The misses: ${misses.map((row) => `${row.card.title} — ${row.name} at ${row.actual}${row.unit} against ${row.target}${row.unit}`).join("; ")}.`
-        : "Nothing is behind."
-    }`;
+    return {
+      text: `${summary.met} of ${summary.total} production targets are being met. ${
+        misses.length
+          ? `The misses: ${misses.map((row) => `${row.card.title} — ${row.name} at ${row.actual}${row.unit} against ${row.target}${row.unit}`).join("; ")}.`
+          : "Nothing is behind."
+      }`,
+      followUps: ["What's the value so far?", "Which business functions is it in?"],
+    };
   }
 
   if (/capacity|load|overload|who owns|who has|busiest|mine|my /.test(asked)) {
     const named = cards.filter((card) => card.actionOwner === person && card.lifecycle === "Active");
     if (/mine|my /.test(asked) && named.length) {
-      return { text: `${named.length} ${named.length === 1 ? "record is" : "records are"} with ${person}:`, detail: <ChatCardList cards={named} /> };
+      return {
+        text: `${named.length} ${named.length === 1 ? "record is" : "records are"} with ${person}:`,
+        detail: <ChatCardList cards={named} />,
+        followUps: ["What's not moving?", "Brief me on the portfolio"],
+      };
     }
     const load = capacityByOwner(cards, AS_OF);
-    return `${load
-      .slice(0, 3)
-      .map((row) => `${row.owner} has ${row.open} open${row.attention ? `, ${row.attention} needing a decision` : ""}`)
-      .join("; ")}. The oldest thing anyone is sitting on is ${load[0]?.oldestDays} days.`;
+    return {
+      text: `${load
+        .slice(0, 3)
+        .map((row) => `${row.owner} has ${row.open} open${row.attention ? `, ${row.attention} needing a decision` : ""}`)
+        .join("; ")}. The oldest thing anyone is sitting on is ${load[0]?.oldestDays} days.`,
+      followUps: ["What's not moving?", "Where is it clogging?"],
+    };
   }
 
   return undefined;
@@ -308,6 +344,80 @@ function PortfolioFilterMenu({
   );
 }
 
+// One row per phase, four facts across it. The bar is scaled to the fullest phase, not
+// to the board total, so the shape of the queue is legible when nothing holds more than
+// a third of the work. Every row opens the board filtered to that phase.
+function PhaseFlowTable({
+  cards,
+  flow,
+  cycle,
+}: {
+  // Everything ever raised — the denominator the "reached" column is a share of.
+  cards: UseCaseCard[];
+  flow: ReturnType<typeof funnel>;
+  cycle: ReturnType<typeof medianCycleDaysByPhase>;
+}) {
+  const reached = conversion(cards, PHASES);
+  const busiest = Math.max(1, ...flow.map((row) => row.count));
+
+  return (
+    <div className="min-w-0">
+      {/* Grid, not a table: the "on the board" cell holds a bar, and a bar in a <td>
+          fights the mono right-alignment every other figure column wants. */}
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(84px,150px)_64px_84px_64px] items-center gap-x-3 border-b border-[var(--border-hairline)] pb-2 text-[11px] font-medium text-[var(--text-muted)]">
+        <span>Phase</span>
+        <span>On the Board</span>
+        <span className="text-right">Reached</span>
+        <span className="text-right">Typical Days</span>
+        <span className="text-right">Waiting</span>
+      </div>
+      {flow.map((row, index) => {
+        const conv = reached[index];
+        const time = cycle[row.phase];
+        return (
+          <div
+            key={row.phase}
+            className="grid grid-cols-[minmax(0,1fr)_minmax(84px,150px)_64px_84px_64px] items-center gap-x-3 border-b border-[var(--border-hairline)] py-2.5 last:border-b-0"
+          >
+            <Link
+              href={`/?phase=${encodeURIComponent(row.phase)}`}
+              data-tip={`${row.phase}\nStages: ${row.stages.map(shortStageLabel).join(", ") || "none occupied"}\nOpens the board filtered to this phase`}
+              className="flex min-w-0 items-center gap-2 text-[13px] text-[var(--text-body)] transition hover:text-[var(--accent-strong)]"
+            >
+              <span className="font-mono shrink-0 text-[11px] text-[var(--text-faint)]">{index + 1}</span>
+              <PhaseIcon phase={row.phase} size={13} style={{ color: `var(--tone-${PHASE_TONES[row.phase] ?? "neutral"}-fg)` }} />
+              <span className="truncate">{row.phase}</span>
+            </Link>
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="font-mono w-4 shrink-0 text-[12px] font-medium text-[var(--text-primary)]">{row.count}</span>
+              <ProgressBar ratio={row.count / busiest} className="h-2 min-w-0 flex-1" />
+            </span>
+            <span className="font-mono text-right text-[12px] text-[var(--text-primary)]" data-tip={`${conv.reached} of ${cards.length} ever raised`}>
+              {pct(conv.share)}
+            </span>
+            <span className="font-mono text-right text-[12px] text-[var(--text-primary)]">
+              {time?.sample ? (
+                <>
+                  {time.days}d<span className="ml-1 text-[11px] text-[var(--text-muted)]">/{time.sample}</span>
+                </>
+              ) : (
+                <span className="text-[var(--text-faint)]">—</span>
+              )}
+            </span>
+            <span className="text-right">
+              {row.attention ? (
+                <span className="font-mono text-[12px] font-medium text-[var(--tone-warning-fg)]">{row.attention}</span>
+              ) : (
+                <span className="font-mono text-[12px] text-[var(--text-faint)]">—</span>
+              )}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── Health ──
 // Four blocks and a sentence. The earlier version put eight tiles on one page and
 // left the reader to work out which mattered; a leadership view has to say the
@@ -315,13 +425,25 @@ function PortfolioFilterMenu({
 // mix and owner load moved into the rail — they're follow-up questions, not the
 // headline, and the assistant answers them in one line each.
 
-function HealthTab({ cards, board, months }: { cards: UseCaseCard[]; board: UseCaseCard[]; months: typeof PORTFOLIO_SNAPSHOTS }) {
+function HealthTab({
+  cards,
+  board,
+  months,
+  scoped,
+}: {
+  cards: UseCaseCard[];
+  board: UseCaseCard[];
+  months: typeof PORTFOLIO_SNAPSHOTS;
+  scoped: boolean;
+}) {
   const h = headline(cards, months, AS_OF);
   const flow = funnel(board, PHASES);
   const cycle = medianCycleDaysByPhase(cards, PHASES);
   const stalled = blockers(board);
   const aged = aging(board, AS_OF);
   const beat = pulse(cards, months, AS_OF);
+  const weakest = [...beat.parts].sort((a, b) => a.ratio - b.ratio)[0];
+  const span = months.length > 1 ? `${months[0].label} → ${months[months.length - 1].label}` : undefined;
 
   // One row per record that isn't moving: the blocked ones first, then whatever has
   // simply been sitting. A record can be both; it appears once.
@@ -348,6 +470,7 @@ function HealthTab({ cards, board, months }: { cards: UseCaseCard[]; board: UseC
               delta: `${h.tracked} ever raised`,
               icon: <Layers size={13} />,
               trend: months.map((month) => Object.values(month.wip).reduce((total, count) => total + count, 0)),
+              trendLabel: span,
               tip: "Records with an active lifecycle",
             },
             {
@@ -369,11 +492,15 @@ function HealthTab({ cards, board, months }: { cards: UseCaseCard[]; board: UseC
             {
               label: "Days to a decision",
               value: String(h.decisionDays),
+              // The only committed target on the page, so the only stat that gets to
+              // print one — a number with no bar to clear reads as neither good nor bad.
+              target: `target ${DECISION_TARGET_DAYS}d`,
               delta: h.decisionTrend > 0 ? `${h.decisionTrend} faster than ${h.since}` : `${Math.abs(h.decisionTrend)} slower than ${h.since}`,
               deltaTone: h.decisionTrend > 0 ? "good" : "warn",
               icon: <Timer size={13} />,
               // Down is the good direction here, so the line falling is the message.
               trend: months.map((month) => month.medianDaysToDecision),
+              trendLabel: span,
               tip: "Median days from intake to a first gate decision",
             },
           ]}
@@ -381,40 +508,38 @@ function HealthTab({ cards, board, months }: { cards: UseCaseCard[]; board: UseC
       </div>
 
       <div className={SPAN}>
-        <SummaryPanel
-          title="Summary"
-          source={healthSummary(cards, months, PHASES, AS_OF)}
-          meta={`As of ${formatDay(AS_OF)} · ${cards.length} records`}
-        />
+        <SummaryPanel title="Summary" source={healthSummary(cards, months, PHASES, AS_OF)} meta={summaryProvenance(cards, months, AS_OF)} />
       </div>
 
-      <TileBox title="Pipeline" hint={`${board.length} on the board`}>
-        <BarList
-          rows={flow.map((row) => ({
-            key: row.phase,
-            // Phase name, then one meta string, then the count. Three separate numbers
-            // in a row ("3 waiting · 25d typical · 4") read as a puzzle.
-            label: (
-              <>
-                <PhaseIcon phase={row.phase} size={13} style={{ color: `var(--tone-${PHASE_TONES[row.phase] ?? "neutral"}-fg)` }} />
-                <span className="truncate">{row.phase}</span>
-              </>
-            ),
-            value: String(row.count),
-            ratio: row.share,
-            meta: [row.attention ? `${row.attention} waiting` : null, cycle[row.phase]?.sample ? `${cycle[row.phase].days}d` : null]
-              .filter(Boolean)
-              .join(" · "),
-            tip: `${row.phase}\nStages: ${row.stages.map(shortStageLabel).join(", ") || "none occupied"}\n${
-              cycle[row.phase]?.sample
-                ? `Median time in phase: ${cycle[row.phase].days} days, measured on ${cycle[row.phase].sample} records that have left it`
-                : "Nothing has left this phase yet, so there is no duration to report"
-            }`,
-          }))}
-        />
+      {/* Pipeline, conversion and cycle time were three tiles asking the reader to match
+          four phase names across them and hold the rows in their head. They are four
+          facts about the same four phases, so they are one table — where things are, how
+          many ever got here, how long it takes, who is waiting. The monthly line sits
+          under it because time is the one axis that isn't per-phase. */}
+      <TileBox
+        className={SPAN}
+        title="Pipeline"
+        hint={`${cards.length} ever raised`}
+        footer={[cycleFootnote(cycle, PHASES), scoped ? "The monthly line is portfolio-wide; the scope filter narrows the table only." : null]
+          .filter(Boolean)
+          .join(" ")}
+      >
+        <PhaseFlowTable cards={cards} flow={flow} cycle={cycle} />
+        <div className="mt-5 border-t border-[var(--border-hairline)] pt-4">
+          <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+            <span className="text-[12px] text-[var(--text-label)]">Decision Time</span>
+            <span className="text-[11px] text-[var(--text-muted)]">median days, intake to first gate</span>
+          </div>
+          <TimeChart
+            data={decisionSpeedSeries(months)}
+            series={[{ key: "days", name: "Days", colour: "var(--accent)" }]}
+            reference={{ y: DECISION_TARGET_DAYS, label: `${DECISION_TARGET_DAYS}d target` }}
+            yFormat={(value) => `${value}d`}
+          />
+        </div>
       </TileBox>
 
-      <TileBox title="Needs unblocking" hint={`${notMoving.length} of ${board.length}`}>
+      <TileBox title="Blockers" hint={`of ${board.length} on the board`}>
         <MiniList
           rows={notMoving.map((row) => ({
             key: row.card.id,
@@ -439,53 +564,34 @@ function HealthTab({ cards, board, months }: { cards: UseCaseCard[]; board: UseC
         />
       </TileBox>
 
-      <TileBox title="Conversion" hint={`of ${cards.length} ever raised`}>
-        <BarList
-          rows={conversion(cards, PHASES).map((row) => ({
-            key: row.phase,
-            label: <span className="truncate">{row.phase}</span>,
-            value: pct(row.share),
-            ratio: row.share,
-            meta: `${row.reached} reached`,
-            tip: `${row.reached} of ${cards.length} records have reached ${row.phase}`,
-          }))}
-        />
+      {/* The header said the score, the dial said the score, and a caption explained the
+          weighting — three sentences for one number. The header now counts the parts, the
+          dial keeps the score, and the weakest measure goes in the footer as a fact. */}
+      <TileBox title="Health Score" hint={`${beat.parts.length} measures, evenly weighted`} footer={`Weakest: ${weakest.label} at ${pct(weakest.ratio)}.`}>
+        {/* No word under the figure: the title already says what the number is, and
+            "83% · healthy" said the same thing twice in two registers. */}
+        <ScorePanel score={beat.score} parts={beat.parts} />
       </TileBox>
 
-      <TileBox title="Pulse" hint={`${pct(beat.score)} healthy`}>
-        <ScorePanel score={beat.score} parts={beat.parts} label="Four measures, evenly weighted" />
-      </TileBox>
-
-      <TileBox className={SPAN} title="Time to a decision" hint="median days, intake to first gate">
-        <TimeChart
-          data={decisionSpeedSeries(months)}
-          series={[{ key: "days", name: "Days", colour: "var(--accent)" }]}
-          reference={{ y: 15, label: "15d target" }}
-          yFormat={(value) => `${value}d`}
-        />
-      </TileBox>
     </div>
   );
 }
 
 // ── Value ──
 
-function ValueTab({ cards, months }: { cards: UseCaseCard[]; months: typeof PORTFOLIO_SNAPSHOTS }) {
+function ValueTab({ cards, months, scoped }: { cards: UseCaseCard[]; months: typeof PORTFOLIO_SNAPSHOTS; scoped: boolean }) {
   const h = headline(cards, months, AS_OF);
+  const span = months.length > 1 ? `${months[0].label} → ${months[months.length - 1].label}` : undefined;
   const money = moneyByState(cards);
-  const attainment = kpiAttainment(cards);
-  const summary = attainmentSummary(attainment);
+  const summary = attainmentSummary(kpiAttainment(cards));
   const prod = impact(cards);
-  const outcomes = [...cards]
-    .filter((card) => card.liveSince || card.closedOn)
-    .sort((a, b) => (b.liveSince ?? b.closedOn ?? "").localeCompare(a.liveSince ?? a.closedOn ?? ""));
-
-  // Group the KPI rows by the record they belong to — a target only means something
-  // next to the thing being measured.
-  const byRecord = attainment.reduce<Record<string, typeof attainment>>((groups, row) => {
-    groups[row.card.id] = [...(groups[row.card.id] ?? []), row];
-    return groups;
-  }, {});
+  // The ledger, in two halves keyed by the record: what is live and what it returns,
+  // and what was asked for and stopped.
+  const live = productionRows(cards);
+  const stopped = stoppedRows(cards);
+  // Only the misses are worth naming: eight of ten targets are met, and a list of
+  // eight rows saying "fine" is what made this block unreadable.
+  const behind = kpiAttainment(cards).filter((row) => !row.met);
 
   return (
     <div className={TAB_GRID}>
@@ -498,6 +604,7 @@ function ValueTab({ cards, months }: { cards: UseCaseCard[]; months: typeof PORT
               delta: `${money[0].count + money[1].count} funded records`,
               icon: <Coins size={13} />,
               trend: months.map((month) => month.committedUsd),
+              trendLabel: span,
               tip: "Investment on live and funded work",
             },
             {
@@ -507,6 +614,7 @@ function ValueTab({ cards, months }: { cards: UseCaseCard[]; months: typeof PORT
               deltaTone: "good",
               icon: <TrendingUp size={13} />,
               trend: months.map((month) => month.benefitUsd),
+              trendLabel: span,
               tip: "Benefit counted only once something is in production",
             },
             {
@@ -529,136 +637,184 @@ function ValueTab({ cards, months }: { cards: UseCaseCard[]; months: typeof PORT
       </div>
 
       <div className={SPAN}>
-        <SummaryPanel title="Summary" source={valueSummary(cards, months, AS_OF)} meta={`As of ${formatDay(AS_OF)} · ${cards.length} records`} />
+        <SummaryPanel title="Summary" source={valueSummary(cards, months, AS_OF)} meta={summaryProvenance(cards, months, AS_OF)} />
       </div>
 
-      <TileBox className={SPAN} title="Spend against benefit" hint="cumulative">
-        <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
-          <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
-            <span aria-hidden className="h-[2px] w-4" style={{ background: "var(--accent)" }} />
-            Committed
-          </span>
-          <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
-            <span aria-hidden className="h-[2px] w-4" style={{ background: "var(--tone-info-fg)" }} />
-            Benefit of live
-          </span>
+      {/* Where the money is, then how it got there. The table comes first: it's today's
+          position, which is what gets read, and the chart is the six months behind it. */}
+      <TileBox
+        className={SPAN}
+        title="Spend and Return"
+        footer={[
+          "Benefit is only earned once a record is live; on every other row it's the case being made.",
+          scoped ? "The monthly lines are portfolio-wide; the table narrows with the scope." : null,
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
+        <DataTable
+          columns={["State", "Records", "Committed", "Benefit a Year"]}
+          rows={money
+            .filter((state) => state.count > 0)
+            .map((state) => ({
+              key: state.key,
+              label: state.label,
+              tone: MONEY_TONE[state.key],
+              values: [
+                state.count,
+                usd(state.investment),
+                // Only the live row's benefit is money the business has; everywhere else
+                // it's a projection, so it's set back rather than printed as fact.
+                state.benefit ? (
+                  <span style={{ color: state.key === "live" ? "var(--status-success)" : "var(--text-muted)" }}>{usd(state.benefit)}</span>
+                ) : (
+                  "—"
+                ),
+              ],
+              tip:
+                state.key === "live"
+                  ? `${state.label}\nRecords: ${state.count}\nSpent: ${usd(state.investment)}\nEarning: ${usd(state.benefit)} a year`
+                  : `${state.label}\nRecords: ${state.count}\nCommitted: ${usd(state.investment)}\nProjected benefit: ${usd(state.benefit)} a year`,
+            }))}
+        />
+        <div className="mt-5 border-t border-[var(--border-hairline)] pt-4">
+          <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+            <span className="mr-auto text-[12px] text-[var(--text-label)]">Month by Month</span>
+            <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
+              <span aria-hidden className="h-[2px] w-4" style={{ background: "var(--accent)" }} />
+              Committed
+            </span>
+            <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
+              <span aria-hidden className="h-[2px] w-4" style={{ background: "var(--tone-info-fg)" }} />
+              Benefit of live
+            </span>
+          </div>
+          <TimeChart
+            data={valueSeries(months)}
+            series={[
+              { key: "investment", name: "Committed", colour: "var(--accent)" },
+              // Clay, not a second green: accent-green against success-green read as one
+              // line crossing itself.
+              { key: "benefit", name: "Benefit", colour: "var(--tone-info-fg)" },
+            ]}
+            yFormat={usd}
+          />
         </div>
-        <TimeChart
-          data={valueSeries(months)}
-          series={[
-            { key: "investment", name: "Committed", colour: "var(--accent)" },
-            // Clay, not a second green: accent-green against success-green read as one
-            // line crossing itself.
-            { key: "benefit", name: "Benefit", colour: "var(--tone-info-fg)" },
-          ]}
-          yFormat={usd}
+      </TileBox>
+
+      {/* One row per live record, in columns. As five free-form groups this was unreadable:
+          every group repeated its own labels, comparing two records meant reading across a
+          gap, and "79% of 70%" is not a sentence anyone parses. A table puts the same facts
+          in columns, so "which cost the most" and "who is behind" are one glance down. Ten
+          target figures don't belong in it — eight of them are fine, so only the misses get
+          named, underneath. */}
+      <TileBox
+        className={SPAN}
+        title="Live Use Cases"
+        hint={live.length ? `${compactNumber(prod.activeUsers)} users · ${compactNumber(prod.hoursSaved)} hours saved a year` : undefined}
+      >
+        {live.length ? (
+          <>
+            <DataTable
+              columns={["Record", "Live Since", "Cost", "Benefit a Year", "Users", "Targets"]}
+              rows={live.map((row) => ({
+                key: row.card.id,
+                label: (
+                  <Link href={row.card.href} className="truncate hover:text-[var(--accent-strong)]">
+                    {row.card.title}
+                  </Link>
+                ),
+                values: [
+                  formatMonthDay(row.card.liveSince ?? AS_OF),
+                  usd(row.card.investmentUsd),
+                  usd(row.card.annualBenefitUsd),
+                  row.card.activeUsers ? compactNumber(row.card.activeUsers) : "—",
+                  row.total ? (
+                    <span style={{ color: row.met === row.total ? "var(--status-success)" : "var(--tone-warning-fg)" }}>
+                      {row.met}/{row.total}
+                    </span>
+                  ) : (
+                    "—"
+                  ),
+                ],
+                tip: `${row.card.id} ${row.card.title}\nFunction: ${row.card.businessFunction}\nPayback: ${row.payback ? `${row.payback} months` : "not measurable"}\nHours saved: ${compactNumber(row.card.hoursSavedPerYear ?? 0)} a year`,
+              }))}
+            />
+            <div className="mt-5 border-t border-[var(--border-hairline)] pt-4">
+              <div className="mb-2 text-[12px] text-[var(--text-label)]">
+                {behind.length ? `Missed Targets · ${behind.length} of ${summary.total}` : `All ${summary.total} targets are being met`}
+              </div>
+              {behind.length ? (
+                <MiniList
+                  rows={behind.map((row) => ({
+                    key: `${row.card.id}-${row.name}`,
+                    node: (
+                      <div className="flex min-w-0 items-baseline gap-2.5">
+                        <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--text-body)]">
+                          {row.name}
+                          <span className="text-[var(--text-muted)]"> · {row.card.title}</span>
+                        </span>
+                        {/* "62% against a 70% target", not "62% of 70%" — the second reads as
+                            a fraction of a fraction. */}
+                        <span className="font-mono shrink-0 text-[13px] font-medium text-[var(--tone-warning-fg)]">
+                          {row.actual}
+                          {row.unit}
+                        </span>
+                        <span className="font-mono shrink-0 text-[11px] text-[var(--text-muted)]">
+                          against {row.target}
+                          {row.unit}
+                        </span>
+                      </div>
+                    ),
+                  }))}
+                />
+              ) : null}
+            </div>
+          </>
+        ) : (
+          <TileEmpty>Nothing in this scope has reached production yet.</TileEmpty>
+        )}
+      </TileBox>
+
+      {/* The other half of the ledger. None of the production columns apply — a stopped
+          record has an ask, a date and a reason, and the money was never spent. */}
+      <TileBox title="Stopped and Parked">
+        <MiniList
+          max={6}
+          rows={stopped.map((card) => ({
+            key: card.id,
+            node: (
+              <div className="flex min-w-0 items-center gap-2.5">
+                <Link href={card.href} className="min-w-0 flex-1 truncate text-[13px] text-[var(--text-body)] hover:text-[var(--accent-strong)]">
+                  {card.title}
+                </Link>
+                <Tag tone={LIFECYCLE_TONE[card.lifecycle]} className={cn(CHIP, "shrink-0")}>
+                  {card.lifecycle}
+                </Tag>
+                <span className="font-mono w-12 shrink-0 text-right text-[12px] text-[var(--text-primary)]">{usd(card.investmentUsd)}</span>
+                <span className="font-mono shrink-0 text-[11px] text-[var(--text-muted)]">{formatDay(card.closedOn ?? AS_OF)}</span>
+              </div>
+            ),
+          }))}
         />
       </TileBox>
 
-      {/* Two columns, each stacking its own tiles: letting the grid place them left
-          to right put the four-row money table beside the twelve-row KPI list and
-          left a column of empty page under it. */}
-      <div className={cn(SPAN, "grid items-start gap-4 lg:grid-cols-2")}>
-        <div className="flex min-w-0 flex-col gap-4">
-          <TileBox title="Money by state">
-            <DataTable
-              columns={["", "Records", "Committed", "Benefit"]}
-              rows={money.map((state) => ({
-                key: state.key,
-                label: state.label,
-                values: [state.count, usd(state.investment), state.benefit ? usd(state.benefit) : "—"],
-                tip: `${state.label}\nRecords: ${state.count}\nInvestment: ${usd(state.investment)}\nAnnual benefit: ${usd(state.benefit)}`,
-              }))}
-            />
-          </TileBox>
-
-          <TileBox title="In production" hint={`${prod.live} live`}>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <div className="text-[12px] text-[var(--text-label)]">Active users</div>
-                <div className="mt-1 text-[20px] font-semibold tracking-[-0.02em] text-[var(--text-primary)] [font-variant-numeric:tabular-nums]">
-                  {compactNumber(prod.activeUsers)}
-                </div>
-              </div>
-              <div>
-                <div className="text-[12px] text-[var(--text-label)]">Hours saved a year</div>
-                <div className="mt-1 text-[20px] font-semibold tracking-[-0.02em] text-[var(--text-primary)] [font-variant-numeric:tabular-nums]">
-                  {compactNumber(prod.hoursSaved)}
-                </div>
-              </div>
-            </div>
-            <div className="mt-4 border-t border-[var(--border-hairline)] pt-3.5">
-              <div className="mb-2.5 text-[12px] text-[var(--text-label)]">What kind of AI</div>
-              <StackedMeter
-                segments={capabilityMix(cards).map((row, index) => ({
-                  key: row.capability,
-                  label: row.capability,
-                  count: row.count,
-                  colour: CAPABILITY_FILL[index],
-                }))}
-              />
-            </div>
-          </TileBox>
-
-          <TileBox title="Outcomes" hint="newest first">
-            <MiniList
-              max={6}
-              rows={outcomes.map((card) => ({
-                key: card.id,
-                node: (
-                  <div className="flex min-w-0 items-center gap-2.5">
-                    <Link href={card.href} className="min-w-0 flex-1 truncate text-[13px] text-[var(--text-body)] hover:text-[var(--accent-strong)]">
-                      {card.title}
-                    </Link>
-                    <Tag tone={LIFECYCLE_TONE[card.lifecycle]} className={cn(CHIP, "shrink-0")}>
-                      {card.lifecycle}
-                    </Tag>
-                    <span className="font-mono shrink-0 text-[11px] text-[var(--text-muted)]">
-                      {formatDay(card.liveSince ?? card.closedOn ?? AS_OF)}
-                    </span>
-                  </div>
-                ),
-              }))}
-            />
-          </TileBox>
-        </div>
-        <div className="flex min-w-0 flex-col gap-4">
-          <TileBox title="Production targets" hint={`${summary.met} of ${summary.total} met`}>
-            <div className="flex flex-col gap-5">
-              {Object.values(byRecord).map((rows) => (
-                <div key={rows[0].card.id} className="min-w-0">
-                  <div className="flex min-w-0 items-baseline gap-2">
-                    <Link
-                      href={rows[0].card.href}
-                      className="min-w-0 truncate text-[13px] font-medium text-[var(--text-primary)] hover:text-[var(--accent-strong)]"
-                    >
-                      {rows[0].card.title}
-                    </Link>
-                    <span className="font-mono shrink-0 text-[11px] text-[var(--text-muted)]">{rows[0].card.id}</span>
-                    {rows.every((row) => row.met) ? null : (
-                      <Tag tone="warning" className={cn(CHIP, "shrink-0")}>
-                        Behind
-                      </Tag>
-                    )}
-                  </div>
-                  <div className="mt-1.5">
-                    {rows.map((row) => (
-                      <TargetRow
-                        key={`${row.card.id}-${row.name}`}
-                        name={row.name}
-                        actual={row.actual}
-                        target={row.target}
-                        unit={row.unit}
-                        met={row.met}
-                      />
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </TileBox>
-        </div>
-      </div>
+      {/* Sits here rather than inside "In production", where it was filed under a heading
+          that lied about its population: this counts every record, not the live ones. */}
+      <TileBox title="Capability Mix">
+        <GroupBars
+          groups={capabilityMix(cards).map((row, index) => ({
+            key: row.capability,
+            label: row.capability,
+            colour: CAPABILITY_FILL[index],
+            count: row.count,
+            tip: `${row.capability}\n${row.count} of ${cards.length} records\n${cards
+              .filter((card) => card.capability === row.capability)
+              .map((card) => card.title)
+              .join(", ")}`,
+          }))}
+        />
+      </TileBox>
     </div>
   );
 }
@@ -676,9 +832,11 @@ export default function PortfolioPage() {
   const pastSession = history.sessions.find((session) => session.id === history.activeId) ?? null;
 
   // Scope narrows the records; period narrows the history. Everything downstream is
-  // derived, so both controls move every number on the page at once.
-  const cards = useMemo(() => filterUseCasesByScope(ALL_RECORDS, scope), [scope]);
-  const board = useMemo(() => filterUseCasesByScope(USE_CASES, scope), [scope]);
+  // derived, so both controls move every number on the page at once. "Mine" follows the
+  // profile in the switcher — it used to be pinned to the default profile, so switching
+  // to someone else changed the greeting and nothing else.
+  const cards = useMemo(() => filterUseCasesByScope(ALL_RECORDS, scope, activeProfile), [scope, activeProfile]);
+  const board = useMemo(() => filterUseCasesByScope(USE_CASES, scope, activeProfile), [scope, activeProfile]);
   const months = useMemo(() => PORTFOLIO_SNAPSHOTS.slice(-period), [period]);
   const h = useMemo(() => headline(cards, months, AS_OF), [cards, months]);
 
@@ -754,7 +912,23 @@ export default function PortfolioPage() {
         }
       >
         <div className="px-6 pb-10 pt-5">
-          {tab === "health" ? <HealthTab cards={cards} board={board} months={months} /> : <ValueTab cards={cards} months={months} />}
+          {/* An empty scope gets one sentence, not a grid of zeros: a pulse of 100% over
+              no records is the most confident wrong number this page could print. */}
+          {cards.length === 0 ? (
+            <div className={TAB_GRID}>
+              <TileBox className={SPAN} title="Nothing in This Scope">
+                <TileEmpty>
+                  {scope === "my"
+                    ? `${firstName(activeProfile)} doesn't own or owe a decision on any record. Switch the scope to the core team or the whole portfolio.`
+                    : "No records match this scope."}
+                </TileEmpty>
+              </TileBox>
+            </div>
+          ) : tab === "health" ? (
+            <HealthTab cards={cards} board={board} months={months} scoped={scope !== "all"} />
+          ) : (
+            <ValueTab cards={cards} months={months} scoped={scope !== "all"} />
+          )}
         </div>
       </ContentPanel>
     </AppShell>

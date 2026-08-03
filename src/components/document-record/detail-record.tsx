@@ -16,6 +16,7 @@ import {
   nextStageIndex,
   pathPosition,
   stageValue,
+  stagesFor,
   type StageItem,
 } from "@/data/lifecycle";
 import { RecordDetailsSheet } from "@/components/document-record/record-details-sheet";
@@ -76,11 +77,26 @@ type Kickback = { to: number; from: number; reason: string; by: string };
 type Rejection = { index: number; reason: string; by: string };
 type StatusNote = { kind: "returned"; reason: string; fromName: string; by: string } | { kind: "rejected"; reason: string; by: string };
 
-export function DetailRecordPage({ initialStageIndex, initialIdea }: { initialStageIndex?: number; initialIdea?: string }) {
+export function DetailRecordPage({
+  initialStageIndex,
+  initialIdea,
+  blank = false,
+}: {
+  initialStageIndex?: number;
+  initialIdea?: string;
+  // `/detail?blank=1` — the same twelve stages with nothing captured, for walking the
+  // empty state. Every field renders its definition from `FIELD_GISTS` instead of a
+  // value, and no stage starts out holding recorded data.
+  blank?: boolean;
+}) {
+  // The blank record has nothing before any stage, so a deep link into the middle of it
+  // would claim work that was never done.
+  const stages = stagesFor(blank);
   // Deep link from the overview (`/detail?stage=n`): land on that stage with
   // everything before it already recorded. Without it the record starts fresh
   // at Ideation, which is what the guided flow demos.
-  const deepLink = typeof initialStageIndex === "number" && initialStageIndex > 0 && initialStageIndex < STAGES.length ? initialStageIndex : null;
+  const deepLink =
+    !blank && typeof initialStageIndex === "number" && initialStageIndex > 0 && initialStageIndex < STAGES.length ? initialStageIndex : null;
   const [stageIndex, setStageIndex] = useState(deepLink ?? defaultStageIndex);
   const [completedStageIndexes, setCompletedStageIndexes] = useState<number[]>(() =>
     deepLink === null ? [] : Array.from({ length: deepLink }, (_, index) => index),
@@ -90,14 +106,16 @@ export function DetailRecordPage({ initialStageIndex, initialIdea }: { initialSt
   // Ideation holds its recorded data from the start: the demo opens on a finished
   // intake — every detail captured, and the chat showing the exchange that
   // captured it.
+  // The blank record starts with nothing recorded anywhere — not even Ideation, which
+  // the seeded demo opens with already captured.
   const [dataStageIndexes, setDataStageIndexes] = useState<number[]>(() =>
-    deepLink === null ? [defaultStageIndex] : Array.from({ length: deepLink }, (_, index) => index),
+    blank ? [] : deepLink === null ? [defaultStageIndex] : Array.from({ length: deepLink }, (_, index) => index),
   );
   // Stages this record doesn't walk. Empty to start even though the record's
   // history has GTAC waived: the flow walks every stage and offers Skip on the
   // ones that may be waived, so arriving at GTAC is where that call gets made.
   const [skippedStageIndexes, setSkippedStageIndexes] = useState<number[]>([]);
-  const [currentUser, setCurrentUser] = useState("Priya N.");
+  const [currentUser, setCurrentUser] = useState("Priya Rao");
   const [rejections, setRejections] = useState<Rejection[]>([]);
   const [kickbacks, setKickbacks] = useState<Kickback[]>([]);
   // Split layout: chat on the left drives the form on the right (always both
@@ -106,7 +124,7 @@ export function DetailRecordPage({ initialStageIndex, initialIdea }: { initialSt
   // The record name stays hidden until the user has given some context — a
   // deep-linked stage already has that context.
 
-  const currentStage = STAGES[stageIndex] ?? STAGES[0];
+  const currentStage = stages[stageIndex] ?? stages[0];
   const isCurrentSkipped = skippedStageIndexes.includes(stageIndex);
   // A skipped stage is closed like a complete one — its form is inert — but it is
   // not done, so it never counts towards progress.
@@ -184,6 +202,7 @@ export function DetailRecordPage({ initialStageIndex, initialIdea }: { initialSt
       <SplitStageView
         key={currentStage.name}
         stage={currentStage}
+        blank={blank}
         currentUser={currentUser}
         onUserChange={setCurrentUser}
         lockedOwner={lockedOwner}
@@ -390,9 +409,6 @@ function stageGateReason(stageName: string, values: Record<string, string | stri
   return null;
 }
 
-// Choice controls that always show one option selected.
-const SINGLE_CHOICE_KINDS = new Set<FieldKind>(["toggle", "tag", "segmented", "radio"]);
-
 type StageFieldsState = {
   fields: FieldSpec[];
   values: Record<string, string | string[]>;
@@ -415,8 +431,12 @@ function useStageFields(stage: StageItem, prefill: boolean): StageFieldsState {
         // Reopened stage: show its recorded data, editable. Fresh stage: empty.
         if (prefill) return [field.label, field.suggestion];
         if (field.kind === "cards" || field.kind === "chips") return [field.label, []];
-        // Toggles always show a selection — default to the first option.
-        if (SINGLE_CHOICE_KINDS.has(field.kind) && field.options?.length) return [field.label, field.options[0]];
+        // Single-choice fields start unselected, like every other kind. They used to
+        // default to their first option so a toggle always showed a selection — which
+        // means an untouched stage claimed answers nobody gave: "Human oversight: Always",
+        // "Data sensitivity: Public", "Duplication check: Not a duplicate", all of them
+        // simply the first item in their list. It also counted them as captured, and hid
+        // the field's own definition, which is what an empty field is supposed to show.
         return [field.label, ""];
       }),
     ),
@@ -499,7 +519,11 @@ function DocumentField({
   // Every control starts at the column's left edge — a box, a pill row, a slider's
   // thumb and a radio's dot all line up under the label. Insetting the boxed ones to
   // align their *text* instead left them hanging left of everything else.
-  const inset = cn("relative w-full min-w-0", fieldBoxWidth(field));
+  const boxWidth = fieldBoxWidth(field);
+  const inset = cn("relative w-full min-w-0", boxWidth);
+  // What an empty field's "Capturing…" overlay is allowed to span. Choice kinds have no
+  // cap of their own, so they borrow a field-sized one rather than the whole column.
+  const loadingWidth = boxWidth === "w-full" ? "max-w-[360px]" : boxWidth;
 
   const control = (
     <StageField
@@ -529,9 +553,13 @@ function DocumentField({
   // teaches rather than repeating "not captured" twelve times. Sized well under
   // the value ramp (13px muted vs 16px primary) so it can't be mistaken for data,
   // and it keeps the control's height so entering edit moves nothing below it.
-  const blank = isFieldEmpty(value) && !loading;
+  const empty = isFieldEmpty(value);
+  const blank = empty && !loading;
+  // Same height in all three states, so a row doesn't jump as it fills: the definition,
+  // the "Capturing…" overlay and a recorded value all occupy one control's worth.
+  const rowHeight = field.kind === "long" ? "min-h-[42px]" : "min-h-10";
   const read = blank ? (
-    <div className={cn("flex items-center", field.kind === "long" ? "min-h-[42px]" : "min-h-10")}>
+    <div className={cn("flex items-center", rowHeight)}>
       {/* A third register: the label is sans and small, an answer is sans and large,
           so the definition is the lighter serif the product uses for prose, in
           italic at the faintest text tone. It can't be mistaken for either. */}
@@ -539,6 +567,16 @@ function DocumentField({
         {FIELD_GISTS[field.label] ?? "Not captured yet"}
       </span>
     </div>
+  ) : empty ? (
+    // Being captured with nothing recorded yet. A read-mode choice control draws only
+    // its selected option, so with nothing selected it collapses to no height at all and
+    // the overlay lands on top of the label — which is what "Capturing…" struck through
+    // its own field. Hold the row open and let the overlay sit in it.
+    //
+    // Capped, too: the overlay covers its wrapper, and `fieldBoxWidth` leaves choice
+    // kinds `w-full` (a row of segments needs the room), so an uncapped wrapper puts a
+    // "Capturing…" bar across the whole column instead of over a field.
+    <div className={cn("relative w-full min-w-0", loadingWidth, rowHeight)}>{shimmer}</div>
   ) : (
     <fieldset
       disabled
@@ -766,8 +804,10 @@ function StageFieldsGrid({
 
       {/* A decision stage gets the agent's read on the decision before the fields
           that record it — this is the one stage where the answer is a judgement
-          rather than a fact to look up. */}
-      {stage.name === "GTAC" && !isSkipped ? <GtacRecommendation /> : null}
+          rather than a fact to look up. It needs the stage's own numbers to read: on a
+          record where nothing is captured there is nothing to recommend from, and a
+          confident "GO" over empty fields is the one thing this panel must never do. */}
+      {stage.name === "GTAC" && !isSkipped && stage.rows.some(([, value]) => value) ? <GtacRecommendation /> : null}
 
       {/* One column, on a reading measure: a two-up grid tied every row's height
           to its tallest cell and left long values fighting for half the width. */}
@@ -1033,6 +1073,7 @@ function SplitStageView({
   onEditBlocked,
   initialIdea,
   banner,
+  blank = false,
 }: {
   stage: StageItem;
   currentUser: string;
@@ -1053,6 +1094,9 @@ function SplitStageView({
   canSkip?: boolean;
   onToggleSkip?: () => void;
   onMarkComplete: () => void;
+  // Nothing captured anywhere on this record — the header can't claim a name, a risk
+  // rating or a gate, so it says so instead.
+  blank?: boolean;
   onEditBlocked: (message: string) => void;
   // What the user described on the way in, used as the chat's opening message.
   initialIdea?: string;
@@ -1232,7 +1276,11 @@ function SplitStageView({
           <PanelBreadcrumb
             items={[
               { label: "All use cases", href: "/" },
-              { label: USE_CASE.id, href: "/overview", icon: <FileText size={13} />, title: USE_CASE.name },
+              // The blank record isn't the seeded one, so it can't borrow its id, its name or
+              // the overview built from it — that page reads the filled record.
+              blank
+                ? { label: "New use case", icon: <FileText size={13} /> }
+                : { label: USE_CASE.id, href: "/overview", icon: <FileText size={13} />, title: USE_CASE.name },
               {
                 label: stage.name,
                 node: (
@@ -1311,7 +1359,7 @@ function SplitStageView({
       >
         {/* The record first, then the stage — the same block the overview opens
             with, so moving between the two doesn't lose where you are. */}
-        <RecordSummary currentUser={currentUser} />
+        <RecordSummary currentUser={currentUser} blank={blank} />
         {formBusy ? (
           <div className="h-[3px] w-full shrink-0 overflow-hidden bg-[var(--surface-muted)]">
             <div className="loadbar h-full w-1/3 rounded-full bg-[var(--accent)]" />

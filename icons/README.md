@@ -7,12 +7,12 @@ Each SVG is a 24×24 stroke icon with `stroke="currentColor"` and `stroke-width=
 takes the colour of its container. The app renders them at 11–18px; set `width`/`height`
 to the size you need rather than scaling with CSS transforms.
 
-61 icons.
+62 icons.
 
 | Icon | File | Used in |
 | --- | --- | --- |
 | Activity | `activity.svg` | `src/app/portfolio/page.tsx`, `src/components/ui/kit.tsx` |
-| ArrowRight | `arrow-right.svg` | `src/app/page.tsx` |
+| ArrowRight | `arrow-right.svg` | `src/app/tracker-view.tsx` |
 | ArrowUp | `arrow-up.svg` | `src/components/chat/chat-ui.tsx`, `src/components/document-record/record-details-sheet.tsx` |
 | ArrowUpDown | `arrow-up-down.svg` | `src/components/ui/kit.tsx` |
 | ArrowUpToLine | `arrow-up-to-line.svg` | `src/components/chat/chat-ui.tsx` |
@@ -20,27 +20,28 @@ to the size you need rather than scaling with CSS transforms.
 | Ban | `ban.svg` | `src/components/document-record/detail-record.tsx` |
 | Building2 | `building-2.svg` | `src/components/document-record/record-details-sheet.tsx` |
 | Calculator | `calculator.svg` | `src/components/ui/kit.tsx` |
-| CalendarDays | `calendar-days.svg` | `src/app/page.tsx`, `src/components/document-record/record-details-sheet.tsx`, `src/components/document-record/record-summary.tsx`, `src/components/forms/fields.tsx` |
+| CalendarDays | `calendar-days.svg` | `src/app/tracker-view.tsx`, `src/components/document-record/record-details-sheet.tsx`, `src/components/forms/fields.tsx` |
 | Check | `check.svg` | `src/components/chat/chat-ui.tsx`, `src/components/document-record/detail-record.tsx`, `src/components/document-record/record-details-sheet.tsx`, `src/components/forms/fields.tsx`, `src/components/profile.tsx`, `src/components/ui/kit.tsx` |
 | CheckCircle2 | `circle-check.svg` | `src/app/overview/page.tsx` |
-| ChevronDown | `chevron-down.svg` | `src/app/page.tsx`, `src/components/document-record/detail-record.tsx`, `src/components/forms/fields.tsx`, `src/components/profile.tsx` |
+| ChevronDown | `chevron-down.svg` | `src/app/tracker-view.tsx`, `src/components/document-record/detail-record.tsx`, `src/components/forms/fields.tsx`, `src/components/profile.tsx` |
 | ChevronLeft | `chevron-left.svg` | `src/components/document-record/detail-record.tsx`, `src/components/forms/fields.tsx` |
 | ChevronRight | `chevron-right.svg` | `src/components/app-shell.tsx`, `src/components/chat/chat-use-case-card.tsx`, `src/components/document-record/detail-record.tsx`, `src/components/forms/fields.tsx` |
 | Circle | `circle.svg` | `src/app/overview/page.tsx` |
-| CircleDot | `circle-dot.svg` | `src/app/overview/page.tsx`, `src/app/page.tsx` |
+| CircleDot | `circle-dot.svg` | `src/app/overview/page.tsx`, `src/app/tracker-view.tsx` |
 | CircleSlash | `circle-slash.svg` | `src/app/portfolio/page.tsx` |
 | Coins | `coins.svg` | `src/app/portfolio/page.tsx` |
-| Columns3 | `columns-3.svg` | `src/app/page.tsx` |
+| Columns3 | `columns-3.svg` | `src/app/tracker-view.tsx` |
+| CornerDownRight | `corner-down-right.svg` | `src/components/chat/mini-chat-rail.tsx` |
 | CornerUpLeft | `corner-up-left.svg` | `src/components/document-record/detail-record.tsx` |
-| FileText | `file-text.svg` | `src/app/overview/page.tsx`, `src/app/page.tsx`, `src/components/document-record/detail-record.tsx`, `src/components/document-record/record-details-sheet.tsx` |
+| FileText | `file-text.svg` | `src/app/overview/page.tsx`, `src/app/tracker-view.tsx`, `src/components/document-record/detail-record.tsx`, `src/components/document-record/record-details-sheet.tsx` |
 | Filter | `funnel.svg` | `src/components/ui/kit.tsx` |
-| Flag | `flag.svg` | `src/app/overview/page.tsx`, `src/app/page.tsx` |
+| Flag | `flag.svg` | `src/app/overview/page.tsx`, `src/app/tracker-view.tsx` |
 | Gavel | `gavel.svg` | `src/app/overview/page.tsx`, `src/components/ui/kit.tsx` |
 | Globe | `globe.svg` | `src/components/document-record/record-details-sheet.tsx` |
 | Hammer | `hammer.svg` | `src/components/ui/kit.tsx` |
 | HelpCircle | `circle-question-mark.svg` | `src/components/forms/fields.tsx` |
 | History | `history.svg` | `src/components/chat/chat-history.tsx` |
-| Inbox | `inbox.svg` | `src/app/page.tsx`, `src/app/portfolio/page.tsx`, `src/components/ui/kit.tsx` |
+| Inbox | `inbox.svg` | `src/app/portfolio/page.tsx`, `src/app/tracker-view.tsx`, `src/components/ui/kit.tsx` |
 | Info | `info.svg` | `src/app/overview/page.tsx`, `src/components/document-record/detail-record.tsx` |
 | Layers | `layers.svg` | `src/app/portfolio/page.tsx`, `src/components/document-record/record-details-sheet.tsx`, `src/components/ui/kit.tsx` |
 | Lightbulb | `lightbulb.svg` | `src/app/intake/page.tsx`, `src/components/ui/kit.tsx` |
@@ -57,18 +58,18 @@ to the size you need rather than scaling with CSS transforms.
 | PanelLeftOpen | `panel-left-open.svg` | `src/components/app-shell.tsx` |
 | PenTool | `pen-tool.svg` | `src/components/ui/kit.tsx` |
 | Pencil | `pencil.svg` | `src/components/document-record/detail-record.tsx` |
-| Plus | `plus.svg` | `src/app/page.tsx`, `src/components/forms/fields.tsx` |
+| Plus | `plus.svg` | `src/app/tracker-view.tsx`, `src/components/forms/fields.tsx` |
 | Rocket | `rocket.svg` | `src/components/ui/kit.tsx` |
 | RotateCcw | `rotate-ccw.svg` | `src/components/document-record/detail-record.tsx`, `src/components/document-record/record-details-sheet.tsx` |
-| Search | `search.svg` | `src/app/page.tsx`, `src/components/forms/fields.tsx` |
-| ShieldCheck | `shield-check.svg` | `src/app/page.tsx`, `src/components/document-record/detail-record.tsx`, `src/components/document-record/record-details-sheet.tsx`, `src/components/document-record/record-summary.tsx`, `src/components/ui/kit.tsx` |
-| SlidersHorizontal | `sliders-horizontal.svg` | `src/app/page.tsx`, `src/app/portfolio/page.tsx` |
-| Sparkles | `sparkles.svg` | `src/app/page.tsx`, `src/app/portfolio/page.tsx`, `src/components/chat/chat-ui.tsx`, `src/components/document-record/detail-record.tsx`, `src/components/document-record/record-details-sheet.tsx`, `src/components/forms/fields.tsx`, `src/components/portfolio/tiles.tsx` |
+| Search | `search.svg` | `src/app/tracker-view.tsx`, `src/components/forms/fields.tsx` |
+| ShieldCheck | `shield-check.svg` | `src/app/tracker-view.tsx`, `src/components/document-record/detail-record.tsx`, `src/components/document-record/record-details-sheet.tsx`, `src/components/document-record/record-summary.tsx`, `src/components/ui/kit.tsx` |
+| SlidersHorizontal | `sliders-horizontal.svg` | `src/app/portfolio/page.tsx`, `src/app/tracker-view.tsx` |
+| Sparkles | `sparkles.svg` | `src/app/portfolio/page.tsx`, `src/app/tracker-view.tsx`, `src/components/chat/chat-ui.tsx`, `src/components/document-record/detail-record.tsx`, `src/components/document-record/record-details-sheet.tsx`, `src/components/document-record/record-summary.tsx`, `src/components/forms/fields.tsx`, `src/components/portfolio/tiles.tsx` |
 | Split | `split.svg` | `src/components/ui/kit.tsx` |
-| Table2 | `table-2.svg` | `src/app/page.tsx` |
+| Table2 | `table-2.svg` | `src/app/tracker-view.tsx` |
 | Target | `target.svg` | `src/app/portfolio/page.tsx`, `src/components/ui/kit.tsx` |
 | Timer | `timer.svg` | `src/app/portfolio/page.tsx` |
 | TrendingUp | `trending-up.svg` | `src/app/portfolio/page.tsx` |
-| User | `user.svg` | `src/app/overview/page.tsx`, `src/app/page.tsx` |
+| User | `user.svg` | `src/app/overview/page.tsx`, `src/app/tracker-view.tsx` |
 | Users | `users.svg` | `src/components/document-record/record-details-sheet.tsx`, `src/components/ui/kit.tsx` |
-| X | `x.svg` | `src/components/document-record/detail-record.tsx`, `src/components/document-record/markdown-modal.tsx`, `src/components/document-record/record-details-sheet.tsx` |
+| X | `x.svg` | `src/app/tracker-view.tsx`, `src/components/document-record/detail-record.tsx`, `src/components/document-record/markdown-modal.tsx`, `src/components/document-record/record-details-sheet.tsx` |

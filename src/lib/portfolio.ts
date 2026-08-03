@@ -121,6 +121,16 @@ export function phasesBySpeed(cycle: ReturnType<typeof medianCycleDaysByPhase>, 
   return phases.order.filter((phase) => (cycle[phase]?.sample ?? 0) > 0).sort((a, b) => cycle[b].days - cycle[a].days);
 }
 
+// How the phase medians were arrived at, in a line. This was a hover tip, which is a
+// bad home for the one caveat a leader has to know: a median that ignores everything
+// still sitting in a phase is easy to misread as "we clear this in a week".
+export function cycleFootnote(cycle: ReturnType<typeof medianCycleDaysByPhase>, phases: PhaseMap): string {
+  const measured = phases.order.reduce((total, phase) => total + (cycle[phase]?.sample ?? 0), 0);
+  const open = phases.order.reduce((total, phase) => total + (cycle[phase]?.open ?? 0), 0);
+  if (!measured) return "Nothing has left a phase yet, so there is no duration to report.";
+  return `Medians count the ${measured} phase passages that finished; ${open} ${open === 1 ? "record is" : "records are"} still in one and don't count yet.`;
+}
+
 export function decisionSpeedSeries(months: PortfolioMonth[]) {
   return months.map((month) => ({ label: month.label, days: month.medianDaysToDecision, partial: Boolean(month.partial) }));
 }
@@ -239,9 +249,14 @@ export function impact(cards: UseCaseCard[]) {
   };
 }
 
+// The one target the portfolio actually commits to. Lives here because three places
+// need the same number: the stat that reports the measure, the chart's reference line,
+// and the pulse part that scores against it.
+export const DECISION_TARGET_DAYS = 15;
+
 // One number for "is the system healthy", and the four things it is made of. A single
 // score hides its own reasoning, so the parts are returned with it and shown.
-export function pulse(cards: UseCaseCard[], months: PortfolioMonth[], asOf: string, decisionTargetDays = 15) {
+export function pulse(cards: UseCaseCard[], months: PortfolioMonth[], asOf: string, decisionTargetDays = DECISION_TARGET_DAYS) {
   const h = headline(cards, months, asOf);
   const targets = attainmentSummary(kpiAttainment(cards));
   const parts = [
@@ -354,6 +369,38 @@ export function attainmentSummary(rows: ReturnType<typeof kpiAttainment>) {
   return { met, total: rows.length, ratio: rows.length ? met / rows.length : 0 };
 }
 
+// ── What's live, per record ──
+
+// Adoption, money, payback, go-live date and KPI targets were four tiles keyed by the
+// same thing: a record in production. One row per live record joins them, so "cost
+// $95K, returns $150K, 1.2k people use it, pays back in 8 months, both targets met" is
+// one line about one thing instead of four lookups across a page. Newest first — a
+// ledger reads from the most recent event.
+export function productionRows(cards: UseCaseCard[]) {
+  return cards
+    .filter((card) => card.lifecycle === "Live")
+    .sort((a, b) => (b.liveSince ?? "").localeCompare(a.liveSince ?? ""))
+    .map((card) => {
+      const kpis = kpiAttainment([card]);
+      return {
+        card,
+        payback: paybackMonths(card.investmentUsd, card.annualBenefitUsd),
+        kpis,
+        met: kpis.filter((row) => row.met).length,
+        total: kpis.length,
+      };
+    });
+}
+
+// The other half of the ledger: what was asked for and didn't happen. Kept apart from
+// the live rows because none of the production columns apply — a stopped record has an
+// ask, a date and a reason, and its money was never spent.
+export function stoppedRows(cards: UseCaseCard[]) {
+  return cards
+    .filter((card) => card.lifecycle === "Rejected" || card.lifecycle === "On hold")
+    .sort((a, b) => (b.closedOn ?? "").localeCompare(a.closedOn ?? ""));
+}
+
 // ── The headline ──
 
 export function headline(cards: UseCaseCard[], months: PortfolioMonth[], asOf: string) {
@@ -440,6 +487,14 @@ export function reconcile(cards: UseCaseCard[], months: PortfolioMonth[], phases
 // ai-upgrade: assembled from the derivations above. Swap either for a model call over
 // the registry — keep the Markdown shape, the renderer is what styles it.
 
+// What a written summary was written from. Prose that cites nothing reads as fact; the
+// same prose with its sources beside it reads as a derivation you could check. It sits
+// in the panel's header, not a footer bar under it — a whole ruled-off strip for one
+// muted line was more chrome than the line was worth.
+export function summaryProvenance(cards: UseCaseCard[], months: PortfolioMonth[], asOf: string): string {
+  return `${cards.length} records · ${months.length} month-ends · ${formatDay(asOf)}`;
+}
+
 export function healthSummary(cards: UseCaseCard[], months: PortfolioMonth[], phases: PhaseMap, asOf: string): string {
   const h = headline(cards, months, asOf);
   const cycle = medianCycleDaysByPhase(cards, phases);
@@ -520,6 +575,13 @@ export function formatDay(iso: string): string {
   return `${day} ${MONTHS[month - 1]} ${year}`;
 }
 
+// Day and month only, for a column of dates that all fall in the same year — five
+// repetitions of "2026" down a list is five things to read and nothing to learn.
+export function formatMonthDay(iso: string): string {
+  const [, month, day] = iso.split("-").map(Number);
+  return `${day} ${MONTHS[month - 1]}`;
+}
+
 // ── Self-check ──
 // The alarm for the seeded layer: if a card's date or a snapshot row is edited so
 // the two stop agreeing, `reconcile` reports it here before anyone sees a tile.
@@ -590,6 +652,10 @@ function demo() {
   const cycle = medianCycleDaysByPhase(fixture, phases);
   assert(cycle.Late.sample === 0 && cycle.Late.open === 1, "cycle: a record still in a phase has no duration yet");
   assert(phasesBySpeed(cycle, phases).length === 1, "phasesBySpeed: skips phases with nothing measured");
+  // The footnote has to report what is still sitting, or it is decoration: three
+  // passages through Early finished (one onward, two closed), and two records — UC-1 in
+  // Early, UC-2 in Late — have not left the phase they are in.
+  assert(cycleFootnote(cycle, phases) === "Medians count the 3 phase passages that finished; 2 records are still in one and don't count yet.", "cycleFootnote");
 
   const months: PortfolioMonth[] = [
     {
@@ -621,6 +687,18 @@ function demo() {
 
   const nudged = months.map((month, index) => (index === 1 ? { ...month, wip: { Early: 9, Late: 1 } } : month));
   assert(reconcile(fixture, nudged, phases, fixture).length === 1, "reconcile: one nudged WIP number, one message");
+
+  // The two halves of the ledger split cleanly and neither claims the other's records:
+  // the fixture has no live record, one parked and one rejected.
+  const ledger = [...fixture, card({ id: "UC-5", lifecycle: "Live", liveSince: "2026-02-01", investmentUsd: 100, annualBenefitUsd: 300 })];
+  const live = productionRows(ledger);
+  assert(live.length === 1 && live[0].card.id === "UC-5" && live[0].payback === 4, "productionRows: live only, payback per record");
+  assert(
+    stoppedRows(ledger)
+      .map((row) => row.id)
+      .join() === "UC-3,UC-4",
+    "stoppedRows: rejected and parked, newest first",
+  );
 
   const digest = portfolioDigest(fixture, months, phases, "2026-02-08");
   assert(digest.startsWith("**") && digest.includes("\n- "), "digest: a headline sentence and supporting lines");

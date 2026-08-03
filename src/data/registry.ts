@@ -146,7 +146,12 @@ export const USE_CASES: UseCaseCard[] = [
     riskLevel: "Low",
     businessFunction: "Sales",
     capability: "Generative",
-    href: "/overview",
+    // The one card that opens an untouched record: `?blank=1` renders the twelve stages
+    // with nothing captured, so the empty state can be walked from the board. UC-141 is
+    // the right card for it — raised on 3 Jul, still at Ideation, nobody waiting on it,
+    // which is exactly a use case whose stages haven't been filled in yet. Everything
+    // else about the card is unchanged, so the portfolio's `reconcile()` still balances.
+    href: "/detail?blank=1",
   },
   {
     // The one record with a full workflow behind it — `lifecycle.ts` is this card's
@@ -183,7 +188,7 @@ export const USE_CASES: UseCaseCard[] = [
     riskLevel: "Medium",
     businessFunction: "R&D",
     capability: "Generative",
-    gateHistory: [{ id: "R1", status: "Passed", decided: "2026-06-22", approver: "Priya N." }],
+    gateHistory: [{ id: "R1", status: "Passed", decided: "2026-06-22", approver: "Priya Rao" }],
     href: "/overview",
   },
   {
@@ -269,7 +274,7 @@ export const USE_CASES: UseCaseCard[] = [
     riskLevel: "High",
     businessFunction: "Sales",
     capability: "Analytical",
-    gateHistory: [{ id: "R1", status: "Passed", decided: "2026-06-24", approver: "Priya N." }],
+    gateHistory: [{ id: "R1", status: "Passed", decided: "2026-06-24", approver: "Priya Rao" }],
     href: "/overview",
   },
   {
@@ -300,7 +305,7 @@ export const USE_CASES: UseCaseCard[] = [
     riskLevel: "Medium",
     businessFunction: "Finance",
     capability: "Analytical",
-    gateHistory: [{ id: "R1", status: "Passed", decided: "2026-06-15", approver: "Priya N." }],
+    gateHistory: [{ id: "R1", status: "Passed", decided: "2026-06-15", approver: "Priya Rao" }],
     href: "/overview",
   },
   {
@@ -331,7 +336,7 @@ export const USE_CASES: UseCaseCard[] = [
     riskLevel: "Medium",
     businessFunction: "Support",
     capability: "Generative",
-    gateHistory: [{ id: "R1", status: "Passed", decided: "2026-05-26", approver: "Priya N." }],
+    gateHistory: [{ id: "R1", status: "Passed", decided: "2026-05-26", approver: "Priya Rao" }],
     href: "/overview",
   },
   {
@@ -362,7 +367,7 @@ export const USE_CASES: UseCaseCard[] = [
     riskLevel: "Medium",
     businessFunction: "Supply Chain",
     capability: "Analytical",
-    gateHistory: [{ id: "R1", status: "Passed", decided: "2026-06-08", approver: "Priya N." }],
+    gateHistory: [{ id: "R1", status: "Passed", decided: "2026-06-08", approver: "Priya Rao" }],
     href: "/overview",
   },
   {
@@ -404,8 +409,8 @@ export const USE_CASES: UseCaseCard[] = [
       { name: "Time to publish saved", actual: 41, target: 35, unit: "%" },
     ],
     gateHistory: [
-      { id: "R1", status: "Passed", decided: "2026-04-28", approver: "Priya N." },
-      { id: "R2", status: "Passed", decided: "2026-05-08", approver: "Victor H." },
+      { id: "R1", status: "Passed", decided: "2026-04-28", approver: "Priya Rao" },
+      { id: "R2", status: "Passed", decided: "2026-05-08", approver: "Nisha Patel" },
     ],
     href: "/overview",
   },
@@ -436,7 +441,7 @@ export const USE_CASES: UseCaseCard[] = [
     riskLevel: "High",
     businessFunction: "Support",
     capability: "Agentic",
-    gateHistory: [{ id: "R1", status: "Passed", decided: "2026-04-24", approver: "Priya N." }],
+    gateHistory: [{ id: "R1", status: "Passed", decided: "2026-04-24", approver: "Priya Rao" }],
     href: "/overview",
   },
 ];
@@ -808,8 +813,11 @@ export const scopeOptions: Array<{ key: ScopeFilter; label: string }> = [
   { key: "all", label: "All Use Cases" },
 ];
 
-export function filterUseCasesByScope(cards: UseCaseCard[], scope: ScopeFilter) {
-  if (scope === "my") return cards.filter((card) => card.owner === CURRENT_USER || card.actionOwner === CURRENT_USER);
+// "Mine" means whoever is signed in, which on every surface is the profile in the
+// switcher — not the default profile. Passing the person in was the fix for a filter
+// that quietly kept answering as Nisha after you had switched to someone else.
+export function filterUseCasesByScope(cards: UseCaseCard[], scope: ScopeFilter, person: string = CURRENT_USER) {
+  if (scope === "my") return cards.filter((card) => card.owner === person || card.actionOwner === person);
   if (scope === "team") {
     return cards.filter((card) => PORTFOLIO_TEAM_OWNERS.has(card.owner) || PORTFOLIO_TEAM_OWNERS.has(card.actionOwner));
   }

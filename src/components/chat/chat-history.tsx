@@ -12,7 +12,16 @@ import { IconButton, MenuDivider, MenuItem, MenuLabel, MenuSurface } from "@/com
 // plus anything the user archives by starting a new chat. The menu is portalled
 // like the stage path, because the rail clips its own overflow.
 
-export type ChatTurn = { role: "assistant" | "user"; text: string; time?: string; activity?: string; detail?: ReactNode };
+export type ChatTurn = {
+  role: "assistant" | "user";
+  text: string;
+  time?: string;
+  activity?: string;
+  detail?: ReactNode;
+  // Where this answer can go next. Shown only under the newest turn — an assistant
+  // that answers and then stops makes the user guess what else it knows.
+  followUps?: string[];
+};
 
 export type ChatSession = {
   id: string;

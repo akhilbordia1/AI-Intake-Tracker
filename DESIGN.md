@@ -216,10 +216,10 @@ repeats twelve times down a stage and stops being read. The line sits inside the
 control's own height, so entering edit moves nothing below it.
 
 **Data display.** Bars, not pies. Counts and shares are drawn from the same parts
-the rest of the app is made of — a hairline box (`TileBox`), a label + mono value +
-`ProgressBar` row (`BarList`), a capped list with an honest overflow line
-(`MiniList`), and a four-cell headline band whose values are `.font-display` at 28px
-(`StatBand`), all in `src/components/portfolio/tiles.tsx`. A donut's angles and legend are a different
+the rest of the app is made of — a hairline box (`TileBox`), a hairline table
+(`DataTable`), a capped list with an honest overflow line (`MiniList`), and a
+four-cell headline band (`StatBand`), all in
+`src/components/portfolio/tiles.tsx`. A donut's angles and legend are a different
 visual language from a product built of hairlines, and lengths are easier to compare.
 One chart runtime exists — recharts, in `time-chart.tsx` — used only where there is a
 real time axis to label (two lines on `/portfolio`), themed entirely from tokens, and
@@ -241,19 +241,77 @@ the serif keeps prose, record names and section titles. Two lines on one chart n
 share a hue family: the second series takes the clay `--tone-info-fg`, because
 accent-green against success-green read as one line crossing itself.
 
-**Pick the shape the comparison needs.** A bar is for shares of a whole (`BarList`,
-phases). Figures that want reading against each other go in a hairline table with the
-numbers right-aligned in mono (`DataTable`) — bars sized against the largest bucket
-made the *stopped* money the longest thing on the tile. A measured value against its
-target shows the gap, not a proportional bar (`TargetRow`): production KPIs all sit
-within a few points of target, so every bar was full and said nothing. A share of a whole with three parts is one stacked bar
-plus a legend (`StackedMeter`), never a donut. A composite score shows what it's made
-of underneath it (`ScorePanel`) — one number alone hides its own reasoning. Status in a
-dense list is a coloured dot and a word (`StatusDot`), not a filled pill: four pills
-down a column read as four buttons. Tile headings are 13px sans with a noun for a
-title and a count for a hint — if a tile needs a caption sentence to be understood,
-it's the wrong tile. Both views sit in one measured grid (max 1080px, two tiles abreast
-where they fit): full-bleed rows put a label and its number in different postcodes.
+**Pick the shape the comparison needs.** A bar is for shares of a whole (a
+`ProgressBar` in a row, sized against the fullest row rather than the total, so a queue
+where nothing holds more than a third is still legible). Figures that want reading
+against each other go in a hairline table with the numbers right-aligned in mono
+(`DataTable`) — bars sized against the largest bucket made the *stopped* money the
+longest thing on the tile — and every column is named, including the first: a blank
+corner cell leaves the reader working out what the labels under it are a list of. A
+measured value against a target is written out rather than drawn: production KPIs all sit
+within a few points of target, so a proportional bar was full for every one of them and
+said nothing, and "62% of 70%" reads as a fraction of a fraction — it is "62% against
+70%", with the measured figure coloured by met-or-behind. A small population split into a
+few groups is a row per group with its count and a bar (`GroupBars`) — never a donut, not
+a stacked bar with a legend under it (which stated the split twice, once as lengths and
+once as percentages), and not a dot per record either: laid out in rows, that is the same
+bar chart drawn less legibly. A composite score shows what
+it's made of underneath it (`ScorePanel`) — one number alone hides its own reasoning —
+and its dial is drawn *as* those parts: one arc per measure, an equal slice each because
+they're evenly weighted, each filled to its own level. One sweeping ring restated the
+number in its middle and said nothing the rows didn't. Status in a dense list is a
+coloured dot and a word (`StatusDot`), not a filled pill: four pills down a column read
+as four buttons. Tile headings are 13px sans, **Title Case**, and a **plain noun** — a
+count for a hint, and if a tile needs a caption sentence to be understood it's the wrong
+tile. One noun each, in one register: *Pipeline · Blockers · Health Score · Spend and
+Return · Live Use Cases · Stopped and Parked · Capability Mix*. A hint only earns its
+place if the tile doesn't already contain it: "5 records" over five countable rows, or
+"all 18" over three rows that sum to eighteen, is the tile reading itself back. A
+denominator the rows *don't* show ("of 11 on the board", "18 ever raised") or a total they
+can't be added up to ("2.5k users · 29k hours saved a year") is worth the space. A page that mixes a
+question ("What kind of AI"), a preposition ("In production"), a verb ("Needs unblocking")
+and a metaphor ("Pulse") makes the reader change gear at every box, and the metaphor is
+the worst of them — it names a feeling rather than a measure. Sub-section labels and table
+column heads follow the same casing (*Decision Time*, *Missed Targets*, *On the Board*,
+*Benefit a Year*); small words inside a title stay lowercase (*Spend **and** Return*,
+*Month **by** Month*). Where the title already names the number, the figure gets no caption
+under it: "83%" under a tile called *Health Score* does not also need the word "healthy".
+Both
+views sit in one measured grid (max 1080px, two tiles abreast where they fit):
+full-bleed rows put a label and its number in different postcodes.
+
+**Facts about the same rows belong in one block.** Find the key the tiles share, then
+merge on it. Where things sit, how many ever got there, how long it takes and who's
+waiting were four tiles about the same four *phases* — so the reader matched phase names
+across them and held the rows in their head. They are one table now, one row per phase,
+and only the monthly line stays separate because time is the axis that isn't per-phase.
+On the value side the shared key is the *record*: adoption, the go-live ledger and the
+KPI targets were three tiles joined by title, and are now one group per live record.
+
+**Then cut what the merge duplicates.** A merge that keeps every column is just the same
+confusion in one box — the production groups carried twelve figures each, sixty on the
+block. Gone: a per-record payback (the division of the two figures beside it), per-record
+hours saved (the same benefit the money already states, and totalled in the footer
+anyway), the year on a column of dates that all fall in one year, and a summary panel's
+footer bar (its provenance moved into the header, where a ruled-off strip for one muted
+line was more chrome than the line was worth). What's left per record is what it cost,
+what it returns, who uses it, and whether it's hitting target. Where a number came from is a line under the block
+(`TileBox footer`), not a hover: a median that ignores everything still sitting in a
+phase is the one caveat that has to be readable without a mouse. Where a figure has a
+committed target, the target prints beside it — and only there; an invented benchmark is
+worse than none. Where a sparkline runs, the span it covers is named next to it.
+
+**Colour bands say which one is dragging.** Four bars in one fill made 75% and 100%
+read as the same news, which is the one thing a composite has to tell you. A measure at
+or near full takes `--status-success`, comfortable takes the accent, behind takes
+`--tone-warning-fg` — and the figure takes the same colour as its bar. Where two
+measures can land in the same band, a mono index ties each row to its arc, because
+colour alone no longer identifies it.
+
+**A count on a dashboard opens.** Every phase row links to the tracker filtered to that
+phase (`/?phase=…`); a leader who can't open a number goes and counts it again by hand.
+The filter arrives as a removable chip beside the panel's count — a filter you can't see
+or clear reads as a board that lost most of its cards.
 
 **Tooltips.** One line is a phrase. More than that is written as lines, first line
 the heading and the rest `Label: value` — the layer sets the labels back and rules
@@ -263,7 +321,12 @@ real heading as its first line.
 
 A field's width is set on its row wrapper, never inside a control: the "Capturing…"
 overlay covers that wrapper, so a cap set deeper leaves the overlay spanning the
-whole column. Nothing may change size or move
+whole column. **An empty field being captured needs a wrapper of its own** — one with a
+height *and* a cap. A read-mode choice control draws only its selected option, so with
+nothing selected it collapses to no height at all, and the overlay lands across the label
+(a "Capturing…" bar striking through its own field, full width). Choice kinds have no cap
+from `fieldBoxWidth` — a row of segments needs the room — so the empty-and-loading wrapper
+borrows a field-sized one. Nothing may change size or move
 between read and edit — no reserved heights on one side only, no negative inset on
 one kind of control. Everything left-aligns on the label's left edge: a box, a pill
 row, a radio's dot, a slider's track. No field takes the panel's full width: prose
