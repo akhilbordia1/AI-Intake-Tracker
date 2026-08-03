@@ -375,75 +375,76 @@ export function reconcile(cards: UseCaseCard[], months: PortfolioMonth[], phases
   return problems;
 }
 
-// ── The digest ──
-
-// ai-upgrade: assembled from the derivations above. Swap it for a model call over
+// ── The summaries ──
+// Two halves, each written where it is read: the Health view opens with the flow
+// summary, the Value view with the money one. There is no separate digest document —
+// a leader shouldn't have to open a modal to be told what the page in front of them
+// says. The rail joins both halves when someone asks to be briefed.
+// ai-upgrade: assembled from the derivations above. Swap either for a model call over
 // the registry — keep the Markdown shape, the renderer is what styles it.
-export function portfolioDigest(
-  cards: UseCaseCard[],
-  months: PortfolioMonth[],
-  phases: PhaseMap,
-  asOf: string,
-  { full = true }: { full?: boolean } = {},
-): string {
+
+export function healthSummary(cards: UseCaseCard[], months: PortfolioMonth[], phases: PhaseMap, asOf: string): string {
   const h = headline(cards, months, asOf);
   const cycle = medianCycleDaysByPhase(cards, phases);
   const ranked = phasesBySpeed(cycle, phases);
-  const slowest = ranked[0] ?? phases.order[0];
-  const fastest = ranked[ranked.length - 1] ?? phases.order[0];
-  const stuck = aging(cards, asOf).slice(0, 3);
+  const slowest = ranked[0];
+  const fastest = ranked[ranked.length - 1];
+  const stuck = aging(cards, asOf).slice(0, 2);
+  const oldest = oldestOpenGate(cards, asOf);
+
+  return [
+    `**${h.active} of ${h.tracked} use cases are in flight**, and the system is getting faster: a gate decision takes ${h.decisionDays} days, ${
+      h.decisionTrend > 0 ? `${h.decisionTrend} fewer than in ${h.since}` : `${Math.abs(h.decisionTrend)} more than in ${h.since}`
+    }.`,
+    [
+      slowest && fastest
+        ? `- **${slowest}** is the long pole at ${cycle[slowest].days} days a record, against ${cycle[fastest].days} in ${fastest}.`
+        : "- Not enough has moved through yet to compare phases.",
+      `- ${h.attention} ${h.attention === 1 ? "record needs" : "records need"} a decision today${
+        oldest ? `; the oldest open gate is ${oldest.card.gate?.id} on ${oldest.card.title}, ${oldest.days} days with ${oldest.card.actionOwner}` : ""
+      }.`,
+      stuck.length
+        ? `- ${stuck.map((row) => `**${row.card.title}** (${row.days}d at ${row.card.substage})`).join(" and ")} ${
+            stuck.length === 1 ? "has" : "have"
+          } not moved in over a week.`
+        : "- Nothing has been sitting for more than a week.",
+    ].join("\n"),
+  ].join("\n\n");
+}
+
+export function valueSummary(cards: UseCaseCard[], months: PortfolioMonth[], asOf: string): string {
+  const h = headline(cards, months, asOf);
   const money = moneyByState(cards);
-  const attainment = attainmentSummary(kpiAttainment(cards));
-  const misses = kpiAttainment(cards).filter((row) => !row.met);
-  const asOfLabel = formatDay(asOf);
+  const live = money.find((state) => state.key === "live");
+  const pipeline = money.find((state) => state.key === "pipeline");
+  const stopped = money.find((state) => state.key === "stopped");
+  const rows = kpiAttainment(cards);
+  const attainment = attainmentSummary(rows);
+  const misses = rows.filter((row) => !row.met);
 
-  const head = `# Portfolio digest
+  return [
+    `**${usd(h.investment)} committed against ${usd(h.benefit)} of annualised benefit**, which the ${h.live} live use cases repay in about ${
+      h.paybackMonths
+    } months.`,
+    [
+      `- The ${live?.count} live ones cost ${usd(live?.investment ?? 0)} and return ${usd(live?.benefit ?? 0)} a year.`,
+      `- ${attainment.met} of ${attainment.total} production targets are met${
+        misses.length ? `; behind on ${misses.map((row) => `${row.name.toLowerCase()} at ${row.card.title}`).join(" and ")}` : ""
+      }.`,
+      `- ${usd(pipeline?.investment ?? 0)} is still an ask across ${pipeline?.count} records, and ${usd(
+        stopped?.investment ?? 0,
+      )} of asks were stopped or parked.`,
+    ].join("\n"),
+  ].join("\n\n");
+}
 
-${h.tracked} use cases have come through the lifecycle, ${h.active} of them still in flight. ${usd(h.investment)} is committed against ${usd(
-    h.benefit,
-  )} of annualised benefit from the ${h.live} that are live — a payback of about ${h.paybackMonths} months.
-
-> ${slowest === "Governance & Risk" ? "The constraint is governance, not ideas" : `The constraint is ${slowest.toLowerCase()}`}: ${
-    fastest.toLowerCase()
-  } clears in ${cycle[fastest]?.days ?? 0} days and ${slowest.toLowerCase()} takes ${cycle[slowest]?.days ?? 0}.`;
-
-  const flow = `## Flow
-
-- A decision now takes ${h.decisionDays} days, ${h.decisionTrend > 0 ? `down ${h.decisionTrend} since ${h.since}` : `up since ${h.since}`}.
-- ${pct(h.passRate)} of gate decisions have been approvals; ${h.openGates} gates are open.
-- ${h.attention} records need someone today, and ${h.aged} have sat in the same stage for over a week.`;
-
-  const notMoving = `## Not moving
-
-${
-  stuck.length
-    ? stuck.map((row) => `- **${row.card.title}** (\`${row.card.id}\`) — ${row.days} days at ${row.card.substage}, with ${row.card.actionOwner}.`).join("\n")
-    : "- Nothing has been sitting for more than a week."
-}`;
-
-  const value = `## Value
-
-| State | Count | Investment | Annual benefit |
-| --- | --- | --- | --- |
-${money.map((state) => `| ${state.label} | ${state.count} | ${usd(state.investment)} | ${usd(state.benefit)} |`).join("\n")}
-
-${attainment.met} of ${attainment.total} production targets are being met${
-    misses.length ? `; the misses are ${misses.map((row) => `${row.card.title} (${row.name}, ${row.actual}${row.unit} of ${row.target}${row.unit})`).join(", ")}` : ""
-  }.`;
-
-  const next = `## What I'd do next
-
-1. Clear the ${h.openGates} open gates — the oldest has been waiting ${oldestOpenGate(cards, asOf)?.days ?? 0} days.
-2. Unblock or park the ${h.blocked} ${h.blocked === 1 ? "record" : "records"} that aren't moving — a blocked gate is a decision nobody has taken.
-3. Watch intake: ${months[months.length - 1]?.submitted ?? 0} raised so far this month, against ${(
-    months.reduce((total, month) => total + month.submitted, 0) / months.length
-  ).toFixed(1)} a month over the period.`;
-
-  const footer = `---
-
-*As of ${asOfLabel} · derived from ${cards.length} records and ${months.length} monthly snapshots.*`;
-
-  return full ? [head, flow, notMoving, value, next, footer].join("\n\n") : [head, flow, notMoving, footer].join("\n\n");
+// Both halves, for the rail's "brief me on the portfolio".
+export function portfolioDigest(cards: UseCaseCard[], months: PortfolioMonth[], phases: PhaseMap, asOf: string): string {
+  return [
+    healthSummary(cards, months, phases, asOf),
+    valueSummary(cards, months, asOf),
+    `*As of ${formatDay(asOf)} · derived from ${cards.length} records and ${months.length} monthly snapshots.*`,
+  ].join("\n\n");
 }
 
 // A short money table for the chat, where the digest would be too much.
@@ -564,8 +565,9 @@ function demo() {
   assert(reconcile(fixture, nudged, phases, fixture).length === 1, "reconcile: one nudged WIP number, one message");
 
   const digest = portfolioDigest(fixture, months, phases, "2026-02-08");
-  assert(digest.includes("# Portfolio digest") && digest.includes("| State |"), "digest: markdown shape");
-  assert(portfolioDigest(fixture, months, phases, "2026-02-08", { full: false }).split("## ").length === 3, "digest: short form drops two sections");
+  assert(digest.startsWith("**") && digest.includes("\n- "), "digest: a headline sentence and supporting lines");
+  assert(digest.includes("committed against"), "digest: carries the money half");
+  assert(healthSummary(fixture, months, phases, "2026-02-08").split("\n- ").length === 4, "healthSummary: three supporting lines");
 
   console.log("portfolio demo passed");
 }

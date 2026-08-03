@@ -227,11 +227,22 @@ guarded so it draws nothing during the prerender. Colour stays meaningful: the a
 category only gets its own hue when the category *is* the point.
 
 **A reading page states its answer.** A screen of tiles makes the reader derive the
-point, so each view opens with `ReadLine` — one sentence of prose, in the serif, built
-from the same derivations the tiles use — and every tile's hint is a plain sentence
-rather than a count. Four blocks per view is the ceiling; anything cut goes to the
-rail, and an `AskLine` at the foot says so, so the omission reads as a choice instead
-of a gap.
+point, so each view opens with a `SummaryPanel` — a headline sentence and three
+supporting lines, authored as Markdown, on the muted surface with an accent edge so it
+reads as the assistant rather than as another tile — and every tile's hint is a plain
+sentence rather than a count. Four blocks per view is the ceiling; anything cut goes to
+the rail, and an `AskLine` at the foot says so, so the omission reads as a choice
+instead of a gap.
+
+**Pick the shape the comparison needs.** A bar is for shares of a whole (`BarList`,
+phases). Figures that want reading against each other go in a hairline table with the
+numbers right-aligned in mono (`DataTable`) — bars sized against the largest bucket
+made the *stopped* money the longest thing on the tile. A measured value against its
+target shows the gap, not a proportional bar (`TargetRow`): production KPIs all sit
+within a few points of target, so every bar was full and said nothing. Tile headings are
+13px sans, not the display serif — eight serif headings down a page of figures read as
+eight article titles. Both views sit in one measured grid (max 1080px, two tiles abreast
+where they fit): full-bleed rows put a label and its number in different postcodes.
 
 **Tooltips.** One line is a phrase. More than that is written as lines, first line
 the heading and the rest `Label: value` — the layer sets the labels back and rules

@@ -10,21 +10,10 @@ import { ChatCardList } from "@/components/chat/chat-use-case-card";
 import { JumpToTop } from "@/components/chat/chat-ui";
 import { MiniChatRail, type RailAnswer } from "@/components/chat/mini-chat-rail";
 import { Markdown } from "@/components/document-record/markdown";
-import { AskLine, BarList, MiniList, ReadLine, StatBand, TileBox } from "@/components/portfolio/tiles";
+import { AskLine, BarList, DataTable, MiniList, StatBand, SummaryPanel, TargetRow, TileBox } from "@/components/portfolio/tiles";
 import { TimeChart } from "@/components/portfolio/time-chart";
 import { PersonAvatar, ProfileSwitcher } from "@/components/profile";
-import {
-  Button,
-  CHIP,
-  MenuDivider,
-  MenuItem,
-  MenuLabel,
-  MenuSurface,
-  PHASE_TONES,
-  PhaseIcon,
-  Tag,
-} from "@/components/ui/kit";
-import { MarkdownModal } from "@/components/document-record/markdown-modal";
+import { Button, CHIP, MenuDivider, MenuItem, MenuLabel, MenuSurface, PHASE_TONES, PhaseIcon, Tag } from "@/components/ui/kit";
 import { STAGE_GROUPS, firstName, phaseForStage, shortStageLabel } from "@/data/lifecycle";
 import {
   ALL_RECORDS,
@@ -50,6 +39,7 @@ import {
   gateMix,
   gateOutcomes,
   headline,
+  healthSummary,
   kpiAttainment,
   medianCycleDaysByPhase,
   phasesBySpeed,
@@ -63,6 +53,7 @@ import {
   throughput,
   usd,
   valueByFunction,
+  valueSummary,
   valueSeries,
   type PhaseMap,
 } from "@/lib/portfolio";
@@ -75,6 +66,12 @@ import { useClickOutside } from "@/lib/use-click-outside";
 // and Value (money, attainment, outcomes). Every number comes from
 // `src/lib/portfolio.ts`, so the tiles and the chat can't disagree — and the panel
 // footer says out loud whether the seeded history still reconciles.
+
+// One grid for both views: a measured column (a dashboard that runs to a 1600px
+// window puts a label and its number in different postcodes), two tiles abreast where
+// they fit, and `items-start` so a short tile doesn't stretch to match a tall one.
+const TAB_GRID = "mx-auto grid w-full max-w-[1080px] grid-cols-1 items-start gap-4 lg:grid-cols-2";
+const SPAN = "lg:col-span-2";
 
 // Phase membership stays in `lifecycle.ts`; the derivations take it as an argument.
 const PHASES: PhaseMap = { order: Object.keys(STAGE_GROUPS), phaseOf: phaseForStage };
@@ -92,7 +89,10 @@ const LEADERSHIP_HISTORY: ChatSession[] = [
         text: "$1.79M is committed against $1.55M of annualised benefit from the 5 live use cases — a payback of about 14 months across the portfolio.",
       },
       { role: "user", text: "Which one pays back fastest?", time: "9:26 AM" },
-      { role: "assistant", text: "Meeting Notes Summariser: $95K spent for $150K a year, so about 8 months. It's also the cheapest thing we've shipped." },
+      {
+        role: "assistant",
+        text: "Meeting Notes Summariser: $95K spent for $150K a year, so about 8 months. It's also the cheapest thing we've shipped.",
+      },
     ],
   },
   {
@@ -106,7 +106,10 @@ const LEADERSHIP_HISTORY: ChatSession[] = [
         text: "Delivery is the longest phase at 67 days, but most of that is build. The one to watch is Governance & Risk at 33 days for a decision — that's queueing, not work.",
       },
       { role: "user", text: "What's sitting there?", time: "2:43 PM" },
-      { role: "assistant", text: "Customer Churn Signal Model at R2 in review, and Invoice Exception Classifier, whose R2 is blocked — Elena Weber owns that one." },
+      {
+        role: "assistant",
+        text: "Customer Churn Signal Model at R2 in review, and Invoice Exception Classifier, whose R2 is blocked — Elena Weber owns that one.",
+      },
     ],
   },
 ];
@@ -123,7 +126,7 @@ function answerForLeader(question: string, cards: UseCaseCard[], person: string)
   if (/digest|brief|state of|how are we|how's the portfolio|where do we stand|summar/.test(asked)) {
     return {
       text: `Here's where it stands as of ${formatDay(AS_OF)}.`,
-      detail: <Markdown source={portfolioDigest(cards, PORTFOLIO_SNAPSHOTS, PHASES, AS_OF, { full: false })} />,
+      detail: <Markdown source={portfolioDigest(cards, PORTFOLIO_SNAPSHOTS, PHASES, AS_OF)} />,
     };
   }
 
@@ -169,7 +172,9 @@ function answerForLeader(question: string, cards: UseCaseCard[], person: string)
   if (/throughput|raised|intake volume|per month|how many came/.test(asked)) {
     const months = throughput(PORTFOLIO_SNAPSHOTS);
     return `By month: ${months
-      .map((month) => `${month.label} ${month.submitted} raised, ${month.approved} approved, ${month.closed} closed${month.partial ? " (so far)" : ""}`)
+      .map(
+        (month) => `${month.label} ${month.submitted} raised, ${month.approved} approved, ${month.closed} closed${month.partial ? " (so far)" : ""}`,
+      )
       .join("; ")}.`;
   }
 
@@ -296,8 +301,6 @@ function HealthTab({ cards, board, months }: { cards: UseCaseCard[]; board: UseC
   const h = headline(cards, months, AS_OF);
   const flow = funnel(board, PHASES);
   const cycle = medianCycleDaysByPhase(cards, PHASES);
-  const ranked = phasesBySpeed(cycle, PHASES);
-  const slow = ranked[0];
   const stalled = blockers(board);
   const aged = aging(board, AS_OF);
 
@@ -311,46 +314,54 @@ function HealthTab({ cards, board, months }: { cards: UseCaseCard[]; board: UseC
   ];
 
   return (
-    <div className="flex flex-col gap-4">
-      {/* Built as one string, not as JSX fragments: interpolating clauses between
-          elements left spaces sitting in front of the commas. */}
-      <ReadLine>
-        <strong className="font-semibold text-[var(--text-primary)]">{h.active} use cases are in flight.</strong>{" "}
-        {`${h.attention} need a decision today and ${h.blocked} ${h.blocked === 1 ? "isn't" : "aren't"} moving at all. A gate decision takes ${
-          h.decisionDays
-        } days, ${h.decisionTrend > 0 ? `${h.decisionTrend} fewer than in ${h.since}` : `${Math.abs(h.decisionTrend)} more than in ${h.since}`}${
-          slow ? `. ${slow} is the longest phase at ${cycle[slow].days} days` : ""
-        }.`}
-      </ReadLine>
-
-      <StatBand
-        items={[
-          { label: "In flight", value: String(h.active), delta: `${h.tracked} ever raised`, tip: "Records with an active lifecycle" },
-          { label: "Needs a decision", value: String(h.attention), delta: `${h.aged} over a week old`, tip: "Records flagged for their action owner" },
-          { label: "Not moving", value: String(h.blocked), delta: `${h.openGates} gates open`, tip: "Parked, or blocked at a gate" },
-          {
-            label: "Days to a decision",
-            value: String(h.decisionDays),
-            delta: h.decisionTrend > 0 ? `${h.decisionTrend} faster than ${h.since}` : `${Math.abs(h.decisionTrend)} slower than ${h.since}`,
-            tip: "Median days from intake to a first gate decision",
-          },
-        ]}
-      />
+    // A measured column, and two tiles abreast where they fit: full-bleed rows left a
+    // label on the far left and its number a thousand pixels away on the right, which
+    // is most of why this page was hard to read.
+    <div className={TAB_GRID}>
+      <div className={SPAN}>
+        <SummaryPanel source={healthSummary(cards, months, PHASES, AS_OF)} meta={`As of ${formatDay(AS_OF)} · ${cards.length} records`} />
+      </div>
+      <div className={SPAN}>
+        <StatBand
+          items={[
+            { label: "In flight", value: String(h.active), delta: `${h.tracked} ever raised`, tip: "Records with an active lifecycle" },
+            {
+              label: "Needs a decision",
+              value: String(h.attention),
+              delta: `${h.aged} over a week old`,
+              tip: "Records flagged for their action owner",
+            },
+            { label: "Not moving", value: String(h.blocked), delta: `${h.openGates} gates open`, tip: "Parked, or blocked at a gate" },
+            {
+              label: "Days to a decision",
+              value: String(h.decisionDays),
+              delta: h.decisionTrend > 0 ? `${h.decisionTrend} faster than ${h.since}` : `${Math.abs(h.decisionTrend)} slower than ${h.since}`,
+              tip: "Median days from intake to a first gate decision",
+            },
+          ]}
+        />
+      </div>
 
       <TileBox title="Where the work is sitting" hint={`${board.length} on the board, by phase`}>
         <BarList
           rows={flow.map((row) => ({
             key: row.phase,
+            // Phase name, then one meta string, then the count. Three separate numbers
+            // in a row ("3 waiting · 25d typical · 4") read as a puzzle.
             label: (
               <>
                 <PhaseIcon phase={row.phase} size={13} style={{ color: `var(--tone-${PHASE_TONES[row.phase] ?? "neutral"}-fg)` }} />
                 <span className="truncate">{row.phase}</span>
-                {row.attention ? <span className="shrink-0 text-[11px] text-[var(--tone-warning-fg)]">{row.attention} waiting</span> : null}
               </>
             ),
             value: String(row.count),
             ratio: row.share,
-            meta: cycle[row.phase]?.sample ? `${cycle[row.phase].days}d typical` : `${cycle[row.phase]?.open ?? 0} still here`,
+            meta: [
+              row.attention ? `${row.attention} waiting on someone` : null,
+              cycle[row.phase]?.sample ? `${cycle[row.phase].days} days typically` : `${cycle[row.phase]?.open ?? 0} still here`,
+            ]
+              .filter(Boolean)
+              .join(" · "),
             tip: `${row.phase}\nStages: ${row.stages.map(shortStageLabel).join(", ") || "none occupied"}\n${
               cycle[row.phase]?.sample
                 ? `Median time in phase: ${cycle[row.phase].days} days, measured on ${cycle[row.phase].sample} records that have left it`
@@ -366,7 +377,10 @@ function HealthTab({ cards, board, months }: { cards: UseCaseCard[]; board: UseC
             key: row.card.id,
             node: (
               <div className="flex min-w-0 items-center gap-2.5">
-                <Link href={row.card.href} className="min-w-0 flex-1 truncate text-[13px] font-medium text-[var(--text-primary)] hover:text-[var(--accent-strong)]">
+                <Link
+                  href={row.card.href}
+                  className="min-w-0 flex-1 truncate text-[13px] font-medium text-[var(--text-primary)] hover:text-[var(--accent-strong)]"
+                >
                   {row.card.title}
                 </Link>
                 <Tag
@@ -384,7 +398,7 @@ function HealthTab({ cards, board, months }: { cards: UseCaseCard[]; board: UseC
         />
       </TileBox>
 
-      <TileBox title="Are decisions getting faster?" hint="median days from intake to a first gate decision">
+      <TileBox className={SPAN} title="Are decisions getting faster?" hint="median days from intake to a first gate decision">
         <TimeChart
           data={decisionSpeedSeries(months)}
           series={[{ key: "days", name: "Days", colour: "var(--accent)" }]}
@@ -393,7 +407,9 @@ function HealthTab({ cards, board, months }: { cards: UseCaseCard[]; board: UseC
         />
       </TileBox>
 
-      <AskLine topics="gate outcomes, the risk mix, owner load or throughput by month" />
+      <div className={SPAN}>
+        <AskLine topics="gate outcomes, the risk mix, owner load or throughput by month" />
+      </div>
     </div>
   );
 }
@@ -417,29 +433,42 @@ function ValueTab({ cards, months }: { cards: UseCaseCard[]; months: typeof PORT
   }, {});
 
   return (
-    <div className="flex flex-col gap-4">
-      <ReadLine>
-        <strong className="font-semibold text-[var(--text-primary)]">{`${usd(h.investment)} committed, ${usd(h.benefit)} coming back a year.`}</strong>{" "}
-        {`That's the ${h.live} live use cases paying for the whole committed book in about ${h.paybackMonths} months, with ${summary.met} of ${
-          summary.total
-        } production targets currently met.`}
-      </ReadLine>
+    <div className={TAB_GRID}>
+      <div className={SPAN}>
+        <SummaryPanel source={valueSummary(cards, months, AS_OF)} meta={`As of ${formatDay(AS_OF)} · ${cards.length} records`} />
+      </div>
+      <div className={SPAN}>
+        <StatBand
+          items={[
+            {
+              label: "Committed",
+              value: usd(h.investment),
+              delta: `${money[0].count + money[1].count} funded records`,
+              tip: "Investment on live and funded work",
+            },
+            {
+              label: "Annualised benefit",
+              value: usd(h.benefit),
+              delta: `from ${h.live} live`,
+              tip: "Benefit counted only once something is in production",
+            },
+            {
+              label: "Payback",
+              value: h.paybackMonths ? `${h.paybackMonths} mo` : "—",
+              delta: "committed against live benefit",
+              tip: "Committed investment divided by the annualised benefit of what is live",
+            },
+            {
+              label: "Targets met",
+              value: `${summary.met}/${summary.total}`,
+              delta: `across ${h.live} live`,
+              tip: "KPIs measured in production against their target",
+            },
+          ]}
+        />
+      </div>
 
-      <StatBand
-        items={[
-          { label: "Committed", value: usd(h.investment), delta: `${money[0].count + money[1].count} funded records`, tip: "Investment on live and funded work" },
-          { label: "Annualised benefit", value: usd(h.benefit), delta: `from ${h.live} live`, tip: "Benefit counted only once something is in production" },
-          {
-            label: "Payback",
-            value: h.paybackMonths ? `${h.paybackMonths} mo` : "—",
-            delta: "committed against live benefit",
-            tip: "Committed investment divided by the annualised benefit of what is live",
-          },
-          { label: "Targets met", value: `${summary.met}/${summary.total}`, delta: `across ${h.live} live`, tip: "KPIs measured in production against their target" },
-        ]}
-      />
-
-      <TileBox title="Is the benefit catching up with the spend?" hint="cumulative at each month end">
+      <TileBox className={SPAN} title="Is the benefit catching up with the spend?" hint="cumulative at each month end">
         <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
           <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
             <span aria-hidden className="h-[2px] w-4" style={{ background: "var(--accent)" }} />
@@ -461,51 +490,47 @@ function ValueTab({ cards, months }: { cards: UseCaseCard[]; months: typeof PORT
       </TileBox>
 
       <TileBox title="Where the money sits" hint="every record is in exactly one of these">
-        <BarList
+        <DataTable
+          columns={["State", "Records", "Committed", "Benefit / yr"]}
           rows={money.map((state) => ({
             key: state.key,
-            label: (
-              <>
-                <span className="truncate">{state.label}</span>
-                <span className={cn(CHIP, "font-mono shrink-0 bg-[var(--surface-strong)] text-[var(--text-label)]")}>{state.count}</span>
-              </>
-            ),
-            value: usd(state.investment),
-            ratio: state.investment / Math.max(1, ...money.map((row) => row.investment)),
-            meta: state.benefit ? `${usd(state.benefit)} benefit` : undefined,
+            label: state.label,
+            values: [state.count, usd(state.investment), state.benefit ? usd(state.benefit) : "—"],
             tip: `${state.label}\nRecords: ${state.count}\nInvestment: ${usd(state.investment)}\nAnnual benefit: ${usd(state.benefit)}`,
           }))}
         />
       </TileBox>
 
-      <TileBox title="Is production hitting its targets?" hint={`${summary.met} of ${summary.total} met, by record`}>
-        <div className="flex flex-col gap-4">
+      <TileBox title="Is production hitting its targets?" hint={`${summary.met} of ${summary.total} met · measured against target`}>
+        <div className="flex flex-col gap-5">
           {Object.values(byRecord).map((rows) => (
             <div key={rows[0].card.id} className="min-w-0">
               <div className="flex min-w-0 items-baseline gap-2">
-                <Link href={rows[0].card.href} className="min-w-0 truncate text-[13px] font-semibold text-[var(--text-primary)] hover:text-[var(--accent-strong)]">
+                <Link
+                  href={rows[0].card.href}
+                  className="min-w-0 truncate text-[13px] font-medium text-[var(--text-primary)] hover:text-[var(--accent-strong)]"
+                >
                   {rows[0].card.title}
                 </Link>
                 <span className="font-mono shrink-0 text-[11px] text-[var(--text-muted)]">{rows[0].card.id}</span>
+                {rows.every((row) => row.met) ? null : (
+                  <Tag tone="warning" className={cn(CHIP, "shrink-0")}>
+                    Behind
+                  </Tag>
+                )}
               </div>
-              <BarList
-                className="mt-2"
-                rows={rows.map((row) => ({
-                  key: `${row.card.id}-${row.name}`,
-                  label: (
-                    <>
-                      <span className="truncate">{row.name}</span>
-                      {row.met ? null : (
-                        <Tag tone="warning" className={cn(CHIP, "shrink-0")}>
-                          Behind
-                        </Tag>
-                      )}
-                    </>
-                  ),
-                  value: `${row.actual}${row.unit} / ${row.target}${row.unit}`,
-                  ratio: row.ratio,
-                }))}
-              />
+              <div className="mt-1.5">
+                {rows.map((row) => (
+                  <TargetRow
+                    key={`${row.card.id}-${row.name}`}
+                    name={row.name}
+                    actual={row.actual}
+                    target={row.target}
+                    unit={row.unit}
+                    met={row.met}
+                  />
+                ))}
+              </div>
             </div>
           ))}
         </div>
@@ -531,7 +556,9 @@ function ValueTab({ cards, months }: { cards: UseCaseCard[]; months: typeof PORT
         />
       </TileBox>
 
-      <AskLine topics="value by function, payback per record, or what a single use case cost" />
+      <div className={SPAN}>
+        <AskLine topics="value by function, payback per record, or what a single use case cost" />
+      </div>
     </div>
   );
 }
@@ -542,7 +569,6 @@ export default function PortfolioPage() {
   const [period, setPeriod] = useState<3 | 6>(6);
   const [activeProfile, setActiveProfile] = useState(CURRENT_USER);
   const [railScrolled, setRailScrolled] = useState(false);
-  const [digestOpen, setDigestOpen] = useState(false);
   const railScrollRef = useRef<HTMLDivElement>(null);
   const railMode = useRailMode();
   const history = useChatSessions(LEADERSHIP_HISTORY);
@@ -626,11 +652,6 @@ export default function PortfolioPage() {
         controls={
           <>
             <PortfolioFilterMenu scope={scope} onScopeChange={setScope} period={period} onPeriodChange={setPeriod} />
-            <Button tone="primary" onClick={() => setDigestOpen(true)}>
-              <Sparkles size={14} />
-              Portfolio digest
-            </Button>
-            <span aria-hidden className="mx-0.5 h-4 w-px bg-[var(--border-default)]" />
             <ProfileSwitcher currentUser={activeProfile} onUserChange={setActiveProfile} compact />
           </>
         }
@@ -662,14 +683,6 @@ export default function PortfolioPage() {
           {tab === "health" ? <HealthTab cards={cards} board={board} months={months} /> : <ValueTab cards={cards} months={months} />}
         </div>
       </ContentPanel>
-
-      <MarkdownModal
-        open={digestOpen}
-        onClose={() => setDigestOpen(false)}
-        title="Portfolio digest"
-        subtitle={`${cards.length} use cases · as of ${formatDay(AS_OF)}`}
-        source={portfolioDigest(cards, months, PHASES, AS_OF)}
-      />
     </AppShell>
   );
 }

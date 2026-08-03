@@ -2,7 +2,9 @@
 
 import type { ReactNode } from "react";
 
-import { ProgressBar, SectionHeading, cardClass } from "@/components/ui/kit";
+import { Markdown } from "@/components/document-record/markdown";
+
+import { ProgressBar, cardClass } from "@/components/ui/kit";
 import { cn } from "@/lib/cn";
 
 // ── The portfolio's drawing parts ──
@@ -14,11 +16,16 @@ import { cn } from "@/lib/cn";
 // easier to compare than angles. Only a real time axis gets a chart runtime (see
 // `time-chart.tsx`).
 
-// The answer, before the evidence. A leadership page that opens with tiles makes the
-// reader derive the point; this states it in a sentence, in the prose serif, and lets
-// the blocks below be the backing.
-export function ReadLine({ children }: { children: ReactNode }) {
-  return <p className="font-serif-body max-w-[80ch] text-[15px] leading-[1.65] text-[var(--text-body)]">{children}</p>;
+// The answer, before the evidence — a headline sentence and three supporting lines,
+// authored as Markdown so the copy can come from a model. Set on the muted surface
+// with an accent edge: it reads as the assistant talking, not as another tile.
+export function SummaryPanel({ source, meta }: { source: string; meta?: string }) {
+  return (
+    <section className="rounded-[10px] border border-[var(--border-default)] border-l-2 border-l-[var(--accent)] bg-[var(--surface-muted)] px-5 py-4">
+      <Markdown source={source} className="max-w-[86ch]" />
+      {meta ? <p className="mt-3 text-[11px] text-[var(--text-muted)]">{meta}</p> : null}
+    </section>
+  );
 }
 
 // What this page deliberately doesn't show. Everything cut from the tiles is one
@@ -49,12 +56,99 @@ export function TileBox({
 }) {
   return (
     <section className={cn(cardClass(), "min-w-0", className)}>
-      <div className="border-b border-[var(--border-hairline)] px-4 py-3">
-        <SectionHeading title={title} hint={hint} />
+      {/* Sans and 13px, not the display serif: eight serif headings down a page of
+          figures read as eight article titles and buried the data they introduce. */}
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-[var(--border-hairline)] px-5 py-3">
+        <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">{title}</h3>
+        {hint ? <span className="text-[12px] text-[var(--text-muted)]">{hint}</span> : null}
       </div>
-      <div className="px-4 py-3.5">{children}</div>
-      {footer ? <div className="border-t border-[var(--border-hairline)] px-4 py-2.5 text-[11px] text-[var(--text-muted)]">{footer}</div> : null}
+      <div className="px-5 py-4">{children}</div>
+      {footer ? <div className="border-t border-[var(--border-hairline)] px-5 py-2.5 text-[11px] text-[var(--text-muted)]">{footer}</div> : null}
     </section>
+  );
+}
+
+// Four numbers that want comparing, not four bars. Money across states is a table:
+// the bars were sized against the largest bucket, which made "stopped or parked" the
+// longest thing on the tile and read as the headline.
+export function DataTable({
+  columns,
+  rows,
+}: {
+  // First column is the label (left, sans); the rest are figures (right, mono).
+  columns: string[];
+  rows: { key: string; label: ReactNode; values: ReactNode[]; tip?: string }[];
+}) {
+  return (
+    <table className="w-full border-collapse text-left">
+      <thead>
+        <tr>
+          {columns.map((column, index) => (
+            <th
+              key={column}
+              className={cn(
+                "border-b border-[var(--border-default)] pb-2 text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--text-muted)]",
+                index > 0 && "pl-4 text-right",
+              )}
+            >
+              {column}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row) => (
+          <tr key={row.key} data-tip={row.tip}>
+            <td className="border-b border-[var(--border-hairline)] py-2.5 text-[13px] text-[var(--text-body)]">{row.label}</td>
+            {row.values.map((value, index) => (
+              <td key={index} className="font-mono border-b border-[var(--border-hairline)] py-2.5 pl-4 text-right text-[13px] text-[var(--text-primary)]">
+                {value}
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+// A measured value against its target. No bar: every production KPI sits within a few
+// points of its target, so a proportional bar was full for all of them and said
+// nothing. The gap is the fact, so the gap is what's drawn.
+export function TargetRow({
+  name,
+  actual,
+  target,
+  unit,
+  met,
+}: {
+  name: string;
+  actual: number;
+  target: number;
+  unit: string;
+  met: boolean;
+}) {
+  const delta = Math.round((actual - target) * 10) / 10;
+  return (
+    <div className="flex min-w-0 items-baseline gap-3 border-t border-[var(--border-hairline)] py-2 first:border-t-0">
+      <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--text-body)]">{name}</span>
+      <span className="font-mono shrink-0 text-[13px] font-medium text-[var(--text-primary)]">
+        {actual}
+        {unit}
+      </span>
+      <span className="font-mono shrink-0 text-[11px] text-[var(--text-muted)]">
+        of {target}
+        {unit}
+      </span>
+      <span
+        className="font-mono w-[52px] shrink-0 text-right text-[11px] font-medium"
+        style={{ color: met ? "var(--status-success)" : "var(--tone-warning-fg)" }}
+      >
+        {delta > 0 ? "+" : ""}
+        {delta}
+        {unit}
+      </span>
+    </div>
   );
 }
 
