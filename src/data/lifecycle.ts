@@ -5,7 +5,9 @@
 // `rows` are [label, value] pairs — the value is what a completed stage recorded
 // (and what the mocked AI suggests while a stage is still open).
 
-import { USE_CASE } from "@/data/document-workflow-form-schema";
+// Relative, not aliased: the data layer stays loadable by plain `node`, which is
+// what lets `src/lib/portfolio.ts` check the seeded numbers without a bundler.
+import { USE_CASE } from "./document-workflow-form-schema.ts";
 
 export type StageItem = {
   name: string;
@@ -385,12 +387,14 @@ export const RECORD_DETAILS: [string, string][] = [
   ["Use case ID", USE_CASE.id],
   ["Created by", "Mira Kapoor"],
   ["Created on", "Jun 18, 2026"],
-  ["Department", "Support"],
-  ["Function", "Customer Experience"],
-  ["Team", "Tier-1 Operations"],
+  ["Department", "R&D"],
+  ["Function", "Medical Writing"],
+  ["Team", "Clinical Operations"],
   ["Country", "Global / multi-country"],
   ["Business sponsor", "Nora Singh"],
-  ["Target go-live", "Jun 15, 2026"],
+  // Ideation says 4-5 months from a Jun 18 start; the old Jun 15 date sat *before*
+  // the record was created, which made every day-count on the overview nonsense.
+  ["Target go-live", "Nov 30, 2026"],
   ["Model archetype", "Agent"],
 ];
 
@@ -469,3 +473,10 @@ export function stageValue(stageName: string, label: string): string | undefined
 }
 
 export const firstName = (name: string) => name.split(" ")[0];
+
+// A stage's short label ("Assessment" → "Risk assessment"), for the places where a
+// row of stages has to fit: board chips, table cells, portfolio tiles.
+export const shortStageLabel = (stageName: string) => {
+  const index = STAGES.findIndex((stage) => stage.name === stageName);
+  return index >= 0 ? SHORT_STAGE_LABELS[index] : stageName;
+};

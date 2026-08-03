@@ -1,4 +1,4 @@
-import { INTAKE_FORM_SECTIONS, UC_142_INTAKE_DATA } from "@/data/intake-form-schema";
+import { INTAKE_FORM_SECTIONS, UC_142_INTAKE_DATA } from "./intake-form-schema.ts";
 
 export type FieldType = "text" | "long" | "select" | "radio" | "multi" | "file" | "number";
 export type FieldValue = string | string[];
@@ -31,9 +31,13 @@ export type WorkflowStageDef = {
   sections: WorkflowSectionDef[];
 };
 
+// The one deep record. Its 12 stages of captured values (in `lifecycle.ts`) are all
+// about clinical-protocol summarisation, so the name and the content agree; the
+// support-ticket example that used to sit here survives as the *schema's* filled
+// example (`UC_142_INTAKE_DATA`, `INITIAL_WORKFLOW_VALUES`), which nothing renders.
 export const USE_CASE = {
   id: "UC-142",
-  name: "Support Ticket Response Agent",
+  name: "Protocol Digest Assistant",
 };
 
 export const CURRENCY_CODES = ["EUR", "USD", "GBP"];

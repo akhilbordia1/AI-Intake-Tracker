@@ -5,7 +5,6 @@ import {
   ArrowRight,
   CalendarDays,
   ChevronDown,
-  ChevronRight,
   CircleDot,
   Columns3,
   FileText,
@@ -24,6 +23,7 @@ import { createPortal } from "react-dom";
 
 import { AppShell, ContentPanel, PanelBreadcrumb, PanelTabs, RailHeader, useRailMode } from "@/components/app-shell";
 import { ChatHistoryButton, useChatSessions, type ChatSession, type ChatTurn } from "@/components/chat/chat-history";
+import { ChatCardList } from "@/components/chat/chat-use-case-card";
 import { JumpToTop } from "@/components/chat/chat-ui";
 import { MiniChatRail, type RailAnswer } from "@/components/chat/mini-chat-rail";
 import { PersonAvatar, ProfileSwitcher } from "@/components/profile";
@@ -42,42 +42,25 @@ import {
   StageIcon,
   titleCaseTag,
 } from "@/components/ui/kit";
-import { SHORT_STAGE_LABELS, STAGE_GROUPS, STAGES, SUBSTAGE_TO_GROUP } from "@/data/lifecycle";
+import { STAGE_GROUPS, STAGES, SUBSTAGE_TO_GROUP, shortStageLabel } from "@/data/lifecycle";
+import {
+  CURRENT_USER,
+  USE_CASES,
+  dueDate,
+  filterUseCasesByScope,
+  getAttentionMessage,
+  scopeOptions,
+  type GateStatus,
+  type Lifecycle,
+  type Priority,
+  type ScopeFilter,
+  type UseCaseCard,
+} from "@/data/registry";
 import { cn } from "@/lib/cn";
 import { useClickOutside } from "@/lib/use-click-outside";
 
 type ViewKey = "stage" | "people" | "priority" | "due" | "status";
 type DisplayMode = "board" | "table";
-type ScopeFilter = "my" | "team" | "all";
-type Priority = "High" | "Medium" | "Low";
-type GateStatus = "Pending" | "In review" | "Passed" | "Blocked" | "Rejected";
-type Lifecycle = "Active" | "On hold" | "Rejected" | "Live";
-
-type UseCaseCard = {
-  id: string;
-  title: string;
-  description: string;
-  owner: string;
-  // Shared-responsibility stages (e.g. adoption) carry a second owner.
-  coOwner?: string;
-  due: string;
-  stage: string;
-  // The specific detail-view stage inside the condensed board column.
-  substage: string;
-  // Functional priority (set by the functional lead). null until prioritized.
-  priority: Priority | null;
-  // Portfolio priority (set by the core team). Overrides functional once set.
-  orgPriority?: Priority;
-  dueGroup: "Submitted" | "This week" | "Next week" | "Funded" | "Rejected";
-  actionOwner: string;
-  needsAttention: boolean;
-  attentionTask?: string;
-  pendingFor?: string;
-  // Assessment gate the use case currently sits at, with its own status.
-  gate?: { id: string; status: GateStatus };
-  lifecycle: Lifecycle;
-  href: string;
-};
 
 // The tracker rail's responder: answers the starter questions (and anything with
 // the same keywords) straight from the registry rather than a canned line.
@@ -88,8 +71,8 @@ function answerAboutPortfolio(question: string, person: string): RailAnswer | un
     cards.map((card) => `• ${card.id} ${card.title} — ${describe(card)}`).join("\n");
 
   if (/attention|mine|my |waiting on me|urgent/.test(asked)) {
-    const mine = useCases.filter((card) => card.needsAttention && card.actionOwner === person);
-    const others = useCases.filter((card) => card.needsAttention && card.actionOwner !== person);
+    const mine = USE_CASES.filter((card) => card.needsAttention && card.actionOwner === person);
+    const others = USE_CASES.filter((card) => card.needsAttention && card.actionOwner !== person);
     if (mine.length) {
       return {
         text: `${mine.length === 1 ? "One use case needs" : `${mine.length} use cases need`} ${person}:`,
@@ -105,7 +88,7 @@ function answerAboutPortfolio(question: string, person: string): RailAnswer | un
   }
 
   if (/blocked|stuck|on hold|rejected/.test(asked)) {
-    const stalled = useCases.filter(
+    const stalled = USE_CASES.filter(
       (card) => card.lifecycle === "On hold" || card.lifecycle === "Rejected" || card.gate?.status === "Blocked" || card.gate?.status === "Rejected",
     );
     return stalled.length
@@ -118,60 +101,13 @@ function answerAboutPortfolio(question: string, person: string): RailAnswer | un
   }
 
   if (/gtac|board|funding|invest/.test(asked)) {
-    const atBoard = useCases.filter((card) => card.substage === "GTAC" || card.stage === "GTAC" || card.dueGroup === "Funded");
+    const atBoard = USE_CASES.filter((card) => card.substage === "GTAC" || card.stage === "GTAC" || card.dueGroup === "Funded");
     return atBoard.length
       ? `At or past the GTAC board:\n\n${list(atBoard, (card) => `${shortStageLabel(card.substage)} · ${card.dueGroup === "Funded" ? "funded" : `owner ${card.owner}`}`)}`
       : "Nothing is at the GTAC board right now.";
   }
 
   return undefined;
-}
-
-// A list answer, as cards — but not the board's card. In a conversation the
-// answer is "these two, and what to do about them", so a chat card carries only
-// that: the use case, the action, how long it's been waiting. Description, chips
-// and owner belong on the board, where you're comparing cards rather than
-// reading a reply.
-function ChatUseCaseCard({ card }: { card: UseCaseCard }) {
-  return (
-    // Two lines and nothing else: the title, then the record's own facts — id, the
-    // action, how long it's waited — as one quiet meta line. The chevron only
-    // appears on hover, so a list of these reads as an answer rather than a row of
-    // buttons.
-    <Link
-      href={card.href}
-      className="group flex items-center gap-2.5 rounded-[10px] border border-[var(--border-default)] bg-[var(--surface)] px-3 py-2.5 transition hover:border-[var(--border-input)] hover:bg-[var(--surface-muted)]"
-    >
-      <StageIcon stage={card.substage} size={14} className="shrink-0 text-[var(--text-muted)]" />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-[13px] font-semibold leading-[1.35] text-[var(--text-primary)] transition group-hover:text-[var(--accent-strong)]">
-          {card.title}
-        </span>
-        <span className="mt-1 flex min-w-0 items-center gap-1.5 text-[11px] leading-[1.4] text-[var(--text-muted)]">
-          <span className="font-mono shrink-0">{card.id}</span>
-          <span aria-hidden className="h-2.5 w-px shrink-0 bg-[var(--border-default)]" />
-          <span className="min-w-0 truncate font-medium text-[var(--accent-strong)]">{getAttentionMessage(card)}</span>
-          {card.pendingFor ? (
-            <>
-              <span aria-hidden className="h-2.5 w-px shrink-0 bg-[var(--border-default)]" />
-              <span className="shrink-0">Waiting {card.pendingFor}</span>
-            </>
-          ) : null}
-        </span>
-      </span>
-      <ChevronRight size={14} className="shrink-0 text-[var(--text-muted)] opacity-0 transition group-hover:opacity-100" />
-    </Link>
-  );
-}
-
-function ChatCardList({ cards }: { cards: UseCaseCard[] }) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      {cards.map((card) => (
-        <ChatUseCaseCard key={card.id} card={card} />
-      ))}
-    </div>
-  );
 }
 
 // Earlier conversations on the registry. Hardcoded like the rest of the
@@ -197,7 +133,7 @@ const REGISTRY_HISTORY: ChatSession[] = [
     when: "Mon",
     turns: [
       { role: "user", text: "What's waiting on GTAC?", time: "10:02 AM" },
-      { role: "assistant", text: "At or past the GTAC board:\n\n• UC-142 Support Ticket Response Agent — Screening · owner Nisha Patel" },
+      { role: "assistant", text: "At or past the GTAC board:\n\n• UC-103 Marketing Asset Tagger — Monitoring · funded" },
     ],
   },
 ];
@@ -226,198 +162,6 @@ const STAGE_DESC: Record<string, string> = {
 
 const stageOwner = (stageName: string) => STAGES.find((stage) => stage.name === stageName)?.owner;
 
-const shortStageLabel = (stageName: string) => {
-  const index = STAGES.findIndex((stage) => stage.name === stageName);
-  return index >= 0 ? SHORT_STAGE_LABELS[index] : stageName;
-};
-
-const useCases: UseCaseCard[] = [
-  {
-    id: "UC-138",
-    title: "Finance Policy Summarizer",
-    description: "Summarizes finance policy updates for regional ops teams.",
-    owner: "Aarav Mehta",
-    due: "Submitted",
-    stage: "Intake",
-    substage: "Ideation",
-    priority: null,
-    dueGroup: "Submitted",
-    actionOwner: "Nisha Patel",
-    needsAttention: true,
-    attentionTask: "Review intake submission",
-    pendingFor: "3 days",
-    lifecycle: "Active",
-    href: "/overview",
-  },
-  {
-    id: "UC-141",
-    title: "Sales Call Insight Assistant",
-    description: "Turns sales call notes into follow-up actions and CRM fields.",
-    owner: "Mira Kapoor",
-    due: "Submitted",
-    stage: "Intake",
-    substage: "Ideation",
-    priority: null,
-    dueGroup: "Submitted",
-    actionOwner: "Mira Kapoor",
-    needsAttention: false,
-    lifecycle: "Active",
-    href: "/overview",
-  },
-  {
-    id: "UC-142",
-    title: "Support Ticket Response Agent",
-    description: "Drafts support replies with mandatory human review before send.",
-    owner: "Nisha Patel",
-    due: "6 Jul 2026",
-    stage: "Screening",
-    substage: "Triage",
-    priority: "High",
-    dueGroup: "This week",
-    actionOwner: "Nisha Patel",
-    needsAttention: true,
-    attentionTask: "Complete screening decision",
-    pendingFor: "2 days",
-    gate: { id: "R1", status: "In review" },
-    lifecycle: "Active",
-    href: "/overview",
-  },
-  {
-    id: "UC-146",
-    title: "Procurement Clause Checker",
-    description: "Flags missing clauses in supplier contracts before approval.",
-    owner: "Nisha Patel",
-    due: "7 Jul 2026",
-    stage: "Screening",
-    substage: "Qualification",
-    priority: "Medium",
-    dueGroup: "This week",
-    actionOwner: "Nisha Patel",
-    needsAttention: false,
-    gate: { id: "R1", status: "Pending" },
-    lifecycle: "Active",
-    href: "/overview",
-  },
-  {
-    id: "UC-147",
-    title: "HR Benefits Advisor",
-    description: "Answers employee benefits questions from approved policy content.",
-    owner: "Nisha Patel",
-    due: "8 Jul 2026",
-    stage: "Screening",
-    substage: "Prioritisation",
-    priority: "Medium",
-    dueGroup: "This week",
-    actionOwner: "Nisha Patel",
-    needsAttention: false,
-    lifecycle: "Active",
-    href: "/overview",
-  },
-  {
-    id: "UC-128",
-    title: "Customer Churn Signal Model",
-    description: "Scores customer churn risk for account planning discussions.",
-    owner: "Rohan Desai",
-    due: "10 Jul 2026",
-    stage: "Governance review",
-    substage: "Assessment",
-    priority: "High",
-    orgPriority: "High",
-    dueGroup: "This week",
-    actionOwner: "Rohan Desai",
-    needsAttention: false,
-    gate: { id: "R2", status: "In review" },
-    lifecycle: "Active",
-    href: "/overview",
-  },
-  {
-    id: "UC-132",
-    title: "Invoice Exception Classifier",
-    description: "Classifies invoice exceptions for accounts payable routing.",
-    owner: "Elena Weber",
-    due: "12 Jul 2026",
-    stage: "Governance review",
-    substage: "Business Case",
-    priority: "Medium",
-    orgPriority: "Medium",
-    dueGroup: "Next week",
-    actionOwner: "Elena Weber",
-    needsAttention: false,
-    gate: { id: "R2", status: "Blocked" },
-    lifecycle: "On hold",
-    href: "/overview",
-  },
-  {
-    id: "UC-119",
-    title: "Service Desk Knowledge Retrieval",
-    description: "Retrieves approved knowledge articles for service desk agents.",
-    owner: "Priya Rao",
-    due: "16 Jul 2026",
-    stage: "Planning",
-    substage: "Solution blue print",
-    priority: "Medium",
-    orgPriority: "Low",
-    dueGroup: "Next week",
-    actionOwner: "Priya Rao",
-    needsAttention: false,
-    gate: { id: "R2", status: "Passed" },
-    lifecycle: "Active",
-    href: "/overview",
-  },
-  {
-    id: "UC-125",
-    title: "Demand Forecast Explainer",
-    description: "Explains forecast movements for weekly supply planning.",
-    owner: "Priya Rao",
-    due: "18 Jul 2026",
-    stage: "Planning",
-    substage: "Plan & KPI",
-    priority: "Medium",
-    orgPriority: "Medium",
-    dueGroup: "Next week",
-    actionOwner: "Priya Rao",
-    needsAttention: false,
-    gate: { id: "R2", status: "Passed" },
-    lifecycle: "Active",
-    href: "/overview",
-  },
-  {
-    id: "UC-103",
-    title: "Marketing Asset Tagger",
-    description: "Suggests campaign metadata for approved marketing assets.",
-    owner: "Daniel Cho",
-    coOwner: "Priya Rao",
-    due: "Funded",
-    stage: "Approved",
-    substage: "Monitoring and tracking",
-    priority: "Low",
-    orgPriority: "Low",
-    dueGroup: "Funded",
-    actionOwner: "Daniel Cho",
-    needsAttention: false,
-    gate: { id: "R4", status: "Passed" },
-    lifecycle: "Live",
-    href: "/overview",
-  },
-  {
-    id: "UC-097",
-    title: "Refund Auto-Approval Agent",
-    description: "Auto-approves low-value refund requests without human review.",
-    owner: "Rohan Desai",
-    due: "Rejected 12 Jun 2026",
-    stage: "Governance review",
-    substage: "GTAC",
-    priority: "High",
-    orgPriority: "High",
-    dueGroup: "Rejected",
-    actionOwner: "Rohan Desai",
-    needsAttention: false,
-    gate: { id: "R2", status: "Rejected" },
-    lifecycle: "Rejected",
-    href: "/overview",
-  },
-];
-
 const viewOptions: Array<{ key: ViewKey; label: string }> = [
   { key: "stage", label: "By Stage" },
   { key: "people", label: "By Owner" },
@@ -426,22 +170,13 @@ const viewOptions: Array<{ key: ViewKey; label: string }> = [
   { key: "status", label: "By Status" },
 ];
 
-const scopeOptions: Array<{ key: ScopeFilter; label: string }> = [
-  { key: "my", label: "My Use Cases" },
-  { key: "team", label: "Team Use Cases" },
-  { key: "all", label: "All Use Cases" },
-];
-
-const currentUser = "Nisha Patel";
-const portfolioTeamOwners = new Set(["Mira Kapoor", "Aarav Mehta", "Nisha Patel", "Rohan Desai"]);
-
 function formatStageOwner(card: UseCaseCard) {
-  return card.owner === currentUser || card.actionOwner === currentUser ? "(Me)" : card.owner;
+  return card.owner === CURRENT_USER || card.actionOwner === CURRENT_USER ? "(Me)" : card.owner;
 }
 
 const viewColumnOrder: Record<ViewKey, string[]> = {
   stage: Object.keys(STAGE_GROUPS),
-  people: ["Nisha Patel", "Priya Rao", "Elena Weber", "Rohan Desai", "Mira Kapoor", "Aarav Mehta", "Daniel Cho"],
+  people: ["Nisha Patel", "Priya Rao", "Elena Weber", "Rohan Desai", "Mira Kapoor", "Aarav Mehta", "Daniel Cho", "Noah R."],
   priority: ["High", "Medium", "Low", "Not prioritized"],
   due: ["Submitted", "This week", "Next week", "Funded"],
   status: ["Active", "On hold", "Rejected", "Live"],
@@ -463,25 +198,13 @@ function buildColumns(view: ViewKey, cards: UseCaseCard[]): BoardColumn[] {
   }));
 }
 
-function filterUseCasesByScope(cards: UseCaseCard[], scope: ScopeFilter) {
-  if (scope === "my") return cards.filter((card) => card.owner === currentUser || card.actionOwner === currentUser);
-  if (scope === "team") {
-    return cards.filter((card) => portfolioTeamOwners.has(card.owner) || portfolioTeamOwners.has(card.actionOwner));
-  }
-  return cards;
-}
-
-function getAttentionMessage(card: UseCaseCard) {
-  return card.attentionTask ?? "Needs attention";
-}
-
 export default function HomePage() {
   const [displayMode, setDisplayMode] = useState<DisplayMode>("board");
   const [activeView, setActiveView] = useState<ViewKey>("stage");
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("all");
   const [attentionOnly, setAttentionOnly] = useState(false);
   const [search, setSearch] = useState("");
-  const [activeProfile, setActiveProfile] = useState(currentUser);
+  const [activeProfile, setActiveProfile] = useState(CURRENT_USER);
   const [railScrolled, setRailScrolled] = useState(false);
   const railScrollRef = useRef<HTMLDivElement>(null);
   const railMode = useRailMode();
@@ -489,7 +212,7 @@ export default function HomePage() {
   const history = useChatSessions(REGISTRY_HISTORY);
   const liveTurns = useRef<ChatTurn[]>([]);
   const pastSession = history.sessions.find((session) => session.id === history.activeId) ?? null;
-  const scopedUseCases = useMemo(() => filterUseCasesByScope(useCases, scopeFilter), [scopeFilter]);
+  const scopedUseCases = useMemo(() => filterUseCasesByScope(USE_CASES, scopeFilter), [scopeFilter]);
   const attentionCount = useMemo(() => scopedUseCases.filter((card) => card.needsAttention).length, [scopedUseCases]);
   const filteredUseCases = useMemo(() => {
     const visibleUseCases = attentionOnly ? scopedUseCases.filter((card) => card.needsAttention) : scopedUseCases;
@@ -550,7 +273,7 @@ export default function HomePage() {
             scrollRef={railScrollRef}
             onScrolledChange={setRailScrolled}
             emptyTitle={`How can I help, ${activeProfile.split(" ")[0]}?`}
-            intro={`${useCases.length} use cases are in the registry and ${attentionCount} need attention. Describe an idea and I'll start a new one, or ask me about what's already here.`}
+            intro={`${USE_CASES.length} use cases are in the registry and ${attentionCount} need attention. Describe an idea and I'll start a new one, or ask me about what's already here.`}
             starters={[
               { label: "Start a new use case", draft: "I want to build an AI assistant that ", icon: <Sparkles size={13} /> },
               { label: "What needs my attention?", icon: <Inbox size={13} /> },
@@ -837,12 +560,6 @@ function UseCaseTableView({ columns, totalRows }: { columns: BoardColumn[]; tota
     </section>
   );
 }
-
-// The `due` field mixes dates with lifecycle words ("Submitted", "Funded",
-// "Rejected 12 Jun 2026"). The Due column shows only the date; the words belong
-// to the status column, which already carries the gate and the lifecycle tag.
-const DATE_IN_DUE = /(\d{1,2} \w{3} \d{4})/;
-const dueDate = (due: string) => DATE_IN_DUE.exec(due)?.[1] ?? null;
 
 function UseCaseTableRow({ row }: { row: UseCaseCard }) {
   const lifecycleTag = LIFECYCLE_TAG[row.lifecycle];
