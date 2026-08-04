@@ -1,11 +1,14 @@
 "use client";
 
-import { ChevronDown, Sparkles } from "lucide-react";
-import type { ReactNode } from "react";
+import { ArrowUpRight, ChevronDown, Sparkles } from "lucide-react";
+import Link from "next/link";
+import { useRef, useState, type ReactNode } from "react";
 
 import { Markdown } from "@/components/document-record/markdown";
+import { ScoreRadial } from "@/components/portfolio/score-radial";
 
-import { cardClass } from "@/components/ui/kit";
+import { MenuItem, MenuLabel, MenuSurface, cardClass } from "@/components/ui/kit";
+import { useClickOutside } from "@/lib/use-click-outside";
 import { cn } from "@/lib/cn";
 
 // ── The portfolio's drawing parts ──
@@ -32,30 +35,28 @@ export function SummaryPanel({
   meta?: string;
 }) {
   return (
-    // Told apart from a tile by quiet things rather than one loud one: a softer hairline
-    // instead of the tiles' full border, no rule under the header (a passage doesn't need
-    // its title boxed off), a tracked-caps label rather than a tile's noun, and the muted
-    // fill. Not by size — a 15px override made it the only thing on the page above the
-    // 13px tile rows, and 2px of extra height reads as a different app rather than a
-    // different kind of block. The prose keeps `Markdown`'s own 14px, which is what the
-    // record's problem statement and the risk summary are set in. Not the serif reading
-    // face either: it was tried, and it made three lines of figures harder to read.
-    // Padding moved off the box and onto the two halves, so the rule between them runs the full
-    // width of the card the way a tile's header rule does. Inset by the box's own padding it
-    // stopped 20px short at each end, which reads as a rule someone forgot to finish rather
-    // than as a header being ruled off.
-    <section className="rounded-[10px] border border-[var(--border-hairline)] bg-[var(--surface-muted)]">
+    // Tinted in the accent, because "quiet" stopped working. This was `--surface-muted` (#fcfbfa)
+    // on a `--shell-canvas` (#faf9f6) page — two points apart per channel, which is no difference at
+    // all once the panel's own white card came off and the canvas showed through. A block that is
+    // *written* rather than measured has to be a different surface, not a slightly different white.
+    //
+    // Still quiet in every other respect: no size override (a 15px prose block was the largest text
+    // on the page), no serif (tried, and it made three lines of figures harder to read), and the
+    // padding sits on the two halves so the header rule runs the full width the way a tile's does.
+    // The tracked-caps label and the glyph take the accent's darkest step, which is legible on this
+    // fill at 8.7:1 and reads as the same family as the numbers it comments on.
+    <section className="rounded-[10px] border border-[var(--accent-border)] bg-[var(--accent-soft)]">
       {/* Ruled off like a tile's header. This deliberately had no rule — the reasoning was that
           a passage of prose doesn't need its title boxed off — but a summary sitting in a column
           of tiles that all rule their headers was the one card built differently, and that read
           as an oversight rather than as a distinction. The muted fill and the glyph are enough
           to mark it as something written. */}
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-[var(--border-hairline)] px-5 py-3">
-        <h3 className="inline-flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-[0.07em] text-[var(--text-label)]">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-[var(--accent-border)] px-5 py-3">
+        <h3 className="inline-flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-[0.07em] text-[var(--accent-strong)]">
           <Sparkles size={13} className="text-[var(--accent)]" />
           {title}
         </h3>
-        {meta ? <span className="font-mono text-[11px] text-[var(--text-muted)]">{meta}</span> : null}
+        {meta ? <span className="font-mono text-[11px] text-[var(--accent-strong)] opacity-70">{meta}</span> : null}
       </div>
       {/* No reading measure on top of the box. An 86ch cap inside a panel already capped
           at 1080px left every line stopping a few hundred pixels short of its own right
@@ -73,6 +74,49 @@ export function SummaryPanel({
   );
 }
 
+// The committee's agenda: one row per queue, the count first.
+//
+// Two shapes were wrong before this. A four-column table (Queue, Count, Oldest, Money Held) for two
+// rows, where the header was half the ink and the counts — the whole point — sat at 13px in a narrow
+// column. Then a card grid, which fixed the emphasis and broke the width: two cards in a three-up
+// grid left a third of the tile empty, and three queues would have been 2 + 1 with the same gap.
+//
+// Rows work at any count. The figure leads, the queue names itself, and the two facts that decide
+// urgency sit at the right where they line up down the list.
+export function QueueList({ queues }: { queues: { key: string; count: number; title: string; meta: string; urgent?: boolean; tip?: string }[] }) {
+  if (!queues.length) return <TileEmpty>Nothing is waiting on a ruling from this committee.</TileEmpty>;
+  return (
+    <div className="flex flex-col">
+      {queues.map((queue, index) => (
+        <div
+          key={queue.key}
+          data-tip={queue.tip}
+          className={cn(
+            "grid min-w-0 grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-4 py-3",
+            index > 0 && "border-t border-[var(--border-hairline)]",
+          )}
+        >
+          <span
+            className="text-[22px] font-semibold leading-none tracking-[-0.02em] [font-variant-numeric:tabular-nums]"
+            // The warning tone where the queue holds something genuinely old, so the agenda sorts
+            // itself by eye rather than by reading the ages.
+            style={{ color: queue.urgent ? "var(--tone-warning-fg)" : "var(--text-primary)" }}
+          >
+            {queue.count}
+          </span>
+          <span className="min-w-0 truncate text-[13px] font-medium text-[var(--text-primary)]">{queue.title}</span>
+          <span className="font-mono shrink-0 text-[11px] text-[var(--text-muted)] [font-variant-numeric:tabular-nums]">{queue.meta}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// `FindingsPanel` (a label column and a rule between each finding) lived here for one revision. It
+// turned three sentences into a three-row table, and a table of one-sentence cells says "scan me"
+// about writing that is meant to be read. The findings are composed into `SummaryPanel`'s Markdown
+// instead — a lead paragraph and two bullets, the same shape the value summary uses.
+
 // What a tile says when the scope filter has emptied it. One line in the tile's own
 // box, because a heading over blank space reads as a loading state that never resolves.
 export function TileEmpty({ children = "Nothing in this scope." }: { children?: ReactNode }) {
@@ -84,18 +128,24 @@ export function TileEmpty({ children = "Nothing in this scope." }: { children?: 
 export function TileBox({
   title,
   hint,
+  action,
   children,
   footer,
   className,
 }: {
   title: string;
   hint?: ReactNode;
+  // Somewhere this tile can take you. Only on tiles with a real destination — an affordance on a
+  // card that has nowhere to go is worse than none, because it reads as a dead control.
+  action?: ReactNode;
   children: ReactNode;
   footer?: ReactNode;
   className?: string;
 }) {
   return (
-    <section className={cn(cardClass(), "min-w-0 rounded-[12px]", className)}>
+    // A flex column with a growing body, so a tile told to fill its row (`h-full`) passes that height
+    // down to its content instead of stranding it under a short list.
+    <section className={cn(cardClass(), "flex min-w-0 flex-col rounded-[12px]", className)}>
       {/* Sans and 13px, not the display serif: eight serif headings down a page of
           figures read as eight article titles and buried the data they introduce.
           The rule under the header stays on every tile, including the ones whose content is a
@@ -103,11 +153,32 @@ export function TileBox({
           ruled off on some tiles and not others reads as two kinds of card. */}
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-[var(--border-hairline)] px-5 py-3">
         <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">{title}</h3>
-        {hint ? <span className="text-[12px] text-[var(--text-muted)]">{hint}</span> : null}
+        {hint || action ? (
+          <span className="ml-auto flex items-center gap-3">
+            {hint ? <span className="text-[12px] text-[var(--text-muted)]">{hint}</span> : null}
+            {action}
+          </span>
+        ) : null}
       </div>
-      <div className="px-5 py-4">{children}</div>
-      {footer ? <div className="border-t border-[var(--border-hairline)] px-5 py-2.5 text-[11px] text-[var(--text-muted)]">{footer}</div> : null}
+      <div className="min-h-0 flex-1 px-5 py-4">{children}</div>
+      {footer ? (
+        <div className="shrink-0 border-t border-[var(--border-hairline)] px-5 py-2.5 text-[11px] text-[var(--text-muted)]">{footer}</div>
+      ) : null}
     </section>
+  );
+}
+
+// The header's affordance: a link, sized and coloured to sit beside a hint without competing with
+// the tile's own title. An arrow rather than a chevron — this leaves the page.
+export function TileLink({ href, children }: { href: string; children: ReactNode }) {
+  return (
+    <Link
+      href={href}
+      className="inline-flex shrink-0 items-center gap-1 text-[12px] font-medium text-[var(--text-body)] transition hover:text-[var(--accent-strong)]"
+    >
+      {children}
+      <ArrowUpRight aria-hidden size={13} />
+    </Link>
   );
 }
 
@@ -167,6 +238,74 @@ export function DataTable({
   );
 }
 
+// Four cards, each a measure against the bar it has to clear.
+//
+// Not a `StatBand`: those cells compare like with like across one row, and these four are a count,
+// a sum of money, a share and a duration. What they have in common is only "how close to target",
+// so that is what the bar under each figure draws — and each keeps its own sentence, because the
+// four bars mean four different things and a shared column heading would claim otherwise.
+export function TargetCards({
+  cards,
+}: {
+  // `icon` comes from the route, not the derivation: `portfolio.ts` has to stay loadable by plain
+  // node for its self-check, so it holds no JSX.
+  cards: { key: string; label: string; value: string; against?: string; ratio: number; onTrack: boolean; note: string; icon?: ReactNode }[];
+}) {
+  if (!cards.length) return <TileEmpty />;
+  return (
+    <section className={cn(cardClass(), "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4")}>
+      {cards.map((card, index) => (
+        <div
+          key={card.key}
+          className={cn(
+            "flex min-w-0 flex-col gap-2 px-5 py-4",
+            index > 0 && "border-t border-[var(--border-hairline)] sm:border-t-0",
+            index % 2 === 1 && "sm:border-l sm:border-[var(--border-hairline)]",
+            index >= 2 && "sm:border-t sm:border-[var(--border-hairline)] lg:border-t-0",
+            index >= 1 && "lg:border-l lg:border-[var(--border-hairline)]",
+          )}
+        >
+          {/* Built to `StatBand`'s cell exactly — glyph + 12px label, 26px figure with its qualifier
+              beside it, then one mono line — because these sit two tabs away from that band and any
+              difference reads as two kinds of stat rather than one. It was a 10px tracked-caps label
+              over a bar over three lines of prose, then a label with no glyph over a line of prose;
+              the only thing left that these have and the band doesn't is the bar, which is the whole
+              reason they exist. */}
+          <div className="flex min-w-0 items-center gap-1.5 text-[12px] text-[var(--text-label)]">
+            {card.icon ? <span className="shrink-0 text-[var(--text-faint)]">{card.icon}</span> : null}
+            <span className="truncate">{card.label}</span>
+          </div>
+          <div className="flex flex-wrap items-baseline gap-x-2">
+            <span className="text-[26px] font-semibold leading-none tracking-[-0.02em] text-[var(--text-primary)] [font-variant-numeric:tabular-nums]">
+              {card.value}
+            </span>
+            {card.against ? <span className="font-mono text-[11px] text-[var(--text-muted)]">{card.against}</span> : null}
+          </div>
+          {/* Share of target, the only scale these four share. Amber is kept for the ones genuinely
+              behind — at the earlier threshold three of four bars were amber, which reads as an alarm
+              rather than as a ranking. */}
+          <span className="block h-[3px] w-full overflow-hidden rounded-full bg-[var(--surface-strong)]">
+            <span
+              className="block h-full rounded-full"
+              style={{
+                width: `${Math.max(2, Math.min(1, card.ratio) * 100)}%`,
+                background: card.onTrack ? "var(--status-success)" : card.ratio >= 0.7 ? "var(--accent)" : "var(--tone-warning-fg)",
+              }}
+            />
+          </span>
+          {/* Mono 11px, the band's delta line. As sans 12px prose it wrapped to two lines and read as
+              a caption under a figure rather than as the figure's own second fact — so it truncates
+              rather than wraps, and the cards are written to about 26 characters to clear a quarter of
+              the panel. `data-tip` keeps the whole line reachable. */}
+          <div data-tip={card.note} className="font-mono min-w-0 truncate text-[11px] text-[var(--text-muted)]">
+            {card.note}
+          </div>
+        </div>
+      ))}
+    </section>
+  );
+}
+
 // ── The control strip ──
 // Two visible selects and a one-line census of the registry, on a rule under the panel header.
 //
@@ -174,38 +313,78 @@ export function DataTable({
 // what every figure below is *scoped to*, and a scope you have to open a menu to read is a scope
 // people forget is applied. The menu keeps the things that are genuinely optional.
 
-// A native select, styled to the product's own control shape. Native because a listbox that
-// reimplements keyboard handling, typeahead and mobile pickers to look 4px different is a
-// liability, and this one carries no state of its own.
+// A dropdown in the product's own idiom — the same `MenuSurface` / `MenuItem` the tracker's view
+// menu uses, rather than a native `<select>`.
+//
+// The native one was here first and looked close enough at rest, but a platform select opens an OS
+// menu: system font, system row height, system check mark, none of it themeable. On a page whose
+// whole argument is that every surface is drawn from the same tokens, the one control that opens
+// somebody else's UI is the one people notice.
 export function StripSelect({
   label,
   value,
   options,
   onChange,
 }: {
-  // Read by screen readers only — the strip's selects are self-evident on sight, and a visible
-  // "Period:" label in front of each one doubles the width of the control for no reading gain.
+  // Read by screen readers and used as the menu's own heading — the button shows the current
+  // value, so the label has to say what kind of thing that value is.
   label: string;
   value: string;
-  options: { value: string; label: string }[];
+  // `label` is what the button shows; `menuLabel` is the longer form for the open menu, where there
+  // is room to qualify it. Falls back to `label`, so a control whose values are already short says
+  // it once.
+  options: { value: string; label: string; menuLabel?: string }[];
   onChange: (value: string) => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  useClickOutside(menuRef, () => setOpen(false), open);
+  const current = options.find((option) => option.value === value);
+
   return (
-    <label className="relative inline-flex items-center">
-      <span className="sr-only">{label}</span>
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="font-mono h-9 min-w-0 appearance-none rounded-[10px] border border-[var(--border-default)] bg-[var(--surface)] pl-3 pr-8 text-[12px] text-[var(--text-primary)] outline-none transition hover:border-[var(--border-input)] focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
+    <div ref={menuRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+        aria-label={`${label} — ${current?.label ?? value}`}
+        // Bordered, filled, and 13px sans — a button. It was borderless mono on the argument that two
+        // pills at the end of the header would out-weigh the title; borderless, the pair read as two
+        // pieces of running text with chevrons after them, which is worse than heavy. A control that
+        // opens a menu has to have an edge to aim at.
+        className={cn(
+          "inline-flex h-8 max-w-[180px] items-center gap-1.5 rounded-[8px] border px-2.5 text-[13px] transition",
+          "outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]",
+          open
+            ? "border-[var(--accent-border)] bg-[var(--accent-soft)] text-[var(--accent-strong)]"
+            : "border-[var(--border-input)] bg-[var(--surface)] text-[var(--text-body)] hover:border-[var(--border-default)] hover:text-[var(--text-primary)]",
+        )}
       >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-      <ChevronDown aria-hidden size={14} className="pointer-events-none absolute right-2.5 text-[var(--text-muted)]" />
-    </label>
+        <span className="min-w-0 truncate font-medium">{current?.label ?? value}</span>
+        <ChevronDown
+          aria-hidden
+          size={14}
+          className={cn("shrink-0 transition", open ? "rotate-180 text-[var(--accent)]" : "text-[var(--text-muted)]")}
+        />
+      </button>
+      {open ? (
+        <MenuSurface className="absolute right-0 top-10 z-30 w-[220px]">
+          <MenuLabel>{label}</MenuLabel>
+          {options.map((option) => (
+            <MenuItem
+              key={option.value}
+              selected={option.value === value}
+              onClick={() => {
+                onChange(option.value);
+                setOpen(false);
+              }}
+            >
+              {option.menuLabel ?? option.label}
+            </MenuItem>
+          ))}
+        </MenuSurface>
+      ) : null}
+    </div>
   );
 }
 
@@ -220,6 +399,111 @@ export function ControlStrip({ children, census }: { children: ReactNode; census
     </div>
   );
 }
+
+// A count across a few named categories: label, bar, figure, on one line each.
+//
+// This replaces `GroupBars` on the governance tiles, which gave every row its own hue off the avatar
+// ramp and stacked the bar under the label. Two problems with that. Five categorical colours for
+// what is one measure counted five ways said the colours meant something — they didn't, the rows
+// were already labelled. And a label-over-bar row is two lines tall, so four such tiles in a 2x2
+// came out at four different heights with ragged gaps between them.
+//
+// One hue, stepped by rank so the ordering is visible without the colour claiming a meaning, and one
+// line per row so tiles of 3 and 5 rows differ by 3 rows rather than by 6.
+export function TallyRows({ rows, total }: { rows: { key: string; label: string; count: number; note?: string; tip?: string }[]; total?: number }) {
+  if (!rows.length) return <TileEmpty />;
+  const most = Math.max(1, ...rows.map((row) => row.count));
+
+  return (
+    // Rows at their natural height, top-aligned. `justify-between` on a stretched card was tried for
+    // exactly one revision: three rows spread over a five-row height put 90px of white between each
+    // label and left the hairlines floating in the middle of nothing.
+    <div className="flex flex-col">
+      {rows.map((row, index) => (
+        <div
+          key={row.key}
+          data-tip={row.tip}
+          className={cn(
+            "grid min-w-0 grid-cols-[minmax(96px,148px)_minmax(0,1fr)_36px] items-center gap-x-3 gap-y-1 py-2.5",
+            row.note && "grid-rows-[auto_auto]",
+            index > 0 && "border-t border-[var(--border-hairline)]",
+          )}
+        >
+          <span className="min-w-0 truncate text-[13px] text-[var(--text-body)]">{row.label}</span>
+          <span aria-hidden className="block h-2 min-w-0">
+            <span
+              className="block h-full rounded-[3px]"
+              style={{
+                width: `${Math.max(2, (row.count / most) * 100)}%`,
+                // Darkest for the largest, in one hue. Same device as the mosaic, and for the same
+                // reason: the ordering is worth drawing, the categories are not.
+                background: `color-mix(in srgb, var(--accent) ${Math.round(100 - (index / Math.max(1, rows.length - 1)) * 55)}%, var(--accent-soft))`,
+              }}
+            />
+          </span>
+          <span className="font-mono text-right text-[13px] text-[var(--text-primary)] [font-variant-numeric:tabular-nums]">
+            {row.count}
+            {total ? <span className="text-[var(--text-faint)]">/{total}</span> : null}
+          </span>
+          {/* A second line under the label, spanning the row: what this category has cost and
+              returned. A count alone says the portfolio leans one way; it takes the money to say
+              whether the lean has paid for itself. Optional — the compliance tally has nothing to put
+              here, and an empty second line is worse than none. */}
+          {row.note ? <span className="font-mono col-span-3 text-[11px] text-[var(--text-muted)]">{row.note}</span> : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// A partition of one population, as a single stacked bar with its parts named underneath.
+//
+// For counts that genuinely sum to a whole *and* carry meaning in their colour — gate outcomes are
+// passed, blocked, rejected, and those are not interchangeable categories, they are good and bad. A
+// row of equal-hue bars would rank them by size and say nothing about which you want.
+export function StackedMeter({ segments }: { segments: { key: string; label: string; count: number; tone: string }[] }) {
+  const total = segments.reduce((sum, segment) => sum + segment.count, 0);
+  if (!total) return <TileEmpty />;
+
+  return (
+    <div className="min-w-0">
+      <span className="flex h-3 w-full overflow-hidden rounded-[4px]">
+        {segments
+          .filter((segment) => segment.count > 0)
+          .map((segment) => (
+            <span
+              key={segment.key}
+              // Hairline gaps in the surface colour, so adjacent segments of similar tone stay two
+              // segments rather than one long one.
+              className="border-r border-[var(--surface)] last:border-r-0"
+              style={{ width: `${(segment.count / total) * 100}%`, background: segment.tone }}
+            />
+          ))}
+      </span>
+      {/* The legend is the readout: a stacked bar can't label its own parts, and a hover-only
+          breakdown is a breakdown nobody reads. */}
+      <div className="mt-3 flex flex-col">
+        {segments.map((segment, index) => (
+          <div key={segment.key} className={cn("flex min-w-0 items-center gap-2.5 py-1.5", index > 0 && "border-t border-[var(--border-hairline)]")}>
+            <span aria-hidden className="h-2 w-2 shrink-0 rounded-full" style={{ background: segment.tone }} />
+            <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--text-body)]">{segment.label}</span>
+            <span className="font-mono shrink-0 text-[12px] text-[var(--text-muted)] [font-variant-numeric:tabular-nums]">
+              {Math.round((segment.count / total) * 100)}%
+            </span>
+            <span className="font-mono w-6 shrink-0 text-right text-[13px] text-[var(--text-primary)] [font-variant-numeric:tabular-nums]">
+              {segment.count}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// `FlagFigures` (three big counts, each "n of 18", in a row) drew Data Exposure until the flags
+// gained their lifecycle split. Three counts with no second dimension left two thirds of the tile
+// empty and answered nothing a committee could act on; the flags are `HorizontalBars` now, stacked by
+// where each record sits. Deleted rather than kept warm — nothing else was drawing it.
 
 // A cross-tabulation: one measure counted across two dimensions at once, with the cells that
 // break a rule marked.
@@ -239,12 +523,25 @@ export function MatrixTable({
 }) {
   if (!rows.length) return <TileEmpty />;
   return (
-    <table className="w-full border-collapse text-left">
+    // Fixed layout: with `auto`, the three oversight columns sized themselves to their headers
+    // ("On exceptions" is twice the width of "None") so the figures under them landed at three
+    // different distances from the row label and the grid stopped reading as a grid.
+    <table className="w-full table-fixed border-collapse text-left">
+      <colgroup>
+        <col />
+        {columns.map((column) => (
+          <col key={column} className="w-[96px]" />
+        ))}
+        <col className="w-[76px]" />
+      </colgroup>
       <thead>
         <tr>
           <th className="border-b border-[var(--border-hairline)] pb-2 text-[11px] font-medium text-[var(--text-muted)]">{corner}</th>
           {columns.map((column) => (
-            <th key={column} className="border-b border-[var(--border-hairline)] pb-2 pl-4 text-right text-[11px] font-medium text-[var(--text-muted)]">
+            <th
+              key={column}
+              className="border-b border-[var(--border-hairline)] pb-2 pl-4 text-right text-[11px] font-medium text-[var(--text-muted)]"
+            >
               {column}
             </th>
           ))}
@@ -359,7 +656,7 @@ export type Stat = {
 // they're one statement about the portfolio and not four separate cards. Each cell is
 // a glyph and a label, the number, then what it's measured against — read top to
 // bottom, in the same three sizes every time.
-export function StatBand({ items }: { items: Stat[] }) {
+export function StatBand({ items, layout = "row" }: { items: Stat[]; layout?: "row" | "grid" }) {
   return (
     // Three or four cells, from the length. Both tabs ran four until every one of the eight
     // turned out to be restated in the summary sentence directly below the band — so each
@@ -369,9 +666,17 @@ export function StatBand({ items }: { items: Stat[] }) {
       className={cn(
         cardClass(),
         "grid grid-cols-2",
-        // Six cells wrap to three-and-three on a narrow window rather than shrinking to a strip
-        // of unreadable columns.
-        items.length === 6 ? "sm:grid-cols-3 lg:grid-cols-6" : items.length === 3 ? "sm:grid-cols-3" : "sm:grid-cols-4",
+        // `grid` keeps two columns at every width, so four cells stay a 2x2 block — which is what
+        // lets the band sit beside a tall tile instead of running the full page width under it.
+        layout === "grid"
+          ? null
+          : // Six cells wrap to three-and-three on a narrow window rather than shrinking to a strip
+            // of unreadable columns.
+            items.length === 6
+            ? "sm:grid-cols-3 lg:grid-cols-6"
+            : items.length === 3
+              ? "sm:grid-cols-3"
+              : "sm:grid-cols-4",
       )}
     >
       {items.map((item, index) => (
@@ -380,10 +685,16 @@ export function StatBand({ items }: { items: Stat[] }) {
           data-tip={item.tip}
           className={cn(
             "flex min-w-0 flex-col gap-2 px-5 py-4",
+            // In the 2x2 block the band stretches to match the tile beside it, and the three lines
+            // sat at the top of each cell with the slack pooled underneath — four cells each with an
+            // empty bottom third. Centring only moved the pool; the height is real, so the cell
+            // spends it: deeper padding first, then `justify-between` opens the label → figure →
+            // delta gaps evenly. A stretched cell reads as a roomy one rather than a half-filled one.
+            layout === "grid" && "justify-between gap-3 py-6",
             // Hairlines between cells, and none on the leading edge of a row.
             index % 2 === 1 && "border-l border-[var(--border-hairline)]",
-            index >= 2 && "border-t border-[var(--border-hairline)] sm:border-t-0",
-            index >= 1 && "sm:border-l sm:border-[var(--border-hairline)]",
+            index >= 2 && (layout === "grid" ? "border-t border-[var(--border-hairline)]" : "border-t border-[var(--border-hairline)] sm:border-t-0"),
+            layout !== "grid" && index >= 1 && "sm:border-l sm:border-[var(--border-hairline)]",
             // In the six-cell layout the second row starts a new run, so its leading cell drops
             // the left rule and the row gains a top one.
             items.length === 6 && index === 3 && "sm:border-l-0 sm:border-t lg:border-l lg:border-t-0",
@@ -514,10 +825,17 @@ export function ColumnChart({
             {column.values.map((value, position) => (
               <div
                 key={series?.[position]?.name ?? position}
-                className={cn("flex min-w-0 flex-1 flex-col items-center justify-end gap-1.5", column.values.length > 1 ? "max-w-[56px]" : "max-w-[72px]")}
+                className={cn(
+                  "flex min-w-0 flex-1 flex-col items-center justify-end gap-1.5",
+                  column.values.length > 1 ? "max-w-[56px]" : "max-w-[72px]",
+                )}
               >
                 <span className="font-mono text-[11px] text-[var(--text-body)] [font-variant-numeric:tabular-nums]">{column.displays[position]}</span>
-                <span aria-hidden className="w-full rounded-t-[4px]" style={{ height: `${barHeight(value)}px`, background: series?.[position]?.fill ?? fill }} />
+                <span
+                  aria-hidden
+                  className="w-full rounded-t-[4px]"
+                  style={{ height: `${barHeight(value)}px`, background: series?.[position]?.fill ?? fill }}
+                />
               </div>
             ))}
           </div>
@@ -650,10 +968,7 @@ export function ShareMosaic({
                 data-tip={segment.tip}
                 // Gaps in the surface colour, so the cells read as separate areas of one whole
                 // rather than as a grid of cards.
-                className={cn(
-                  "flex min-w-0 flex-col justify-center gap-1.5 px-3",
-                  index < band.length - 1 && "border-r border-[var(--surface)]",
-                )}
+                className={cn("flex min-w-0 flex-col justify-center gap-1.5 px-3", index < band.length - 1 && "border-r border-[var(--surface)]")}
                 style={{ width: `${(Math.max(0, segment.value) / bandTotal) * 100}%`, background: cellFill(rank.get(segment.key) ?? 0) }}
               >
                 {/* Told apart by size and case, not opacity: 12px semibold over 13px mono over
@@ -740,49 +1055,18 @@ export function DeviationBars({
 // The measure that is actually lowest carries the warning tone; the rest are the accent.
 const bandColour = (ratio: number, weakest: number) => (ratio === weakest ? "var(--tone-warning-fg)" : "var(--accent)");
 
-// A composite score as one arc, with the four measures it averages beside it.
-//
-// Two earlier attempts and what was wrong with each: a ring cut into four segments, where
-// a quarter-arc at 75% is barely distinguishable from a full one and the gaps read as a
-// broken ring; and a flat bar, which is legible but says "another row" on a page already
-// made of rows. One continuous arc is the right shape for one number — the gap at the end
-// *is* the shortfall, and 17% of a circle is a thing you can see without reading.
-function ScoreDial({ score, caption, colour }: { score: number; caption?: string; colour: string }) {
-  const size = 132;
-  const stroke = 9;
-  const radius = (size - stroke) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const filled = circumference * Math.max(0, Math.min(1, score));
+// `ScoreDial` — a hand-drawn SVG ring — lived here through three revisions (four segments, then a
+// flat bar, then one continuous stroked arc). It is `ScoreRadial` now, shadcn's radial-shape chart:
+// the same reading, but with a real end cap, a real track ring and the figure placed by the chart
+// rather than by an absolutely-positioned span fighting the ring for the centre.
 
-  return (
-    <span className="relative inline-flex shrink-0">
-      {/* Rotated so it starts at twelve o'clock, and round-capped: at 83% the cap reads as
-          the end of a measure rather than a cut. */}
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="var(--surface-strong)" strokeWidth={stroke} />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke={colour}
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          strokeDasharray={`${filled} ${circumference - filled}`}
-        />
-      </svg>
-      <span className="absolute inset-0 flex flex-col items-center justify-center gap-1">
-        <span
-          className="text-[30px] font-semibold leading-none tracking-[-0.02em] [font-variant-numeric:tabular-nums]"
-          style={{ color: "var(--text-primary)" }}
-        >
-          {Math.round(score * 100)}%
-        </span>
-        {caption ? <span className="text-[11px] leading-none text-[var(--text-muted)]">{caption}</span> : null}
-      </span>
-    </span>
-  );
-}
+// The tone of a composite, shared by the arc and its verdict pill so they can't disagree.
+const scoreTone = (score: number) =>
+  score >= 0.95
+    ? { fg: "var(--tone-success-fg)", bg: "var(--tone-success-bg)", border: "var(--tone-success-border)" }
+    : score >= 0.7
+      ? { fg: "var(--accent-strong)", bg: "var(--accent-soft)", border: "var(--accent-border)" }
+      : { fg: "var(--tone-warning-fg)", bg: "var(--tone-warning-bg)", border: "var(--tone-warning-border)" };
 
 // A composite score, with the things it is made of underneath: one number on its own
 // hides its own reasoning, and a leader's first question is "made of what?".
@@ -790,39 +1074,64 @@ export function ScorePanel({
   score,
   parts,
   caption,
+  scale = "percent",
 }: {
   score: number;
-  // `weight` is printed beside the label where the composite is weighted. A composite whose
-  // weights are hidden is a number nobody can argue with, which is the opposite of useful on a
-  // page whose whole job is to be argued with.
-  parts: { label: string; ratio: number; weight?: number }[];
+  // No weight column. A composite's weights still have to be public — a number nobody can argue
+  // with is the opposite of useful here — but this tile is half of a two-up grid, so the measures
+  // get ~290px of it, and label + weight + bar + figure does not fit on one line in that. Printed
+  // in the row, the weight either truncated the label or wrapped and made every row three lines
+  // tall. The caller states them once in the tile's footer instead, where they read as one sentence.
+  parts: { label: string; ratio: number }[];
   caption?: string;
+  // A composite out of 100 points prints its denominator; a mean of ratios prints a per cent.
+  scale?: "percent" | "points";
 }) {
   const weakest = Math.min(...parts.map((part) => part.ratio));
-  const scoreColour = score >= 0.95 ? "var(--status-success)" : score >= 0.7 ? "var(--accent)" : "var(--tone-warning-fg)";
+  const tone = scoreTone(score);
 
   return (
-    <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center sm:gap-7">
-      <ScoreDial score={score} caption={caption} colour={scoreColour} />
-      <div className="min-w-0 flex-1 self-stretch">
-        {parts.map((part) => (
-          <div key={part.label} className="flex min-w-0 items-center gap-3 border-t border-[var(--border-hairline)] py-2.5 first:border-t-0">
-            <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
-              <span className="min-w-0 truncate text-[13px] text-[var(--text-body)]">{part.label}</span>
-              {part.weight === undefined ? null : (
-                <span className="font-mono shrink-0 text-[11px] text-[var(--text-faint)]">· {Math.round(part.weight * 100)}%</span>
-              )}
-            </span>
+    // The dial keeps its own column, ruled off from the measures. Side by side with nothing between
+    // them, the arc and the first bar read as one row that happened to start with a circle.
+    <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-stretch sm:gap-5">
+      <div className="flex shrink-0 flex-col items-center justify-center gap-3 sm:w-[158px] sm:border-r sm:border-[var(--border-hairline)] sm:pr-5">
+        <ScoreRadial score={score} figure={`${Math.round(score * 100)}${scale === "percent" ? "%" : ""}`} colour={tone.fg} />
+        {caption ? (
+          <span
+            className="rounded-full border px-2.5 py-1 text-[11px] font-medium capitalize leading-none"
+            style={{ color: tone.fg, background: tone.bg, borderColor: tone.border }}
+          >
+            {caption}
+          </span>
+        ) : null}
+      </div>
+      {/* One line a measure, ruled off from each other. A grid, not a flex row, and the width goes to
+          the *bar*: the label column is `auto`, so it sizes to the longest of the four and every bar
+          starts at the same x. The reverse — a `1fr` label and a fixed bar — is what the first pass
+          did, and it left a chasm between "Flow health" and a stub of a bar pinned to the right edge.
+          `minmax(0,auto)` rather than plain `auto` so the label can still truncate if a longer measure
+          is ever added; `data-tip` carries the full name, the contract the dense lists here use. */}
+      <div className="flex min-w-0 flex-1 flex-col justify-center">
+        {parts.map((part, index) => (
+          <div
+            key={part.label}
+            data-tip={part.label}
+            className={cn(
+              "grid min-w-0 grid-cols-[minmax(0,auto)_minmax(56px,1fr)_34px] items-center gap-3 py-2.5",
+              index > 0 && "border-t border-[var(--border-hairline)]",
+            )}
+          >
+            <span className="min-w-0 truncate text-[13px] text-[var(--text-body)]">{part.label}</span>
             {/* h-2, matching `RankedBars` and `GroupBars`. Three bar heights across one page
                 (1.5, 2, 2) is the kind of drift nobody names but everybody sees. */}
-            <span className="relative h-2 w-[38%] max-w-[150px] shrink-0 overflow-hidden rounded-full bg-[var(--surface-strong)]">
+            <span className="relative h-2 overflow-hidden rounded-full bg-[var(--surface-strong)]">
               <span
                 className="absolute inset-y-0 left-0 rounded-full"
                 style={{ width: `${Math.round(Math.max(0, Math.min(1, part.ratio)) * 100)}%`, background: bandColour(part.ratio, weakest) }}
               />
             </span>
             <span
-              className="font-mono w-9 shrink-0 text-right text-[12px] font-medium [font-variant-numeric:tabular-nums]"
+              className="font-mono text-right text-[12px] font-medium [font-variant-numeric:tabular-nums]"
               style={{ color: part.ratio === weakest ? "var(--tone-warning-fg)" : "var(--text-primary)" }}
             >
               {Math.round(part.ratio * 100)}%

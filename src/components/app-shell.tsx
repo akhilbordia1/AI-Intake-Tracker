@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, Maximize2, Minimize2, PanelLeftClose, MessageSquarePlus, PanelLeftOpen } from "lucide-react";
+import { ChevronRight, Maximize2, Minimize2, MessageSquarePlus, PanelRightClose, PanelRightOpen } from "lucide-react";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 
@@ -21,7 +21,7 @@ import { cn } from "@/lib/cn";
 // scrolls under it, so a short chat still reads as one surface.
 
 export function RailHeader({
-  label = "AI Factory",
+  label = "Assistant",
   scrolled = false,
   expanded = false,
   onToggleExpand,
@@ -47,25 +47,31 @@ export function RailHeader({
   // the control never moves out from under the pointer.
   const toggle = (
     <IconButton label={collapsed ? `Show ${label.toLowerCase()}` : `Hide ${label.toLowerCase()}`} onClick={onToggleCollapse} size={28}>
-      {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+      {/* Right-hand glyphs, because the rail is the right-hand column: a left-facing panel icon on
+          a panel that lives on the right points at nothing. */}
+      {collapsed ? <PanelRightOpen size={16} /> : <PanelRightClose size={16} />}
     </IconButton>
   );
 
   if (collapsed) {
-    return <div className="flex h-11 shrink-0 items-center justify-center">{toggle}</div>;
+    return <div className="flex min-h-[52px] shrink-0 items-center justify-center py-2">{toggle}</div>;
   }
 
   return (
     <div
       className={cn(
-        "flex h-11 shrink-0 items-center gap-1 border-b px-1 transition-colors",
+        // 52px, matching `ContentPanel`'s header exactly. At 44px the rail's row was eight pixels
+        // shorter than the panel's beside it, so "Assistant" and its three controls sat above the
+        // profile switcher and the breadcrumb rather than on their line.
+        "flex min-h-[52px] shrink-0 items-center gap-1 border-b px-1 py-2 transition-colors",
         scrolled ? "border-[var(--border-hairline)]" : "border-transparent",
       )}
     >
       {toggle}
-      <Link href="/" className="text-[14px] font-medium text-[var(--text-primary)] transition hover:text-[var(--accent-strong)]">
-        {label}
-      </Link>
+      {/* Plain text, not a link home. It said "AI Factory" and pointed at `/` while the rail was the
+          window's left column, which made the product mark part of the chat; the mark is the panel's
+          now, and what's left here is what this column actually is. */}
+      <span className="text-[14px] font-medium text-[var(--text-primary)]">{label}</span>
       <span className="ml-auto flex items-center gap-0.5">
         {history}
         {onNewChat ? (
@@ -254,11 +260,9 @@ export function ContentPanel({
   titleMeta,
   breadcrumb,
   tabs,
-  centerTabs = false,
   controls,
   footer,
   scroll = true,
-  bare = false,
   children,
 }: {
   icon?: ReactNode;
@@ -269,34 +273,29 @@ export function ContentPanel({
   breadcrumb?: ReactNode;
   // The route's views (Overview / Workflow, Board / Table).
   tabs?: ReactNode;
-  // Places the tabs on the panel's midline instead of beside the title. Opt-in, so the routes
-  // whose tabs sit in the flow after a breadcrumb are untouched.
-  centerTabs?: boolean;
+  // `centerTabs` (tabs absolutely placed on the panel's midline) and `bare` (no card at all) lived
+  // here for the standalone `/portfolio` shell. That shell is gone — the leadership views are a tab
+  // of the tracker's panel now — and nothing else wanted either, so both came out rather than staying
+  // as options no caller passes.
   // The view's own real controls — filters and toggles, pushed to the right edge
   // so the left side stays the object's identity.
   controls?: ReactNode;
   footer?: ReactNode;
   // Panels whose content owns its own scrolling opt out.
   scroll?: boolean;
-  // Drops the panel's own card — no border, no fill, no rounding — so its sections sit directly
-  // on the canvas. For the leadership view, where the tiles are already cards: a card holding
-  // cards puts two borders a few pixels apart down the whole page and buys nothing.
-  bare?: boolean;
   children: ReactNode;
 }) {
   return (
-    <section
-      className={cn(
-        "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
-        !bare && "rounded-[12px] border border-[var(--border-default)] bg-[var(--surface)]",
-      )}
-    >
-      <div
-        className={cn(
-          "relative flex min-h-[52px] shrink-0 flex-wrap items-center gap-x-2.5 gap-y-1.5 px-6 py-2",
-          !bare && "border-b border-[var(--border-hairline)]",
-        )}
-      >
+    <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[12px] border border-[var(--border-default)] bg-[var(--surface)]">
+      <div className="relative flex min-h-[52px] shrink-0 flex-wrap items-center gap-x-2.5 gap-y-1.5 border-b border-[var(--border-hairline)] px-6 py-2">
+        {/* The product mark, leading the panel header. It lived in the rail until the rail moved to the
+            right-hand column and took the app's only top-left identity with it — so it sits here, on
+            the same edge as the content it names, and stays the way back to the board. Ruled off from
+            the breadcrumb: the mark is the product, the crumb is where you are in it. */}
+        <Link href="/" className="shrink-0 text-[14px] font-medium text-[var(--text-primary)] transition hover:text-[var(--accent-strong)]">
+          AI Factory
+        </Link>
+        <span aria-hidden className="h-4 w-px shrink-0 bg-[var(--border-default)]" />
         {icon ? <span className="shrink-0 text-[var(--accent)]">{icon}</span> : null}
         {title ? <h1 className="font-display min-w-0 shrink-0 truncate text-[18px] leading-tight text-[var(--text-primary)]">{title}</h1> : null}
         {/* Breadcrumb before the count: what the panel *is* comes before how much
@@ -304,24 +303,12 @@ export function ContentPanel({
         {breadcrumb}
         {titleMeta}
         {/* The tabs are a different kind of thing from the panel's name, so a rule
-            separates them rather than more whitespace.
-
-            Centred, they're out of the flow instead: a toggle between two whole reads of the
-            page belongs on the panel's axis, and centring it with `mx-auto` would only centre
-            it in whatever space the breadcrumb and the controls left over. Absolutely placed, it
-            sits on the panel's midline whatever is either side of it — and it takes no dividing
-            rule, because nothing is next to it to divide from. */}
+            separates them rather than more whitespace. */}
         {tabs ? (
-          centerTabs ? (
-            <div className="pointer-events-none absolute inset-x-0 top-1/2 z-10 flex -translate-y-1/2 justify-center">
-              <div className="pointer-events-auto">{tabs}</div>
-            </div>
-          ) : (
-            <>
-              <span aria-hidden className="ml-1.5 h-4 w-px shrink-0 bg-[var(--border-default)]" />
-              <div className="shrink-0">{tabs}</div>
-            </>
-          )
+          <>
+            <span aria-hidden className="ml-1.5 h-4 w-px shrink-0 bg-[var(--border-default)]" />
+            <div className="shrink-0">{tabs}</div>
+          </>
         ) : null}
         {controls ? <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-1.5">{controls}</div> : null}
       </div>
@@ -338,6 +325,22 @@ export function ContentPanel({
 // Two grids sharing one column template: the rail/tab bar, then the rail body
 // and the panel. Whitespace — not a divider — separates rail from panel.
 
+// ── The view row ──
+// The second row of the panel: which view of the active mode is showing, and the controls that
+// belong to *that* mode. One component so the registry's row (Board / Table, search, filters) and
+// the reporting row (five readings, two scopes) are the same object rather than two rows that drift.
+//
+// The mode tabs stay up in the panel header. Three rows of chrome — header, mode, view — is a lot of
+// furniture above the first number, and vertical space is the thing this page keeps running out of.
+export function PanelViewRow({ views, controls }: { views: ReactNode; controls?: ReactNode }) {
+  return (
+    <div className="flex min-h-[46px] shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-1.5 border-b border-[var(--border-hairline)] px-5 py-1.5">
+      {views}
+      {controls ? <div className="flex flex-wrap items-center justify-end gap-1.5">{controls}</div> : null}
+    </div>
+  );
+}
+
 export function AppShell({
   banner,
   railHeader,
@@ -349,10 +352,9 @@ export function AppShell({
 }: {
   // Full-width strip above everything (e.g. a returned / rejected notice).
   banner?: ReactNode;
-  // Both optional. A route with no rail gets a single full-width column — the leadership view
-  // docks its assistant in a floating panel instead of giving it a permanent 364px track,
-  // because a committee page is read across its whole width and the assistant is consulted,
-  // not worked in.
+  // Both optional, though every route currently passes them — the one surface that didn't (the
+  // standalone leadership view, which docked its assistant in a floating panel) is a tab of the
+  // tracker now and uses the rail like everything else.
   railHeader?: ReactNode;
   rail?: ReactNode;
   // Optional third column (the record's details sheet).
@@ -369,18 +371,28 @@ export function AppShell({
   // just wide enough to hold the toggle that reopens it.
   const railTrack = railCollapsed ? "36px" : "364px";
   const hasRail = Boolean(rail || railHeader);
+  // The rail is the *last* column. It led the row until now, which put the assistant between the
+  // window edge and the thing being discussed: on every route the object of the conversation — a
+  // board, a record, a portfolio — started 380px in, and the eye had to cross the chat to reach it.
+  // On the right it's where a side panel is expected, the content keeps the left edge it shares with
+  // the top bar's product mark, and the composer sits under the pointer's resting corner.
+  //
+  // On `/detail` the details sheet stays next to its record and the rail goes outside it: the sheet
+  // is part of the object, the chat is about it.
   const columns = railExpanded
     ? "minmax(0,1fr)"
     : !hasRail
       ? "minmax(0,1fr)"
       : aside
-        ? `${railTrack} minmax(0,62fr) minmax(0,38fr)`
-        : `${railTrack} minmax(0,1fr)`;
+        ? `minmax(0,62fr) minmax(0,38fr) ${railTrack}`
+        : `minmax(0,1fr) ${railTrack}`;
   return (
     // One row of content: the rail and the panel, each carrying its own header.
     <main className="chat-glow flex h-screen flex-col overflow-hidden bg-[var(--shell-canvas)] text-[var(--text-primary)]">
       {banner}
       <div className="grid min-h-0 min-w-0 flex-1 gap-x-3 overflow-hidden px-3 py-3" style={{ gridTemplateColumns: columns }}>
+        {railExpanded ? null : <div className="flex min-h-0 min-w-0 flex-col">{children}</div>}
+        {railExpanded ? null : aside}
         {/* The rail's grid item always renders: a display:none item is skipped by
  auto-placement, which would slide the panel into the rail's track. The
  conversation inside is hidden instead, so putting the rail away and
@@ -391,8 +403,6 @@ export function AppShell({
             <div className={cn("flex min-h-0 flex-1 flex-col", railCollapsed && "hidden")}>{rail}</div>
           </section>
         ) : null}
-        {railExpanded ? null : <div className="flex min-h-0 min-w-0 flex-col">{children}</div>}
-        {railExpanded ? null : aside}
       </div>
     </main>
   );

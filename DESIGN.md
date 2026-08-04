@@ -175,9 +175,10 @@ from `chat-history.tsx`: `useChatSessions`, `ChatHistoryButton`,
 
 One row of chrome, then the panel:
 
-1. **Rail header + panel header** — the chat rail's label and its controls on the
-   left; on the right, the panel's own header: breadcrumb (or title + count), the
-   view tabs, and that view's real controls pushed to the right edge.
+1. **Panel header + rail header** — the panel's own header on the left: breadcrumb
+   (or title + count), the view tabs, and that view's real controls pushed to its
+   right edge; then, at the window's right edge, the chat rail's label and its
+   controls.
 2. **Content panel** — a rounded white panel, fully inside the window, with a
    footer where the view has actions of its own.
 
@@ -186,8 +187,11 @@ while its content scrolls under it, on both the overview and the stage form. It
 takes a hairline only once something has scrolled behind it — and the border is
 always there, transparent when idle, so the block can't grow as you scroll.
 
-The chat rail is a fixed **364px** side rail, collapsible to a 36px strip and
-expandable to full width (`useRailMode` — the states are mutually exclusive). The
+The chat rail is a fixed **364px** side rail on the **right**, collapsible to a 36px
+strip and expandable to full width (`useRailMode` — the states are mutually
+exclusive). It led the row until it didn't: on the left, the assistant sat between
+the window edge and the thing being discussed, so a board, a record or a portfolio
+started 380px in and the eye crossed the chat to reach it. The
 panel clips its own content: **nothing bleeds past its rounded edge**, and content
 that needs more room scrolls inside it.
 

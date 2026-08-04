@@ -41,8 +41,17 @@ export default function StartUseCasePage() {
     // this chat is when it isn't full width.
     <AppShell
       railExpanded
+      // The one surface with no content panel to carry the product mark, so the rail keeps it: this
+      // route *is* the chat, full screen, and "Assistant" as its only heading would name the
+      // furniture rather than the app.
       railHeader={
-        <RailHeader expanded onToggleExpand={() => router.push("/")} onToggleCollapse={() => router.push("/")} onNewChat={() => setIdea("")} />
+        <RailHeader
+          label="AI Factory"
+          expanded
+          onToggleExpand={() => router.push("/")}
+          onToggleCollapse={() => router.push("/")}
+          onNewChat={() => setIdea("")}
+        />
       }
       rail={
         <ChatStartScreen

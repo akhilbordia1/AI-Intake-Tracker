@@ -67,7 +67,11 @@ export function TimeChart({
   // otherwise the first client paint disagrees with the server's HTML. Told through
   // the store hook rather than an effect, which is the hydration-safe way to ask
   // "am I on the client?" without setting state in a render pass.
-  const mounted = useSyncExternalStore(subscribeNever, () => true, () => false);
+  const mounted = useSyncExternalStore(
+    subscribeNever,
+    () => true,
+    () => false,
+  );
   if (!mounted) return <div style={{ height }} aria-hidden />;
 
   return (

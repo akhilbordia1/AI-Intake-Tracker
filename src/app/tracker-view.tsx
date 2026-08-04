@@ -2,13 +2,17 @@
 
 import Link from "next/link";
 import {
+  Activity,
   ArrowRight,
   CalendarDays,
   CircleDot,
+  Coins,
   Columns3,
   FileText,
   Flag,
+  Gauge,
   Inbox,
+  Layers,
   Plus,
   Search,
   ShieldCheck,
@@ -20,12 +24,14 @@ import {
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
-import { AppShell, ContentPanel, PanelBreadcrumb, PanelTabs, RailHeader, useRailMode } from "@/components/app-shell";
+import { AppShell, ContentPanel, PanelBreadcrumb, PanelTabs, PanelViewRow, RailHeader, useRailMode } from "@/components/app-shell";
 import { ChatHistoryButton, useChatSessions, type ChatSession, type ChatTurn } from "@/components/chat/chat-history";
 import { ChatCardList } from "@/components/chat/chat-use-case-card";
 import { JumpToTop } from "@/components/chat/chat-ui";
 import { MiniChatRail, type RailAnswer } from "@/components/chat/mini-chat-rail";
 import { PersonAvatar, ProfileSwitcher } from "@/components/profile";
+import { LeadershipViews, leadershipRail } from "./leadership-views";
+import { LEADERSHIP_HISTORY, answerForLeader, thinkingBeatFor } from "./leadership-assistant";
 import {
   Button,
   ButtonLink,
@@ -44,7 +50,9 @@ import {
 } from "@/components/ui/kit";
 import { STAGE_GROUPS, STAGES, SUBSTAGE_TO_GROUP, shortStageLabel } from "@/data/lifecycle";
 import {
+  ALL_RECORDS,
   CURRENT_USER,
+  PORTFOLIO_SNAPSHOTS,
   USE_CASES,
   dueDate,
   filterUseCasesByScope,
@@ -60,6 +68,14 @@ import { cn } from "@/lib/cn";
 import { useClickOutside } from "@/lib/use-click-outside";
 
 type ViewKey = "stage" | "people" | "priority" | "due" | "status";
+// Two modes, each with its own views. The registry is the working surface — every record, as a board
+// or as a table. Reporting is the committee's read of the same set, with five readings of its own.
+//
+// These were one flat row of three tabs (Board · Table · Leadership), which put a *display mode* and a
+// whole other way of reading the registry at the same level: switching Board→Table changed how the
+// same cards were drawn, switching Table→Leadership changed the subject. Two levels say which is
+// which — the mode in the panel header, its views in the row beneath.
+type PanelMode = "registry" | "reporting";
 type DisplayMode = "board" | "table";
 
 // The tracker rail's responder: answers the starter questions (and anything with
@@ -198,8 +214,21 @@ function buildColumns(view: ViewKey, cards: UseCaseCard[]): BoardColumn[] {
   }));
 }
 
-export function TrackerView({ initialPhase }: { initialPhase?: string }) {
-  const [displayMode, setDisplayMode] = useState<DisplayMode>("board");
+// `?tab=` still takes the old flat names: `leadership` is what `/portfolio` redirects to and what any
+// link written before the split says. An unknown value opens the board rather than an empty panel —
+// the same forgiveness `?phase=` gets, because a URL somebody typed shouldn't break the page.
+const TAB_PARAM: Record<string, { mode: PanelMode; display?: DisplayMode }> = {
+  registry: { mode: "registry" },
+  board: { mode: "registry", display: "board" },
+  table: { mode: "registry", display: "table" },
+  reporting: { mode: "reporting" },
+  leadership: { mode: "reporting" },
+};
+
+export function TrackerView({ initialPhase, initialTab }: { initialPhase?: string; initialTab?: string }) {
+  const entry = initialTab ? TAB_PARAM[initialTab] : undefined;
+  const [mode, setMode] = useState<PanelMode>(entry?.mode ?? "registry");
+  const [displayMode, setDisplayMode] = useState<DisplayMode>(entry?.display ?? "board");
   const [activeView, setActiveView] = useState<ViewKey>("stage");
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("all");
   // Arrived from a portfolio pipeline row. Held in state, not read from the URL on
@@ -211,17 +240,21 @@ export function TrackerView({ initialPhase }: { initialPhase?: string }) {
   const [railScrolled, setRailScrolled] = useState(false);
   const railScrollRef = useRef<HTMLDivElement>(null);
   const railMode = useRailMode();
-  // Past conversations, plus whatever the user archives by starting a new one.
-  const history = useChatSessions(REGISTRY_HISTORY);
+  // Past conversations, plus whatever the user archives by starting a new one. Two sets, because the
+  // rail follows the tab: the board's assistant answers about records, the leadership one about the
+  // system, and a single thread that switched subject mid-scroll would read as one confused
+  // conversation. Both hooks run every render — the choice is which one the rail is handed.
+  const registryHistory = useChatSessions(REGISTRY_HISTORY);
+  const leadershipHistory = useChatSessions(LEADERSHIP_HISTORY);
+  const leadership = mode === "reporting";
+  const history = leadership ? leadershipHistory : registryHistory;
   const liveTurns = useRef<ChatTurn[]>([]);
   const pastSession = history.sessions.find((session) => session.id === history.activeId) ?? null;
   // "My use cases" means whoever is in the switcher, not the profile the prototype
   // opens on — the same fix the portfolio needed.
   const scopedUseCases = useMemo(
     () =>
-      filterUseCasesByScope(USE_CASES, scopeFilter, activeProfile).filter(
-        (card) => !phaseFilter || SUBSTAGE_TO_GROUP[card.substage] === phaseFilter,
-      ),
+      filterUseCasesByScope(USE_CASES, scopeFilter, activeProfile).filter((card) => !phaseFilter || SUBSTAGE_TO_GROUP[card.substage] === phaseFilter),
     [scopeFilter, activeProfile, phaseFilter],
   );
   const attentionCount = useMemo(() => scopedUseCases.filter((card) => card.needsAttention).length, [scopedUseCases]);
@@ -283,55 +316,69 @@ export function TrackerView({ initialPhase }: { initialPhase?: string }) {
             }}
             scrollRef={railScrollRef}
             onScrolledChange={setRailScrolled}
-            emptyTitle={`How can I help, ${activeProfile.split(" ")[0]}?`}
-            intro={`${USE_CASES.length} use cases are in the registry and ${attentionCount} need attention. Describe an idea and I'll start a new one, or ask me about what's already here.`}
-            starters={[
-              { label: "Start a new use case", draft: "I want to build an AI assistant that ", icon: <Sparkles size={13} /> },
-              { label: "What needs my attention?", icon: <Inbox size={13} /> },
-              { label: "Which use cases are blocked?", icon: <ShieldCheck size={13} /> },
-            ]}
-            answer={(question) => answerAboutPortfolio(question, activeProfile)}
-            newIdeaHref="/detail"
-            placeholder="Describe an idea, or ask about the registry"
-            reply="I can answer on what needs attention, what's blocked, and what's at the GTAC board — or describe an idea and I'll start a new use case."
+            // The rail follows the tab. On the board and the table it is the registry's assistant —
+            // records, attention, blockers, and the door to a new use case. On the leadership tab it
+            // is the committee's: flow, money, risk, and no "start a new use case", because a
+            // committee reading the portfolio is not filing an idea.
+            emptyTitle={leadership ? "How's the portfolio?" : `How can I help, ${activeProfile.split(" ")[0]}?`}
+            intro={
+              leadership
+                ? leadershipRail(ALL_RECORDS, PORTFOLIO_SNAPSHOTS).intro
+                : `${USE_CASES.length} use cases are in the registry and ${attentionCount} need attention. Describe an idea and I'll start a new one, or ask me about what's already here.`
+            }
+            starters={
+              leadership
+                ? [
+                    { label: "Brief me on the portfolio", icon: <Sparkles size={13} /> },
+                    { label: "Where is it clogging?", icon: <Activity size={13} /> },
+                    { label: "What's the value so far?", icon: <Coins size={13} /> },
+                  ]
+                : [
+                    { label: "Start a new use case", draft: "I want to build an AI assistant that ", icon: <Sparkles size={13} /> },
+                    { label: "What needs my attention?", icon: <Inbox size={13} /> },
+                    { label: "Which use cases are blocked?", icon: <ShieldCheck size={13} /> },
+                  ]
+            }
+            answer={(question) =>
+              leadership ? answerForLeader(question, ALL_RECORDS, activeProfile) : answerAboutPortfolio(question, activeProfile)
+            }
+            thinking={leadership ? thinkingBeatFor : undefined}
+            newIdeaHref={leadership ? undefined : "/detail"}
+            placeholder={leadership ? "Ask about flow, risk, capacity or value" : "Describe an idea, or ask about the registry"}
+            reply={
+              leadership
+                ? "I can answer on flow and cycle time, what's not moving, the risk mix, owner load, the money and KPI attainment — or ask me for the digest."
+                : "I can answer on what needs attention, what's blocked, and what's at the GTAC board — or describe an idea and I'll start a new use case."
+            }
           />
         </div>
       }
     >
       <ContentPanel
-        // The same breadcrumb the record pages use, so the tracker's panel header
-        // reads as the first step of that path rather than a title of its own.
-        breadcrumb={<PanelBreadcrumb items={[{ label: "All use cases" }]} />}
+        // The same breadcrumb the record pages use, so the tracker's panel header reads as the first
+        // step of that path rather than a title of its own. It names the mode, because "All use cases"
+        // over a page of portfolio composites is the wrong label for what's on screen.
+        breadcrumb={<PanelBreadcrumb items={[{ label: leadership ? "Reporting" : "All use cases" }]} />}
         tabs={
+          // The mode, named. Two words rather than glyphs: "Registry" and "Reporting" are not things
+          // an icon can distinguish, and the two display icons that used to sit here (a board and a
+          // table) have moved down to the row where they belong.
           <PanelTabs
-            compact
-            activeId={displayMode}
-            onSelect={(id) => setDisplayMode(id as DisplayMode)}
+            activeId={mode}
+            onSelect={(id) => setMode(id as PanelMode)}
             tabs={[
-              { id: "board", label: "Board", icon: <Columns3 size={15} /> },
-              { id: "table", label: "Table", icon: <Table2 size={15} /> },
-              // The portfolio view (`/portfolio`) is a peer of these and belongs in this
-              // row — it goes back in once it's finished. Reachable by URL meanwhile.
+              { id: "registry", label: "Registry", icon: <Layers size={15} /> },
+              { id: "reporting", label: "Reporting", icon: <Gauge size={15} /> },
             ]}
           />
         }
+        // Only what belongs to *both* modes. Search, the attention filter and the grouping menu are
+        // about records, so they moved into the registry's own view row — a search box that filters a
+        // kanban you can't see is a control that lies, and a header that changes shape between modes
+        // reads as two different pages.
         controls={
           <>
-            {/* Two groups, a rule between them: what you're looking at (search,
-                the attention filter, grouping) and who you are. */}
-            <CollapsingSearch value={search} onChange={setSearch} />
-            <Button
-              onClick={() => setAttentionOnly(!attentionOnly)}
-              active={attentionOnly}
-              aria-pressed={attentionOnly}
-              className={cn(attentionOnly && "border-[var(--accent-border)] bg-[var(--accent-soft)] text-[var(--accent-strong)]")}
-            >
-              <Inbox size={14} />
-              Needs my attention
-              <span className="font-mono text-[11px] text-[var(--text-muted)]">{attentionCount}</span>
-            </Button>
-            <FilterMenu activeView={activeView} onViewChange={setActiveView} activeScope={scopeFilter} onScopeChange={setScopeFilter} />
-            {/* The one action this view is for. The rail can also start a use case
+            {/* The one action either mode is for. The rail can also start a use case
                 from a described idea; this is the door for people who'd rather fill
                 the intake in. */}
             <ButtonLink href="/intake" tone="primary">
@@ -342,16 +389,24 @@ export function TrackerView({ initialPhase }: { initialPhase?: string }) {
             <ProfileSwitcher currentUser={activeProfile} onUserChange={setActiveProfile} compact />
           </>
         }
-        scroll={false}
+        // The board and the table manage their own overflow (sideways columns, a capped table); the
+        // leadership tab is a column of tiles that has to scroll as one.
+        scroll={leadership}
         titleMeta={
           <>
             {/* Just the number, as a chip: "11 use cases" spelled out beside a crumb
                 that already says "use cases" was the same word twice. */}
             <span
-              data-tip={`${filteredUseCases.length} ${filteredUseCases.length === 1 ? "use case" : "use cases"}`}
+              data-tip={
+                leadership
+                  ? `${ALL_RECORDS.length} records — ${USE_CASES.length} on the board, ${ALL_RECORDS.length - USE_CASES.length} closed`
+                  : `${filteredUseCases.length} ${filteredUseCases.length === 1 ? "use case" : "use cases"}`
+              }
               className={cn(CHIP, "font-mono bg-[var(--surface-strong)] text-[var(--text-label)]")}
             >
-              {filteredUseCases.length}
+              {/* The committee counts everything ever raised, including the closed records the board
+                  never shows — so the chip has to change with the tab or it contradicts the tiles. */}
+              {leadership ? ALL_RECORDS.length : filteredUseCases.length}
             </span>
             {/* A filter you arrived at by link has to be visible and removable, or the
                 board just looks like it lost most of its cards. */}
@@ -373,30 +428,70 @@ export function TrackerView({ initialPhase }: { initialPhase?: string }) {
           </>
         }
       >
-        {displayMode === "board" ? (
-          <section className="flex min-h-0 flex-1 flex-col">
-            {/* Columns share the panel's width down to a readable floor, then the
- board scrolls sideways rather than squeezing the cards. */}
-            <div className="relative min-h-0 flex-1">
-              <div className="no-scrollbar h-full min-h-0 overflow-x-auto px-5 pb-5 pt-4">
-                <div
-                  className="grid h-full min-h-[320px] gap-3"
-                  style={{
-                    gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))`,
-                    minWidth: `${columns.length * 340 + (columns.length - 1) * 12}px`,
-                  }}
-                >
-                  {columns.map((column) => (
-                    <KanbanColumn key={column.title} column={column} />
-                  ))}
-                </div>
-              </div>
-              {/* Sideways overflow reads as "more to scroll", not a sliced column. */}
-              <div aria-hidden className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-[var(--surface)] to-transparent" />
-            </div>
-          </section>
+        {leadership ? (
+          <LeadershipViews />
         ) : (
-          <UseCaseTableView columns={columns} totalRows={filteredUseCases.length} />
+          <>
+            {/* The registry's view row — the same `PanelViewRow` reporting uses. Board and Table are
+                views of one set of records, so they sit here rather than beside the mode; the controls
+                that only make sense over records came down with them. */}
+            <PanelViewRow
+              views={
+                <PanelTabs
+                  activeId={displayMode}
+                  onSelect={(id) => setDisplayMode(id as DisplayMode)}
+                  tabs={[
+                    { id: "board", label: "Board", icon: <Columns3 size={15} /> },
+                    { id: "table", label: "Table", icon: <Table2 size={15} /> },
+                  ]}
+                />
+              }
+              controls={
+                <>
+                  <CollapsingSearch value={search} onChange={setSearch} />
+                  <Button
+                    onClick={() => setAttentionOnly(!attentionOnly)}
+                    active={attentionOnly}
+                    aria-pressed={attentionOnly}
+                    className={cn(attentionOnly && "border-[var(--accent-border)] bg-[var(--accent-soft)] text-[var(--accent-strong)]")}
+                  >
+                    <Inbox size={14} />
+                    Needs my attention
+                    <span className="font-mono text-[11px] text-[var(--text-muted)]">{attentionCount}</span>
+                  </Button>
+                  <FilterMenu activeView={activeView} onViewChange={setActiveView} activeScope={scopeFilter} onScopeChange={setScopeFilter} />
+                </>
+              }
+            />
+            {displayMode === "board" ? (
+              <section className="flex min-h-0 flex-1 flex-col">
+                {/* Columns share the panel's width down to a readable floor, then the
+ board scrolls sideways rather than squeezing the cards. */}
+                <div className="relative min-h-0 flex-1">
+                  <div className="no-scrollbar h-full min-h-0 overflow-x-auto px-5 pb-5 pt-4">
+                    <div
+                      className="grid h-full min-h-[320px] gap-3"
+                      style={{
+                        gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))`,
+                        minWidth: `${columns.length * 340 + (columns.length - 1) * 12}px`,
+                      }}
+                    >
+                      {columns.map((column) => (
+                        <KanbanColumn key={column.title} column={column} />
+                      ))}
+                    </div>
+                  </div>
+                  {/* Sideways overflow reads as "more to scroll", not a sliced column. */}
+                  <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-[var(--surface)] to-transparent"
+                  />
+                </div>
+              </section>
+            ) : (
+              <UseCaseTableView columns={columns} totalRows={filteredUseCases.length} />
+            )}
+          </>
         )}
       </ContentPanel>
     </AppShell>
@@ -766,7 +861,12 @@ function KanbanColumn({ column }: { column: BoardColumn }) {
         )}
       >
         <div className="flex min-w-0 items-center gap-2">
-          <PhaseIcon phase={column.title} size={14} className="shrink-0" style={{ color: `var(--tone-${PHASE_TONES[column.title] ?? "neutral"}-fg)` }} />
+          <PhaseIcon
+            phase={column.title}
+            size={14}
+            className="shrink-0"
+            style={{ color: `var(--tone-${PHASE_TONES[column.title] ?? "neutral"}-fg)` }}
+          />
           <h2 className="truncate text-[14px] font-semibold text-[var(--text-primary)]">{column.title}</h2>
           {members && members.length > 1 ? <PhaseStagesHint members={members} /> : null}
         </div>

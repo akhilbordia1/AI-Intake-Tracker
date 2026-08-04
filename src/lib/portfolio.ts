@@ -233,8 +233,18 @@ export function capabilityMix(cards: UseCaseCard[]) {
   const order: Capability[] = ["Analytical", "Generative", "Agentic"];
   const total = cards.length || 1;
   return order.map((capability) => {
-    const count = cards.filter((card) => card.capability === capability).length;
-    return { capability, count, share: count / total };
+    const held = cards.filter((card) => card.capability === capability);
+    // What each kind of build has actually cost and returned. A count on its own says the portfolio
+    // leans analytical; the money says whether that lean has paid for itself, which is the question
+    // behind "should we be doing more agentic work".
+    return {
+      capability,
+      count: held.length,
+      share: held.length / total,
+      live: held.filter((card) => card.lifecycle === "Live").length,
+      committed: held.reduce((sum, card) => sum + card.investmentUsd, 0),
+      confirmed: held.reduce((sum, card) => sum + confirmedBenefit(card), 0),
+    };
   });
 }
 
@@ -542,9 +552,22 @@ export function complianceLoad(cards: UseCaseCard[]) {
 
 // Same shape for what the use cases touch.
 export function exposureLoad(cards: UseCaseCard[]) {
-  const counts = new Map<DataExposure, number>();
-  for (const card of cards) for (const kind of card.dataExposure ?? []) counts.set(kind, (counts.get(kind) ?? 0) + 1);
-  return [...counts.entries()].map(([kind, count]) => ({ kind, count })).sort((a, b) => b.count - a.count);
+  const held = new Map<DataExposure, UseCaseCard[]>();
+  for (const card of cards) for (const kind of card.dataExposure ?? []) held.set(kind, [...(held.get(kind) ?? []), card]);
+  // Split by where the record is, not just how many carry the flag. "3 records are GxP-impacting" is
+  // a filing note; "2 of the 3 are in production" is the sentence a committee has to act on, because
+  // exposure on something still in build is a design decision and exposure on something live is a
+  // control that either exists today or doesn't.
+  return [...held.entries()]
+    .map(([kind, records]) => ({
+      kind,
+      count: records.length,
+      live: records.filter((card) => card.lifecycle === "Live").length,
+      inFlight: records.filter((card) => card.lifecycle === "Active" || card.lifecycle === "On hold").length,
+      stopped: records.filter((card) => card.lifecycle === "Rejected").length,
+      records,
+    }))
+    .sort((a, b) => b.count - a.count);
 }
 
 // The five adoption controls, each as "how many of the live records have this in place". Live
@@ -585,6 +608,118 @@ export function stageRegister(cards: UseCaseCard[], stagesByPhase: Record<string
   }));
 }
 
+// Money sitting at each stage of the lifecycle, oldest stage first. The gate register counts
+// records; this weights them — four ideas at Ideation and one build at Solutionise are the same
+// row count and very different exposure, and it's the money that decides which queue to clear
+// first.
+export function valueAtStake(cards: UseCaseCard[], stagesByPhase: Record<string, string[]>) {
+  const order = Object.values(stagesByPhase).flat();
+  return order.map((stage) => {
+    const here = cards.filter((card) => card.substage === stage && card.lifecycle !== "Rejected");
+    return {
+      stage,
+      count: here.length,
+      committed: here.filter((card) => card.funded).reduce((total, card) => total + card.investmentUsd, 0),
+      // Asked-for money is a different kind of exposure from committed money, so the two are
+      // separate series rather than one total.
+      asked: here.filter((card) => !card.funded).reduce((total, card) => total + card.investmentUsd, 0),
+    };
+  });
+}
+
+// ── The four target cards ──
+
+// The measures the committee is held to, each against the bar it has to clear. Deliberately four
+// different kinds of bar: a count against a book of work, money against what was promised, a share
+// against a closure target, and a duration against a deadline — which is why each carries its own
+// sentence rather than a shared column heading.
+export function targetCards(cards: UseCaseCard[], months: PortfolioMonth[], asOf: string, sizeTarget: number, closureTarget: number) {
+  const h = headline(cards, months, asOf);
+  const real = realization(cards);
+  // Ideas raised in the quarter `asOf` falls in, against the mean of the quarters before it — a
+  // count with no run rate beside it can't say whether intake is speeding up or drying up.
+  const quarterOf = (iso: string) => `${iso.slice(0, 4)}-Q${Math.floor((Number(iso.slice(5, 7)) - 1) / 3) + 1}`;
+  const thisQuarter = quarterOf(asOf);
+  const raisedByQuarter = new Map<string, number>();
+  for (const card of cards) raisedByQuarter.set(quarterOf(card.created), (raisedByQuarter.get(quarterOf(card.created)) ?? 0) + 1);
+  const raisedNow = raisedByQuarter.get(thisQuarter) ?? 0;
+  const earlier = [...raisedByQuarter.entries()].filter(([key]) => key < thisQuarter).map(([, count]) => count);
+  const runRate = earlier.length ? earlier.reduce((sum, count) => sum + count, 0) / earlier.length : 0;
+
+  return [
+    {
+      key: "size",
+      label: "Portfolio size",
+      value: String(h.tracked),
+      against: `/ ${sizeTarget} target`,
+      ratio: sizeTarget ? h.tracked / sizeTarget : 0,
+      onTrack: h.tracked >= sizeTarget,
+      note: `+${raisedNow} this quarter · rate ${runRate.toFixed(1)}`,
+    },
+    {
+      key: "value",
+      label: "Value realized",
+      value: usd(real.confirmed),
+      against: `/ ${usd(real.projected)} projected`,
+      ratio: real.ratio,
+      onTrack: real.ratio >= 0.8,
+      note: `${pct(real.ratio)} of what was promised`,
+    },
+    {
+      key: "governance",
+      label: "Governance health",
+      value: pct(h.passRate),
+      against: "gates closed",
+      ratio: closureTarget ? h.passRate / closureTarget : h.passRate,
+      onTrack: h.passRate >= closureTarget,
+      note: `${h.openGates} open · ${pct(closureTarget)} target`,
+    },
+    {
+      key: "velocity",
+      label: "Decision velocity",
+      value: `${h.decisionDays}d`,
+      against: `/ ${DECISION_TARGET_DAYS}d target`,
+      // Lower is better, so the bar fills as the number falls towards the target.
+      ratio: h.decisionDays ? Math.min(1, DECISION_TARGET_DAYS / h.decisionDays) : 0,
+      onTrack: h.decisionDays <= DECISION_TARGET_DAYS,
+      note: `intake to a first gate`,
+    },
+  ];
+}
+
+// ── The leaderboard ──
+
+// Every function on four measures, so "who is doing well at this" has an answer that doesn't
+// depend on which measure you happened to pick. They disagree on purpose: the function with the
+// most money confirmed is rarely the one converting the highest share of its ideas, and a single
+// ranking would hide that.
+export function functionLeaderboard(cards: UseCaseCard[], phases: PhaseMap) {
+  const lastPhase = phases.order[phases.order.length - 1];
+  const rows = new Map<string, UseCaseCard[]>();
+  for (const card of cards) rows.set(card.businessFunction, [...(rows.get(card.businessFunction) ?? []), card]);
+
+  return [...rows.entries()].map(([fn, held]) => {
+    const live = held.filter((card) => card.lifecycle === "Live");
+    const confirmed = live.reduce((total, card) => total + confirmedBenefit(card), 0);
+    const projected = live.reduce((total, card) => total + card.annualBenefitUsd, 0);
+    // Conversion is "reached the last phase", not "is live" — a record that got to Operate & Adopt
+    // and was then parked still converted; the pipeline did its job.
+    const reached = held.filter((card) => card.phaseEntered[lastPhase]).length;
+    return {
+      fn,
+      volume: held.length,
+      live: live.length,
+      confirmed,
+      projected,
+      conversion: held.length ? reached / held.length : 0,
+      // Realised is only meaningful where something is live; elsewhere there is nothing to have
+      // realised, which is different from having realised none of it.
+      realised: projected ? confirmed / projected : null,
+      committed: held.reduce((total, card) => total + card.investmentUsd, 0),
+    };
+  });
+}
+
 // ── Concentration ──
 
 // How much of the confirmed benefit sits in how few records. A portfolio returning most of its
@@ -601,7 +736,9 @@ export function benefitConcentration(cards: UseCaseCard[], topN = 3) {
   const rest = band(live.slice(topN));
   return {
     total,
-    top: { ...top, share: top.confirmed / total, records: live.slice(0, topN).map((row) => row.card) },
+    // The rows themselves, each with its own confirmed figure and its share of the total: the two
+    // bands say the portfolio is carried by three records, and the obvious next question is which.
+    top: { ...top, share: top.confirmed / total, records: live.slice(0, topN).map((row) => ({ ...row, share: row.confirmed / total })) },
     rest: { ...rest, share: rest.confirmed / total },
   };
 }
@@ -794,17 +931,20 @@ export function committeeReading(cards: UseCaseCard[], months: PortfolioMonth[],
           register.length ? `, with ${cycle[slow]?.open ?? 0} still in it` : ""
         }.`
       : `Nothing has left a phase yet, so there is no cycle time to report.`,
-    nextAction: [
-      oldest ? `Clear the ${oldest.card.gate?.id} decision on **${oldest.card.title}** — ${oldest.days} days with ${oldest.card.actionOwner}.` : null,
-      under.length
-        ? `Reconcile oversight on ${under.length === 1 ? "**" + under[0].title + "**" : under.length + " live records"}: ${under.length === 1 ? "live" : "all live"}, ${under[0].riskLevel.toLowerCase()} risk, supervised below tier.`
-        : null,
-      worstControl && worstControl.inPlace < worstControl.total
-        ? `${worstControl.label} is in place on ${worstControl.inPlace} of ${worstControl.total} live records.`
-        : null,
-    ]
-      .filter(Boolean)
-      .join(" ") || `Nothing needs this committee: ${queue.length} open queues.`,
+    nextAction:
+      [
+        oldest
+          ? `Clear the ${oldest.card.gate?.id} decision on **${oldest.card.title}** — ${oldest.days} days with ${oldest.card.actionOwner}.`
+          : null,
+        under.length
+          ? `Reconcile oversight on ${under.length === 1 ? "**" + under[0].title + "**" : under.length + " live records"}: ${under.length === 1 ? "live" : "all live"}, ${under[0].riskLevel.toLowerCase()} risk, supervised below tier.`
+          : null,
+        worstControl && worstControl.inPlace < worstControl.total
+          ? `${worstControl.label} is in place on ${worstControl.inPlace} of ${worstControl.total} live records.`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" ") || `Nothing needs this committee: ${queue.length} open queues.`,
   };
 }
 
@@ -1157,6 +1297,27 @@ function demo() {
       .join() === "UC-3,UC-4",
     "stoppedRows: rejected and parked, newest first",
   );
+
+  // Concentration names its top records, and the flag counts split by where the record is.
+  const shares = benefitConcentration(
+    [
+      ...ledger,
+      card({ id: "UC-6", lifecycle: "Live", liveSince: "2026-02-01", annualBenefitUsd: 200, confirmedBenefitUsd: 100 }),
+      card({ id: "UC-7", lifecycle: "Live", liveSince: "2026-02-01", annualBenefitUsd: 200, confirmedBenefitUsd: 300 }),
+    ],
+    2,
+  );
+  assert(shares.top.records.map((row) => row.card.id).join() === "UC-7,UC-6", "benefitConcentration: records ranked by confirmed");
+  assert(shares.top.records[0].share === 0.75, `benefitConcentration: a record's own share (${shares.top.records[0].share})`);
+
+  const exposed = exposureLoad([
+    card({ id: "UC-8", dataExposure: ["PII in scope"], lifecycle: "Live" }),
+    card({ id: "UC-9", dataExposure: ["PII in scope", "GxP-impacting"] }),
+    card({ id: "UC-10", dataExposure: ["PII in scope"], lifecycle: "Rejected" }),
+  ]);
+  assert(exposed[0].kind === "PII in scope" && exposed[0].count === 3, "exposureLoad: counted per flag, commonest first");
+  assert(exposed[0].live === 1 && exposed[0].inFlight === 1 && exposed[0].stopped === 1, "exposureLoad: split by lifecycle");
+  assert(exposed[0].live + exposed[0].inFlight + exposed[0].stopped === exposed[0].count, "exposureLoad: the split accounts for every record");
 
   const digest = portfolioDigest(fixture, months, phases, "2026-02-08");
   assert(digest.startsWith("**") && digest.includes("\n- "), "digest: a headline sentence and supporting lines");
