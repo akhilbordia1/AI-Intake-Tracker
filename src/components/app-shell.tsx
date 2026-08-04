@@ -110,6 +110,7 @@ export function PanelTabs({
   onSelect,
   right,
   compact = false,
+  segmented = false,
 }: {
   tabs: PanelTab[];
   activeId: string;
@@ -118,18 +119,34 @@ export function PanelTabs({
   right?: ReactNode;
   // Icon-only, where the icons already carry the meaning (board / table).
   compact?: boolean;
+  // One toggle instead of a row of tabs: the whole control is boxed, the segments sit inside
+  // it, and the active one is the raised white half. For a pair of mutually exclusive reads of
+  // the same data — Health or Value — where a tab strip implies a list you could add to.
+  segmented?: boolean;
 }) {
   return (
-    <div className="no-scrollbar flex shrink-0 items-center gap-1 overflow-x-auto">
+    <div
+      className={cn(
+        "no-scrollbar flex shrink-0 items-center overflow-x-auto",
+        segmented ? "gap-0.5 rounded-[10px] border border-[var(--border-default)] bg-[var(--surface-strong)] p-0.5" : "gap-1",
+      )}
+    >
       {tabs.map((tab) => {
         const active = tab.id === activeId;
         const shape = cn(
-          "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[10px] text-[13px] transition",
+          "inline-flex shrink-0 items-center gap-1.5 text-[13px] transition",
           "outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]",
+          segmented ? "h-8 rounded-[8px]" : "h-9 rounded-[10px]",
           compact ? "w-9 justify-center" : "px-3",
-          active
-            ? "border border-[var(--border-default)] bg-white font-semibold text-[var(--text-primary)] "
-            : "text-[var(--text-body)] hover:bg-[var(--surface-hover)]",
+          segmented
+            ? // Inside a boxed toggle the active half is told by its fill against the trough, so
+              // it takes no border of its own — one would read as a box inside a box.
+              active
+              ? "bg-[var(--surface)] font-semibold text-[var(--text-primary)]"
+              : "text-[var(--text-body)] hover:text-[var(--text-primary)]"
+            : active
+              ? "border border-[var(--border-default)] bg-white font-semibold text-[var(--text-primary)] "
+              : "text-[var(--text-body)] hover:bg-[var(--surface-hover)]",
         );
         // A tooltip only where the icon is the whole label. On a labelled tab it just
         // repeats the word you're already reading.
@@ -237,6 +254,7 @@ export function ContentPanel({
   titleMeta,
   breadcrumb,
   tabs,
+  centerTabs = false,
   controls,
   footer,
   scroll = true,
@@ -250,6 +268,9 @@ export function ContentPanel({
   breadcrumb?: ReactNode;
   // The route's views (Overview / Workflow, Board / Table).
   tabs?: ReactNode;
+  // Places the tabs on the panel's midline instead of beside the title. Opt-in, so the routes
+  // whose tabs sit in the flow after a breadcrumb are untouched.
+  centerTabs?: boolean;
   // The view's own real controls — filters and toggles, pushed to the right edge
   // so the left side stays the object's identity.
   controls?: ReactNode;
@@ -260,7 +281,7 @@ export function ContentPanel({
 }) {
   return (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[12px] border border-[var(--border-default)] bg-[var(--surface)] ">
-      <div className="flex min-h-[52px] shrink-0 flex-wrap items-center gap-x-2.5 gap-y-1.5 border-b border-[var(--border-hairline)] px-6 py-2">
+      <div className="relative flex min-h-[52px] shrink-0 flex-wrap items-center gap-x-2.5 gap-y-1.5 border-b border-[var(--border-hairline)] px-6 py-2">
         {icon ? <span className="shrink-0 text-[var(--accent)]">{icon}</span> : null}
         {title ? <h1 className="font-display min-w-0 shrink-0 truncate text-[18px] leading-tight text-[var(--text-primary)]">{title}</h1> : null}
         {/* Breadcrumb before the count: what the panel *is* comes before how much
@@ -268,12 +289,24 @@ export function ContentPanel({
         {breadcrumb}
         {titleMeta}
         {/* The tabs are a different kind of thing from the panel's name, so a rule
-            separates them rather than more whitespace. */}
+            separates them rather than more whitespace.
+
+            Centred, they're out of the flow instead: a toggle between two whole reads of the
+            page belongs on the panel's axis, and centring it with `mx-auto` would only centre
+            it in whatever space the breadcrumb and the controls left over. Absolutely placed, it
+            sits on the panel's midline whatever is either side of it — and it takes no dividing
+            rule, because nothing is next to it to divide from. */}
         {tabs ? (
-          <>
-            <span aria-hidden className="ml-1.5 h-4 w-px shrink-0 bg-[var(--border-default)]" />
-            <div className="shrink-0">{tabs}</div>
-          </>
+          centerTabs ? (
+            <div className="pointer-events-none absolute inset-x-0 top-1/2 z-10 flex -translate-y-1/2 justify-center">
+              <div className="pointer-events-auto">{tabs}</div>
+            </div>
+          ) : (
+            <>
+              <span aria-hidden className="ml-1.5 h-4 w-px shrink-0 bg-[var(--border-default)]" />
+              <div className="shrink-0">{tabs}</div>
+            </>
+          )
         ) : null}
         {controls ? <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-1.5">{controls}</div> : null}
       </div>

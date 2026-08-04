@@ -946,8 +946,10 @@ export default function PortfolioPage() {
             {cards.length}
           </span>
         }
+        centerTabs
         tabs={
           <PanelTabs
+            segmented
             activeId={tab}
             onSelect={(id) => setTab(id as "health" | "value")}
             tabs={[
