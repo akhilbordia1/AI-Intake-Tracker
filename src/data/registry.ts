@@ -49,19 +49,36 @@ export type AdoptionControls = {
   sopEmbedded: ControlState;
 };
 
-// The oversight a risk level requires. A record carrying less than this is what
-// "under-supervised" means, and it's a governance finding rather than a project problem —
-// nobody below the committee can change a risk tier.
-export const oversightRequiredFor: Record<RiskLevel, Oversight[]> = {
-  High: ["Always"],
-  Medium: ["Always", "On exceptions"],
-  Low: ["Always", "On exceptions", "None"],
-};
+// What oversight each risk level *requires* is a derivation rule, not registry data, so it
+// lives in `src/lib/portfolio.ts` beside `underSupervised()`. Keeping it out of here is what
+// lets that file import this one type-only and stay runnable under plain node.
 
 // The prototype's "today". Every derivation takes it as an argument rather than
 // calling `new Date()`, so an aging number can't differ between the prerender and
 // the client — and re-anchoring the whole demo is this one line.
 export const AS_OF = "2026-07-08";
+
+// ── What the portfolio is aiming at ──
+// Annual targets and the position at the last quarter close. The *current* figure for each
+// measure is always derived from the records (see `annualPerformance`) — only the target and the
+// prior-quarter position are seeded, because neither is derivable: a target is a decision
+// somebody made, and the prior quarter is history the record set no longer contains.
+export const PORTFOLIO_TARGETS = {
+  // The book of work the portfolio is trying to hold, for the maturity index and the size card.
+  sizeTarget: 24,
+  // Share of gate decisions that should be closed out rather than left open.
+  governanceClosure: 0.9,
+  // The composite at the last quarter close, so the headline score can carry a direction. Seeded
+  // for the same reason the prior-quarter measures are: the record set holds today's position,
+  // not the one it was in three months ago.
+  priorQuarterHealth: 55,
+  annual: [
+    { key: "benefit", label: "Cost saved", unit: "usd" as const, priorQuarter: 640_000, target: 1_800_000 },
+    { key: "hours", label: "Hours saved", unit: "hours" as const, priorQuarter: 18_400, target: 34_000 },
+    { key: "users", label: "Active users", unit: "count" as const, priorQuarter: 1_640, target: 3_600 },
+    { key: "roi", label: "Return on investment", unit: "ratio" as const, priorQuarter: 0.39, target: 0.75 },
+  ],
+};
 
 export type UseCaseCard = {
   id: string;

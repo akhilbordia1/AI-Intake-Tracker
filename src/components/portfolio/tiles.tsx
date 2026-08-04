@@ -1,6 +1,6 @@
 "use client";
 
-import { Sparkles } from "lucide-react";
+import { ChevronDown, Sparkles } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Markdown } from "@/components/document-record/markdown";
@@ -167,6 +167,120 @@ export function DataTable({
   );
 }
 
+// ── The control strip ──
+// Two visible selects and a one-line census of the registry, on a rule under the panel header.
+//
+// Out in the open rather than inside the filter menu beside them: a period and a function are
+// what every figure below is *scoped to*, and a scope you have to open a menu to read is a scope
+// people forget is applied. The menu keeps the things that are genuinely optional.
+
+// A native select, styled to the product's own control shape. Native because a listbox that
+// reimplements keyboard handling, typeahead and mobile pickers to look 4px different is a
+// liability, and this one carries no state of its own.
+export function StripSelect({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  // Read by screen readers only — the strip's selects are self-evident on sight, and a visible
+  // "Period:" label in front of each one doubles the width of the control for no reading gain.
+  label: string;
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="relative inline-flex items-center">
+      <span className="sr-only">{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="font-mono h-9 min-w-0 appearance-none rounded-[10px] border border-[var(--border-default)] bg-[var(--surface)] pl-3 pr-8 text-[12px] text-[var(--text-primary)] outline-none transition hover:border-[var(--border-input)] focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      <ChevronDown aria-hidden size={14} className="pointer-events-none absolute right-2.5 text-[var(--text-muted)]" />
+    </label>
+  );
+}
+
+export function ControlStrip({ children, census }: { children: ReactNode; census: ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-2 border-b border-[var(--border-hairline)] px-6 py-2.5">
+      {children}
+      {/* The census sits opposite the controls: what the registry holds, against what you have
+          narrowed it to. Those two facts belong on one line — a filtered count with no total
+          beside it can't be told apart from a small portfolio. */}
+      <span className="ml-auto text-[12px] text-[var(--text-muted)]">{census}</span>
+    </div>
+  );
+}
+
+// A cross-tabulation: one measure counted across two dimensions at once, with the cells that
+// break a rule marked.
+//
+// A pair of separate breakdowns — risk levels in one tile, oversight levels in another — cannot
+// answer the only question worth asking of them, which is whether the two line up. That answer
+// lives in the cells, so the cells have to exist.
+export function MatrixTable({
+  columns,
+  rows,
+  corner,
+}: {
+  columns: string[];
+  rows: { key: string; label: string; cells: { key: string; count: number; flagged?: boolean; tip?: string }[] }[];
+  // Names what the row labels are, so the top-left cell isn't blank.
+  corner: string;
+}) {
+  if (!rows.length) return <TileEmpty />;
+  return (
+    <table className="w-full border-collapse text-left">
+      <thead>
+        <tr>
+          <th className="border-b border-[var(--border-hairline)] pb-2 text-[11px] font-medium text-[var(--text-muted)]">{corner}</th>
+          {columns.map((column) => (
+            <th key={column} className="border-b border-[var(--border-hairline)] pb-2 pl-4 text-right text-[11px] font-medium text-[var(--text-muted)]">
+              {column}
+            </th>
+          ))}
+          <th className="border-b border-[var(--border-hairline)] pb-2 pl-4 text-right text-[11px] font-medium text-[var(--text-muted)]">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row) => (
+          <tr key={row.key} className="border-b border-[var(--border-hairline)] last:border-b-0">
+            <td className="py-2.5 text-[13px] text-[var(--text-body)]">{row.label}</td>
+            {row.cells.map((cell) => (
+              <td
+                key={cell.key}
+                data-tip={cell.tip}
+                // A flagged cell carries the warning tone and a tinted fill. A zero in a flagged
+                // position is still drawn plainly — the rule isn't broken if nothing is in it.
+                className="font-mono py-2.5 pl-4 text-right text-[13px] [font-variant-numeric:tabular-nums]"
+                style={
+                  cell.flagged && cell.count > 0
+                    ? { color: "var(--tone-warning-fg)", background: "var(--tone-warning-bg)", fontWeight: 600 }
+                    : { color: cell.count > 0 ? "var(--text-primary)" : "var(--text-faint)" }
+                }
+              >
+                {cell.count || "—"}
+              </td>
+            ))}
+            <td className="font-mono py-2.5 pl-4 text-right text-[13px] font-semibold text-[var(--text-primary)] [font-variant-numeric:tabular-nums]">
+              {row.cells.reduce((sum, cell) => sum + cell.count, 0)}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 // Status as a dot and a word, the way a dense list wants it: four filled pills down a
 // column read as four buttons, and the colour is doing the work anyway.
 export function StatusDot({ label, tone }: { label: string; tone: "good" | "warn" | "bad" | "quiet" }) {
@@ -251,7 +365,15 @@ export function StatBand({ items }: { items: Stat[] }) {
     // turned out to be restated in the summary sentence directly below the band — so each
     // dropped the one whose detail was also *drawn* below it, and the band has to divide
     // evenly either way.
-    <section className={cn(cardClass(), "grid grid-cols-2", items.length === 3 ? "sm:grid-cols-3" : "sm:grid-cols-4")}>
+    <section
+      className={cn(
+        cardClass(),
+        "grid grid-cols-2",
+        // Six cells wrap to three-and-three on a narrow window rather than shrinking to a strip
+        // of unreadable columns.
+        items.length === 6 ? "sm:grid-cols-3 lg:grid-cols-6" : items.length === 3 ? "sm:grid-cols-3" : "sm:grid-cols-4",
+      )}
+    >
       {items.map((item, index) => (
         <div
           key={item.label}
@@ -262,6 +384,10 @@ export function StatBand({ items }: { items: Stat[] }) {
             index % 2 === 1 && "border-l border-[var(--border-hairline)]",
             index >= 2 && "border-t border-[var(--border-hairline)] sm:border-t-0",
             index >= 1 && "sm:border-l sm:border-[var(--border-hairline)]",
+            // In the six-cell layout the second row starts a new run, so its leading cell drops
+            // the left rule and the row gains a top one.
+            items.length === 6 && index === 3 && "sm:border-l-0 sm:border-t lg:border-l lg:border-t-0",
+            items.length === 6 && index >= 3 && "sm:border-t sm:border-[var(--border-hairline)] lg:border-t-0",
           )}
         >
           <div className="flex min-w-0 items-center gap-1.5 text-[12px] text-[var(--text-label)]">
@@ -660,7 +786,18 @@ function ScoreDial({ score, caption, colour }: { score: number; caption?: string
 
 // A composite score, with the things it is made of underneath: one number on its own
 // hides its own reasoning, and a leader's first question is "made of what?".
-export function ScorePanel({ score, parts, caption }: { score: number; parts: { label: string; ratio: number }[]; caption?: string }) {
+export function ScorePanel({
+  score,
+  parts,
+  caption,
+}: {
+  score: number;
+  // `weight` is printed beside the label where the composite is weighted. A composite whose
+  // weights are hidden is a number nobody can argue with, which is the opposite of useful on a
+  // page whose whole job is to be argued with.
+  parts: { label: string; ratio: number; weight?: number }[];
+  caption?: string;
+}) {
   const weakest = Math.min(...parts.map((part) => part.ratio));
   const scoreColour = score >= 0.95 ? "var(--status-success)" : score >= 0.7 ? "var(--accent)" : "var(--tone-warning-fg)";
 
@@ -670,7 +807,12 @@ export function ScorePanel({ score, parts, caption }: { score: number; parts: { 
       <div className="min-w-0 flex-1 self-stretch">
         {parts.map((part) => (
           <div key={part.label} className="flex min-w-0 items-center gap-3 border-t border-[var(--border-hairline)] py-2.5 first:border-t-0">
-            <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--text-body)]">{part.label}</span>
+            <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
+              <span className="min-w-0 truncate text-[13px] text-[var(--text-body)]">{part.label}</span>
+              {part.weight === undefined ? null : (
+                <span className="font-mono shrink-0 text-[11px] text-[var(--text-faint)]">· {Math.round(part.weight * 100)}%</span>
+              )}
+            </span>
             {/* h-2, matching `RankedBars` and `GroupBars`. Three bar heights across one page
                 (1.5, 2, 2) is the kind of drift nobody names but everybody sees. */}
             <span className="relative h-2 w-[38%] max-w-[150px] shrink-0 overflow-hidden rounded-full bg-[var(--surface-strong)]">

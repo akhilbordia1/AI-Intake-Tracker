@@ -258,6 +258,7 @@ export function ContentPanel({
   controls,
   footer,
   scroll = true,
+  bare = false,
   children,
 }: {
   icon?: ReactNode;
@@ -277,11 +278,25 @@ export function ContentPanel({
   footer?: ReactNode;
   // Panels whose content owns its own scrolling opt out.
   scroll?: boolean;
+  // Drops the panel's own card — no border, no fill, no rounding — so its sections sit directly
+  // on the canvas. For the leadership view, where the tiles are already cards: a card holding
+  // cards puts two borders a few pixels apart down the whole page and buys nothing.
+  bare?: boolean;
   children: ReactNode;
 }) {
   return (
-    <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[12px] border border-[var(--border-default)] bg-[var(--surface)] ">
-      <div className="relative flex min-h-[52px] shrink-0 flex-wrap items-center gap-x-2.5 gap-y-1.5 border-b border-[var(--border-hairline)] px-6 py-2">
+    <section
+      className={cn(
+        "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
+        !bare && "rounded-[12px] border border-[var(--border-default)] bg-[var(--surface)]",
+      )}
+    >
+      <div
+        className={cn(
+          "relative flex min-h-[52px] shrink-0 flex-wrap items-center gap-x-2.5 gap-y-1.5 px-6 py-2",
+          !bare && "border-b border-[var(--border-hairline)]",
+        )}
+      >
         {icon ? <span className="shrink-0 text-[var(--accent)]">{icon}</span> : null}
         {title ? <h1 className="font-display min-w-0 shrink-0 truncate text-[18px] leading-tight text-[var(--text-primary)]">{title}</h1> : null}
         {/* Breadcrumb before the count: what the panel *is* comes before how much
@@ -334,8 +349,12 @@ export function AppShell({
 }: {
   // Full-width strip above everything (e.g. a returned / rejected notice).
   banner?: ReactNode;
-  railHeader: ReactNode;
-  rail: ReactNode;
+  // Both optional. A route with no rail gets a single full-width column — the leadership view
+  // docks its assistant in a floating panel instead of giving it a permanent 364px track,
+  // because a committee page is read across its whole width and the assistant is consulted,
+  // not worked in.
+  railHeader?: ReactNode;
+  rail?: ReactNode;
   // Optional third column (the record's details sheet).
   aside?: ReactNode;
   // The chat takes the whole content area; the panel (and sheet) step aside.
@@ -349,7 +368,14 @@ export function AppShell({
   // user bubbles keep a deliberate measure. Collapsed it becomes a 36px strip —
   // just wide enough to hold the toggle that reopens it.
   const railTrack = railCollapsed ? "36px" : "364px";
-  const columns = railExpanded ? "minmax(0,1fr)" : aside ? `${railTrack} minmax(0,62fr) minmax(0,38fr)` : `${railTrack} minmax(0,1fr)`;
+  const hasRail = Boolean(rail || railHeader);
+  const columns = railExpanded
+    ? "minmax(0,1fr)"
+    : !hasRail
+      ? "minmax(0,1fr)"
+      : aside
+        ? `${railTrack} minmax(0,62fr) minmax(0,38fr)`
+        : `${railTrack} minmax(0,1fr)`;
   return (
     // One row of content: the rail and the panel, each carrying its own header.
     <main className="chat-glow flex h-screen flex-col overflow-hidden bg-[var(--shell-canvas)] text-[var(--text-primary)]">
@@ -359,10 +385,12 @@ export function AppShell({
  auto-placement, which would slide the panel into the rail's track. The
  conversation inside is hidden instead, so putting the rail away and
  bringing it back doesn't lose it. */}
-        <section className="flex min-h-0 min-w-0 flex-col overflow-hidden">
-          {railHeader}
-          <div className={cn("flex min-h-0 flex-1 flex-col", railCollapsed && "hidden")}>{rail}</div>
-        </section>
+        {hasRail ? (
+          <section className="flex min-h-0 min-w-0 flex-col overflow-hidden">
+            {railHeader}
+            <div className={cn("flex min-h-0 flex-1 flex-col", railCollapsed && "hidden")}>{rail}</div>
+          </section>
+        ) : null}
         {railExpanded ? null : <div className="flex min-h-0 min-w-0 flex-col">{children}</div>}
         {railExpanded ? null : aside}
       </div>

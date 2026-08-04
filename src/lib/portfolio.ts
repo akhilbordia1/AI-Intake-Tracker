@@ -9,7 +9,19 @@
 // Phase membership lives in `lifecycle.ts`; it is passed in as a `PhaseMap` so this
 // file keeps no second copy of the lifecycle and stays importable by the checker.
 
-import type { Capability, GateStatus, Lifecycle, PortfolioMonth, RiskLevel, RiskTier, UseCaseCard } from "@/data/registry";
+import type {
+  AdoptionControls,
+  Capability,
+  ComplianceReview,
+  DataExposure,
+  GateStatus,
+  Lifecycle,
+  Oversight,
+  PortfolioMonth,
+  RiskLevel,
+  RiskTier,
+  UseCaseCard,
+} from "@/data/registry";
 
 export type PhaseMap = { order: readonly string[]; phaseOf: (substage: string) => string };
 
@@ -497,6 +509,303 @@ export function stoppedRows(cards: UseCaseCard[]) {
   return cards
     .filter((card) => card.lifecycle === "Rejected" || card.lifecycle === "On hold")
     .sort((a, b) => (b.closedOn ?? "").localeCompare(a.closedOn ?? ""));
+}
+
+// ── Governance findings ──
+
+// The oversight each risk level requires. A rule, not data — which is why it sits here and not
+// in the registry: `portfolio.ts` imports the registry type-only so it stays runnable under
+// plain node, and one value import from an aliased path breaks that.
+const oversightRequiredFor: Record<RiskLevel, Oversight[]> = {
+  High: ["Always"],
+  Medium: ["Always", "On exceptions"],
+  Low: ["Always", "On exceptions", "None"],
+};
+
+// Records carrying less human oversight than their risk level requires. This is the committee's
+// finding rather than a project's problem: nobody below this table can change a risk tier or
+// authorise less supervision, so it belongs on a leadership page and nowhere else.
+//
+// A record with no oversight recorded at all is not counted. Oversight is set at Qualification,
+// so an idea still in Ideation has no gap to be in — treating unset as "None" would make every
+// new submission a governance breach.
+export function underSupervised(cards: UseCaseCard[]) {
+  return cards.filter((card) => card.oversight && !oversightRequiredFor[card.riskLevel].includes(card.oversight));
+}
+
+// One tally per compliance review, commonest first — the load each function is carrying.
+export function complianceLoad(cards: UseCaseCard[]) {
+  const counts = new Map<ComplianceReview, number>();
+  for (const card of cards) for (const review of card.reviews ?? []) counts.set(review, (counts.get(review) ?? 0) + 1);
+  return [...counts.entries()].map(([review, count]) => ({ review, count })).sort((a, b) => b.count - a.count);
+}
+
+// Same shape for what the use cases touch.
+export function exposureLoad(cards: UseCaseCard[]) {
+  const counts = new Map<DataExposure, number>();
+  for (const card of cards) for (const kind of card.dataExposure ?? []) counts.set(kind, (counts.get(kind) ?? 0) + 1);
+  return [...counts.entries()].map(([kind, count]) => ({ kind, count })).sort((a, b) => b.count - a.count);
+}
+
+// The five adoption controls, each as "how many of the live records have this in place". Live
+// records only: a control recorded at Adoption can't be assessed on something still in build.
+const ADOPTION_CONTROLS: { key: keyof AdoptionControls; label: string }[] = [
+  { key: "training", label: "Training completed" },
+  { key: "responsibleAi", label: "Responsible AI sign-off" },
+  { key: "supportModel", label: "Support model in place" },
+  { key: "biasMonitoring", label: "Bias monitoring live" },
+  { key: "sopEmbedded", label: "Embedded in SOP" },
+];
+
+export function adoptionControls(cards: UseCaseCard[]) {
+  const measured = cards.filter((card) => card.adoption);
+  return ADOPTION_CONTROLS.map(({ key, label }) => {
+    const inPlace = measured.filter((card) => card.adoption?.[key] === "In place").length;
+    const started = measured.filter((card) => card.adoption?.[key] === "In progress").length;
+    return { key, label, inPlace, started, total: measured.length, ratio: measured.length ? inPlace / measured.length : 0 };
+  });
+}
+
+// ── The gate register: all twelve stages, not the four phases ──
+
+// Where every record currently sits, and how long the ones sitting there have been sitting.
+//
+// This is a *dwell* measure, not a duration: it's the age of the records at that stage right
+// now, which is a different question from how long the stage takes to get through
+// (`medianCycleDaysByPhase` answers that one, and can only answer it for records that have
+// left). A stage nobody is at reports no dwell rather than zero days.
+export function stageRegister(cards: UseCaseCard[], stagesByPhase: Record<string, string[]>, asOf: string) {
+  return Object.entries(stagesByPhase).map(([phase, stages]) => ({
+    phase,
+    stages: stages.map((stage) => {
+      const here = cards.filter((card) => card.substage === stage && card.lifecycle !== "Rejected");
+      const ages = here.map((card) => daysBetween(card.stageEntered, asOf));
+      return { stage, count: here.length, dwell: ages.length ? median(ages) : null, oldest: ages.length ? Math.max(...ages) : null };
+    }),
+  }));
+}
+
+// ── Concentration ──
+
+// How much of the confirmed benefit sits in how few records. A portfolio returning most of its
+// value from two use cases is a different thing from one returning it evenly, and the average
+// hides which you have.
+export function benefitConcentration(cards: UseCaseCard[], topN = 3) {
+  const live = cards
+    .filter((card) => card.lifecycle === "Live")
+    .map((card) => ({ card, confirmed: confirmedBenefit(card) }))
+    .sort((a, b) => b.confirmed - a.confirmed);
+  const total = live.reduce((sum, row) => sum + row.confirmed, 0) || 1;
+  const band = (rows: typeof live) => ({ count: rows.length, confirmed: rows.reduce((sum, row) => sum + row.confirmed, 0) });
+  const top = band(live.slice(0, topN));
+  const rest = band(live.slice(topN));
+  return {
+    total,
+    top: { ...top, share: top.confirmed / total, records: live.slice(0, topN).map((row) => row.card) },
+    rest: { ...rest, share: rest.confirmed / total },
+  };
+}
+
+// ── Quarter on quarter ──
+
+// The monthly snapshots grouped into quarters, so "did the last round of interventions work"
+// has an answer. A quarter with no month-ends in the window is left out rather than reported
+// as zero.
+export function quarters(months: PortfolioMonth[]) {
+  const byQuarter = new Map<string, PortfolioMonth[]>();
+  for (const month of months) {
+    const [year, mm] = month.key.split("-");
+    const label = `Q${Math.floor((Number(mm) - 1) / 3) + 1} ${year}`;
+    byQuarter.set(label, [...(byQuarter.get(label) ?? []), month]);
+  }
+  // A quarter reports its last month-end: these are cumulative measures, so the closing
+  // position is the quarter's position.
+  return [...byQuarter.entries()].map(([label, rows]) => ({ label, close: rows[rows.length - 1], months: rows.length }));
+}
+
+// ── The maturity index ──
+
+// One composite out of five equally weighted sub-scores, each already derived elsewhere. Not a
+// new measurement — a way of asking "is this operation getting better" that survives one bad
+// quarter in any single dimension.
+export function maturityIndex(cards: UseCaseCard[], months: PortfolioMonth[], phases: PhaseMap, asOf: string) {
+  const h = headline(cards, months, asOf);
+  const real = realization(cards);
+  const controls = adoptionControls(cards);
+  const reached = conversion(cards, phases);
+  const production = reached[reached.length - 1]?.share ?? 0;
+  const adoptionDepth = controls.length ? controls.reduce((sum, row) => sum + row.ratio, 0) / controls.length : 0;
+  // Pipeline depth is scored against a target book of work rather than against itself: a
+  // portfolio's raw count says nothing without the size it is trying to be.
+  const parts = [
+    { label: "Pipeline depth", score: Math.min(1, cards.length / 24) },
+    { label: "Production conversion", score: production },
+    { label: "Value realization", score: real.ratio },
+    { label: "Governance closure", score: h.passRate },
+    { label: "Adoption depth", score: adoptionDepth },
+  ];
+  const score = parts.reduce((sum, part) => sum + part.score, 0) / parts.length;
+  return { score, outOf5: Math.round(score * 5 * 10) / 10, parts };
+}
+
+// ── What only this committee can unblock ──
+
+// Four queues, each one a thing no project manager can fix: a gate with no decision recorded,
+// a live record supervised below its risk tier, money committed to something that stopped, and
+// a record that has not moved in two months. Anything a delivery lead could clear on their own
+// is deliberately absent — a committee agenda made of other people's work is why these meetings
+// run long.
+export function committeeQueue(cards: UseCaseCard[], asOf: string, stalledDays = 60) {
+  const openGates = cards.filter((card) => card.gate?.status === "In review" || card.gate?.status === "Pending");
+  const under = underSupervised(cards);
+  const underLive = under.filter((card) => card.lifecycle === "Live");
+  const stalled = cards.filter((card) => card.lifecycle === "Active" && daysBetween(card.stageEntered, asOf) >= stalledDays);
+  const oldest = (rows: UseCaseCard[]) => (rows.length ? Math.max(...rows.map((card) => daysBetween(card.stageEntered, asOf))) : null);
+  const sum = (rows: UseCaseCard[]) => rows.reduce((total, card) => total + card.investmentUsd, 0);
+  return [
+    {
+      key: "gates",
+      count: openGates.length,
+      title: "Gate decisions with nothing recorded",
+      note: "A decision, not a project plan",
+      oldestDays: oldest(openGates),
+      money: sum(openGates),
+      records: openGates,
+    },
+    {
+      key: "oversight",
+      count: underLive.length,
+      title: "Live and supervised below their risk tier",
+      note: "Needs an oversight ruling",
+      oldestDays: oldest(underLive),
+      money: sum(underLive),
+      records: underLive,
+    },
+    {
+      key: "stalled",
+      count: stalled.length,
+      title: `Not moved in ${stalledDays} days or more`,
+      note: "Escalate or close",
+      oldestDays: oldest(stalled),
+      money: sum(stalled),
+      records: stalled,
+    },
+  ].filter((row) => row.count > 0);
+}
+
+// ── The portfolio's health, weighted ──
+
+// One score out of 100 from four measures that are not equally important. `pulse()` weighted them
+// equally, which said that adoption depth and value realization matter the same amount — they do
+// not, and a committee's own scoring model is the thing a leadership page should be reporting
+// rather than a convenient average.
+//
+// The weights are the model, so they are printed next to each measure. A composite whose weights
+// are hidden is a number nobody can argue with, which is the opposite of useful here.
+const HEALTH_WEIGHTS = [
+  { key: "value", label: "Value realization", weight: 0.35 },
+  { key: "governance", label: "Governance closure", weight: 0.25 },
+  { key: "adoption", label: "Adoption depth", weight: 0.2 },
+  { key: "flow", label: "Flow health", weight: 0.2 },
+];
+
+export function portfolioHealth(cards: UseCaseCard[], months: PortfolioMonth[], asOf: string, priorScore?: number) {
+  const h = headline(cards, months, asOf);
+  const real = realization(cards);
+  const controls = adoptionControls(cards);
+  const adoptionDepth = controls.length ? controls.reduce((sum, row) => sum + row.ratio, 0) / controls.length : 0;
+  // Flow is decision speed against the one target the portfolio commits to, capped — beating the
+  // target is a full mark, not a bonus that can mask a weak measure elsewhere.
+  const flow = Math.min(1, DECISION_TARGET_DAYS / Math.max(1, h.decisionDays));
+  const scores: Record<string, number> = { value: real.ratio, governance: h.passRate, adoption: adoptionDepth, flow };
+  const parts = HEALTH_WEIGHTS.map((part) => ({ ...part, ratio: scores[part.key] ?? 0 }));
+  const score = Math.round(parts.reduce((sum, part) => sum + part.ratio * part.weight, 0) * 100);
+  return {
+    score,
+    parts,
+    // Three bands, and the wording is the committee's own: a score is only useful if it comes
+    // with what to do about it.
+    verdict: score >= 80 ? "Healthy" : score >= 60 ? "Needs attention" : "At risk",
+    moved: priorScore === undefined ? null : score - priorScore,
+    since: priorScore,
+  };
+}
+
+// ── Annual performance against target ──
+
+// Four measures a committee is held to, each one derived from the records and set against the
+// target and the last quarter close. Every "now" figure comes from the registry; only the target
+// and the prior quarter are seeded, because a target is a decision and the prior quarter is
+// history the record set no longer holds.
+//
+// `against` is share of target, which is the column that makes the table readable: four measures
+// in four different units cannot be compared until they are all expressed as "how far along".
+export function annualPerformance(
+  cards: UseCaseCard[],
+  targets: { key: string; label: string; unit: "usd" | "hours" | "count" | "ratio"; priorQuarter: number; target: number }[],
+) {
+  const live = cards.filter((card) => card.lifecycle === "Live");
+  const confirmed = live.reduce((total, card) => total + confirmedBenefit(card), 0);
+  const committed = cards.filter((card) => card.funded).reduce((total, card) => total + card.investmentUsd, 0);
+  const now: Record<string, number> = {
+    benefit: confirmed,
+    hours: live.reduce((total, card) => total + (card.hoursSavedPerYear ?? 0), 0),
+    users: live.reduce((total, card) => total + (card.activeUsers ?? 0), 0),
+    // Confirmed return over what has been committed to get it — the portfolio's own ROI rather
+    // than any single business case's.
+    roi: committed ? confirmed / committed : 0,
+  };
+  return targets.map((target) => {
+    const current = now[target.key] ?? 0;
+    return {
+      ...target,
+      now: current,
+      moved: current - target.priorQuarter,
+      against: target.target ? current / target.target : 0,
+      onTrack: target.target ? current >= target.target : false,
+    };
+  });
+}
+
+// ── The reading of the quarter ──
+
+// Three sentences: what the portfolio returned, where it is stuck, and the one thing to do about
+// it. Assembled from derivations rather than authored, so it cannot drift from the tiles — and
+// phrased as findings rather than as metrics, because a committee reads prose.
+// ai-upgrade: swap for a model call over the same derivations.
+export function committeeReading(cards: UseCaseCard[], months: PortfolioMonth[], phases: PhaseMap, asOf: string) {
+  const real = realization(cards);
+  const cycle = medianCycleDaysByPhase(cards, phases);
+  const ranked = phasesBySpeed(cycle, phases);
+  const slow = ranked[0];
+  const register = cards.filter((card) => card.lifecycle === "Active");
+  const queue = committeeQueue(cards, asOf);
+  const under = underSupervised(cards).filter((card) => card.lifecycle === "Live");
+  const oldest = oldestOpenGate(cards, asOf);
+  const controls = adoptionControls(cards);
+  const worstControl = [...controls].sort((a, b) => a.ratio - b.ratio)[0];
+
+  return {
+    impact: `The portfolio returned **${usd(real.confirmed)}** annualised against **${usd(real.projected)}** projected — a ${pct(
+      real.ratio,
+    )} realization rate across ${real.live} live use cases, leaving ${usd(real.shortfall)} unrealised.`,
+    bottleneck: slow
+      ? `**${slow}** is the longest phase at a median **${cycle[slow]?.days} days** across ${cycle[slow]?.sample} records that have left it${
+          register.length ? `, with ${cycle[slow]?.open ?? 0} still in it` : ""
+        }.`
+      : `Nothing has left a phase yet, so there is no cycle time to report.`,
+    nextAction: [
+      oldest ? `Clear the ${oldest.card.gate?.id} decision on **${oldest.card.title}** — ${oldest.days} days with ${oldest.card.actionOwner}.` : null,
+      under.length
+        ? `Reconcile oversight on ${under.length === 1 ? "**" + under[0].title + "**" : under.length + " live records"}: ${under.length === 1 ? "live" : "all live"}, ${under[0].riskLevel.toLowerCase()} risk, supervised below tier.`
+        : null,
+      worstControl && worstControl.inPlace < worstControl.total
+        ? `${worstControl.label} is in place on ${worstControl.inPlace} of ${worstControl.total} live records.`
+        : null,
+    ]
+      .filter(Boolean)
+      .join(" ") || `Nothing needs this committee: ${queue.length} open queues.`,
+  };
 }
 
 // ── The headline ──
