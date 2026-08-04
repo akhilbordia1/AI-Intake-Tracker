@@ -584,7 +584,8 @@ function UseCaseTableView({ columns, totalRows }: { columns: BoardColumn[]; tota
 
 function UseCaseTableRow({ row }: { row: UseCaseCard }) {
   const lifecycleTag = LIFECYCLE_TAG[row.lifecycle];
-  const priority = row.orgPriority ?? row.priority;
+  // No `priority` here any more — the status cell shows one chip, and priority isn't one of
+  // them. The board card still shows it, and "By Priority" is still a grouping.
   const due = dueDate(row.due);
 
   return (
@@ -637,65 +638,30 @@ function UseCaseTableRow({ row }: { row: UseCaseCard }) {
         </span>
       </td>
 
-      {/* Status carries priority too. Anything past the second chip collapses into
-          a +n, so a busy row stays one line. */}
+      {/* One chip: the record's actual status, and nothing else.
+          This cell used to stack up to four — priority, gate, lifecycle and "Action needed" —
+          with anything past the second collapsing into a `+n`. Three of those aren't the
+          status: priority is a different axis (and its own grouping in the view menu), and a
+          `+1` is a status you have to hover to read. Most rows also led with the priority flag,
+          so the column named "Status" opened with the one chip that isn't one.
+          Precedence: an exceptional lifecycle first, because "On hold" outranks whatever gate
+          the record was at when it stopped; then the gate, which is what a moving record's
+          status is; then the flag that it's waiting on someone. */}
       <td className="px-3 align-middle">
-        <ChipOverflow
-          max={2}
-          items={[
-            ...(priority
-              ? [
-                  {
-                    key: "priority",
-                    label: `Priority — ${priority.toLowerCase()}`,
-                    node: (
-                      <span data-tip={`Priority — ${priority.toLowerCase()}`} className={[CHIP, PRIORITY_CHIP[priority]].join(" ")}>
-                        <Flag size={11} />
-                        {priority}
-                      </span>
-                    ),
-                  },
-                ]
-              : []),
-            ...(row.gate
-              ? [
-                  {
-                    key: "gate",
-                    label: `Gate ${row.gate.id} — ${row.gate.status.toLowerCase()}`,
-                    node: <GateChip gate={row.gate} />,
-                  },
-                ]
-              : []),
-            ...(lifecycleTag
-              ? [
-                  {
-                    key: "lifecycle",
-                    label: `Lifecycle — ${row.lifecycle.toLowerCase()}`,
-                    node: (
-                      <span data-tip={`Lifecycle — ${row.lifecycle.toLowerCase()}`} className={[CHIP, lifecycleTag].join(" ")}>
-                        {titleCaseTag(row.lifecycle)}
-                      </span>
-                    ),
-                  },
-                ]
-              : []),
-            ...(row.needsAttention
-              ? [
-                  {
-                    key: "attention",
-                    label: getAttentionMessage(row),
-                    node: (
-                      <span data-tip={getAttentionMessage(row)} className={[CHIP, "bg-[var(--accent-soft)] text-[var(--accent-strong)]"].join(" ")}>
-                        <ArrowRight size={11} />
-                        Action needed
-                      </span>
-                    ),
-                  },
-                ]
-              : []),
-          ]}
-        />
-        {!priority && !lifecycleTag && !row.gate && !row.needsAttention ? <span className="text-[13px] text-[var(--text-muted)]">—</span> : null}
+        {lifecycleTag ? (
+          <span data-tip={`Lifecycle — ${row.lifecycle.toLowerCase()}`} className={[CHIP, lifecycleTag].join(" ")}>
+            {titleCaseTag(row.lifecycle)}
+          </span>
+        ) : row.gate ? (
+          <GateChip gate={row.gate} />
+        ) : row.needsAttention ? (
+          <span data-tip={getAttentionMessage(row)} className={[CHIP, "bg-[var(--accent-soft)] text-[var(--accent-strong)]"].join(" ")}>
+            <ArrowRight size={11} />
+            Action needed
+          </span>
+        ) : (
+          <span className="text-[13px] text-[var(--text-muted)]">—</span>
+        )}
       </td>
 
       <td className="px-3 pr-5 text-right align-middle">

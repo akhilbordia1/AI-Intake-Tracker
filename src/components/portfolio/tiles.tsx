@@ -40,8 +40,17 @@ export function SummaryPanel({
     // different kind of block. The prose keeps `Markdown`'s own 14px, which is what the
     // record's problem statement and the risk summary are set in. Not the serif reading
     // face either: it was tried, and it made three lines of figures harder to read.
-    <section className="rounded-[10px] border border-[var(--border-hairline)] bg-[var(--surface-muted)] px-6 py-5">
-      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+    // Padding moved off the box and onto the two halves, so the rule between them runs the full
+    // width of the card the way a tile's header rule does. Inset by the box's own padding it
+    // stopped 20px short at each end, which reads as a rule someone forgot to finish rather
+    // than as a header being ruled off.
+    <section className="rounded-[10px] border border-[var(--border-hairline)] bg-[var(--surface-muted)]">
+      {/* Ruled off like a tile's header. This deliberately had no rule — the reasoning was that
+          a passage of prose doesn't need its title boxed off — but a summary sitting in a column
+          of tiles that all rule their headers was the one card built differently, and that read
+          as an oversight rather than as a distinction. The muted fill and the glyph are enough
+          to mark it as something written. */}
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-[var(--border-hairline)] px-5 py-3">
         <h3 className="inline-flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-[0.07em] text-[var(--text-label)]">
           <Sparkles size={13} className="text-[var(--accent)]" />
           {title}
@@ -51,8 +60,15 @@ export function SummaryPanel({
       {/* No reading measure on top of the box. An 86ch cap inside a panel already capped
           at 1080px left every line stopping a few hundred pixels short of its own right
           edge, so each bullet wrapped early against a wide empty gutter. The box is the
-          measure here — it's three lines, not an article. */}
-      <Markdown source={source} />
+          measure here — it's three lines, not an article.
+
+          13px, down from Markdown's own 14px: this is the same direction as the earlier fix
+          that took a 15px override off it. The tile rows around it are 13px, so at 14px the
+          summary was still the largest text on the page, and three lines of it at that size
+          made the panel the tallest block above the numbers it comments on. */}
+      <div className="px-5 py-4">
+        <Markdown source={source} className="text-[13px] leading-[1.6]" />
+      </div>
     </section>
   );
 }
@@ -81,7 +97,10 @@ export function TileBox({
   return (
     <section className={cn(cardClass(), "min-w-0 rounded-[12px]", className)}>
       {/* Sans and 13px, not the display serif: eight serif headings down a page of
-          figures read as eight article titles and buried the data they introduce. */}
+          figures read as eight article titles and buried the data they introduce.
+          The rule under the header stays on every tile, including the ones whose content is a
+          drawn shape — it was briefly made optional for those and put back: a header that is
+          ruled off on some tiles and not others reads as two kinds of card. */}
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-[var(--border-hairline)] px-5 py-3">
         <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">{title}</h3>
         {hint ? <span className="text-[12px] text-[var(--text-muted)]">{hint}</span> : null}
@@ -195,7 +214,9 @@ export function Sparkline({
 
   return (
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden className="shrink-0 overflow-visible">
-      <polyline points={points.join(" ")} fill="none" stroke={colour} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" opacity={0.55} />
+      {/* 0.7, up from 0.55: at 1.5px in the accent green, a 55% line beside a 26px figure
+          read as a smudge rather than as the same measure drawn small. */}
+      <polyline points={points.join(" ")} fill="none" stroke={colour} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" opacity={0.7} />
       <circle cx={last[0]} cy={last[1]} r={2} fill={colour} />
     </svg>
   );
@@ -226,7 +247,11 @@ export type Stat = {
 // bottom, in the same three sizes every time.
 export function StatBand({ items }: { items: Stat[] }) {
   return (
-    <section className={cn(cardClass(), "grid grid-cols-2 sm:grid-cols-4")}>
+    // Three or four cells, from the length. Both tabs ran four until every one of the eight
+    // turned out to be restated in the summary sentence directly below the band — so each
+    // dropped the one whose detail was also *drawn* below it, and the band has to divide
+    // evenly either way.
+    <section className={cn(cardClass(), "grid grid-cols-2", items.length === 3 ? "sm:grid-cols-3" : "sm:grid-cols-4")}>
       {items.map((item, index) => (
         <div
           key={item.label}
@@ -309,6 +334,231 @@ export function GroupBars({ groups }: { groups: { key: string; label: string; co
   );
 }
 
+// A measure across a handful of named columns, drawn as bars with the figure above each
+// one. Two things earn this over a table row: height is comparable at a glance in a way
+// a column of mono figures isn't, and it gives a shared x-axis that another band can be
+// stacked on (see `phase-flow.tsx`, where a funnel sits over these columns and both use
+// this label row).
+//
+// No gridlines: every bar prints its own value, so a scale to read against would be
+// scaffolding for a number already written down.
+export function ColumnChart({
+  columns,
+  // 160, not 92: at a tile's full width, six columns 92px tall are wider than they are
+  // high, and a bar that reads as a wide slab stops carrying its own height.
+  height = 160,
+  // Flat, not a vertical gradient. The gradient was pale at the top and accent at the
+  // bottom, which put a soft edge exactly where the bar's value is read and made a row of
+  // bars look lit from below — this product has no elevation anywhere else (every
+  // `--shadow-*` is `none`), so a gradient was the one glossy thing on the page.
+  fill = "var(--accent)",
+  series,
+}: {
+  // `label` is a node, not a string, so the caller can hang a link and a second line
+  // under each column without this component knowing what they are. `values` is a list
+  // because a column can hold a pair — see "Spend and Return", where the two bars are
+  // what a state cost and what it returns.
+  columns: { key: string; label: ReactNode; values: number[]; displays: ReactNode[]; tip?: string }[];
+  height?: number;
+  fill?: string;
+  // One entry per bar within a column. Given, it colours the bars and draws the legend;
+  // omitted, every bar takes `fill` and there is nothing to name.
+  series?: { name: string; fill: string }[];
+}) {
+  if (!columns.length) return <TileEmpty />;
+  const most = Math.max(1, ...columns.flatMap((column) => column.values));
+  // The figure above the tallest bar has to sit somewhere, so the plot keeps 18px back
+  // for it — otherwise the top label is clipped by the box's own padding.
+  const plot = height - 18;
+  const barHeight = (value: number) =>
+    // A measured zero still gets a hairline of a bar, so the column reads as "nearly
+    // none" rather than "no data" — that distinction is the `displays` string's job
+    // ("—" where there's nothing to measure).
+    value > 0 ? Math.max(2, (value / most) * plot) : 0;
+
+  return (
+    <div className="min-w-0">
+      {/* No gap between the columns themselves, only inside a pair. A single bar caps at
+          72px and a paired one at 56px, so four groups of two don't merge into eight
+          neighbours — the tight gap inside a pair against the wide space between pairs is
+          what makes a group read as a group. */}
+      <div className="flex items-end" style={{ height }}>
+        {columns.map((column) => (
+          <div key={column.key} data-tip={column.tip} className="flex min-w-0 flex-1 items-end justify-center gap-1">
+            {column.values.map((value, position) => (
+              <div
+                key={series?.[position]?.name ?? position}
+                className={cn("flex min-w-0 flex-1 flex-col items-center justify-end gap-1.5", column.values.length > 1 ? "max-w-[56px]" : "max-w-[72px]")}
+              >
+                <span className="font-mono text-[11px] text-[var(--text-body)] [font-variant-numeric:tabular-nums]">{column.displays[position]}</span>
+                <span aria-hidden className="w-full rounded-t-[4px]" style={{ height: `${barHeight(value)}px`, background: series?.[position]?.fill ?? fill }} />
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+      {/* The baseline is a shade stronger than a hairline: it's an axis the bars stand on,
+          and at `--border-hairline` it read as one more divider in a page full of them. */}
+      <div className="flex border-t border-[var(--border-default)] pt-2.5">
+        {columns.map((column) => (
+          <div key={column.key} className="flex min-w-0 flex-1 flex-col items-center gap-0.5 px-1 text-center">
+            {column.label}
+          </div>
+        ))}
+      </div>
+      {/* Under the plot, not over it: a legend is what you consult once you've looked, so
+          above the bars it was the first thing read and the last thing needed. */}
+      {series ? (
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-[var(--text-muted)]">
+          {series.map((entry) => (
+            <span key={entry.name} className="inline-flex items-center gap-1.5">
+              <span aria-hidden className="h-2.5 w-2.5 rounded-[2px]" style={{ background: entry.fill }} />
+              {entry.name}
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+// A ranking: one measure across named categories, longest first. Rows rather than columns,
+// because two column charts in sequence read as one chart drawn twice — and because six
+// category names of real length ("Supply Chain") get a whole line here instead of being
+// centred and truncated under a 88px column.
+//
+// The bar is capped well short of the row, so the track is a scale rather than the slab of
+// grey that sank the earlier full-width version of this shape. Label left, bar, figure
+// right — the same row as `ScorePanel`'s parts, which is the pattern this page already uses
+// for "a few named things, one number each".
+// One band, split by share, each segment carrying its own name and figure.
+//
+// Three shapes were tried here before this one and each was rejected for the same underlying
+// reason: a list of rows, one measure each, is a list — a pill on a grey rail read as six
+// things loading, a flat filled bar as six green slabs, and a hairline-and-dot plot as too
+// little to look at. The measure itself is the problem: eight values between 8% and 17% of a
+// total have almost no spread to draw, so anything that ranks them side by side is six or
+// eight near-identical lengths.
+//
+// A band answers a different question, and the one actually being asked — not "which is
+// biggest" (the figures say that, and the top four are within a point of each other) but "how
+// is the money split". It is also the language the funnel above it already speaks: a solid
+// filled shape, a single-hue ramp, labels inside. `ShareBand` requires that the segments *are*
+// the whole; pass a truncated list and the shares are a lie.
+// The band's ramp, kept inside the range where white text stays legible.
+//
+// This has been wrong in both directions. First it ran `--accent` down to 30% accent, which
+// put Sales and Marketing in a dead zone where neither white (2.5:1) nor `--accent-strong`
+// (3.9:1) was readable. Then it was flattened to one fill, which fixed the text and threw the
+// ordering away. The fix is to ramp *within* the dark half: `--accent-strong` at the wide end
+// down to a mix of `--accent` and `--accent-ring` at the narrow one, which measures about
+// 10:1 and 5:1 against white respectively — a visible ramp where every segment can hold its
+// own labels.
+const RAMP_LIGHT_END = "color-mix(in srgb, var(--accent) 75%, var(--accent-ring))";
+const rampFill = (position: number) => `color-mix(in srgb, var(--accent-strong) ${Math.round((1 - position) * 100)}%, ${RAMP_LIGHT_END})`;
+
+export function ShareBand({
+  segments,
+  // 104, so a segment holds three lines without crowding: what it is, how much, and the
+  // count that used to be reachable only on a hover.
+  height = 104,
+}: {
+  segments: { key: string; label: string; display: string; meta?: string; value: number; tip?: string }[];
+  height?: number;
+}) {
+  const total = segments.reduce((sum, segment) => sum + Math.max(0, segment.value), 0);
+  if (!total) return <TileEmpty />;
+
+  return (
+    <div className="flex w-full overflow-hidden rounded-[8px]" style={{ height }}>
+      {segments.map((segment, index) => (
+        <div
+          key={segment.key}
+          data-tip={segment.tip}
+          // Hairline gaps in the surface colour, so the segments read as separate parts of one
+          // band rather than as one bar with text scattered along it.
+          // px-2.5, not px-3: the narrowest segment is 84px wide, and 24px of padding left
+          // "2 records" truncating to "2 record…".
+          className="flex min-w-0 flex-col justify-center gap-1 border-r border-[var(--surface)] px-2.5 last:border-r-0"
+          style={{
+            width: `${(Math.max(0, segment.value) / total) * 100}%`,
+            background: rampFill(segments.length > 1 ? index / (segments.length - 1) : 0),
+          }}
+        >
+          <span className="truncate text-[12px] font-semibold leading-none text-[var(--surface)]">{segment.label}</span>
+          <span className="font-mono truncate text-[13px] leading-none text-[var(--surface)] [font-variant-numeric:tabular-nums]">{segment.display}</span>
+          {/* The count, in the segment rather than behind a hover. Held back a little — context
+              for the figure above it — but only to 0.85: at 0.75 it fell under 4:1 against the
+              pale end of the ramp. */}
+          {segment.meta ? (
+            <span
+              className="font-mono truncate text-[11px] leading-none text-[var(--surface)] [font-variant-numeric:tabular-nums]"
+              style={{ opacity: 0.85 }}
+            >
+              {segment.meta}
+            </span>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// `SplitBars` (two full-width horizontal bars per row, one measure each) lived here for
+// exactly one revision of "Spend and Return". Four states became eight tracks stacked down
+// the tile, each one 1700px of grey encoding a 64% fill — the empty part of the track was
+// the largest thing in the tile. The same pairs are `ColumnChart` columns now: two bars in
+// one group, at the width the number deserves.
+
+// A row of small bars either side of a zero line: each one a measure's distance from the
+// thing it was supposed to hit, up for over and down for under.
+//
+// This replaced a list that named only the misses. The list was honest but partial — two rows
+// saying "behind", with the eight that are fine invisible, so the block never showed that most
+// targets are met or by how much. A baseline puts all of them in one object: the shortfalls
+// are the bars below the line, and you count them without reading.
+//
+// Deliberately unlabelled. Ten KPI names, each belonging to a record ("manual touches
+// removed — Claims Triage Assistant"), cannot be written under a 40px bar; the shape answers
+// "how many, and how far", and the hover answers "which".
+export function DeviationBars({
+  items,
+  height = 104,
+}: {
+  // `offset` is signed and relative — +0.12 is 12% over target. The bars scale to the largest
+  // magnitude in either direction, so a set that's all near target still shows its spread.
+  items: { key: string; offset: number; tip?: string }[];
+  height?: number;
+}) {
+  if (!items.length) return <TileEmpty />;
+  const furthest = Math.max(0.01, ...items.map((item) => Math.abs(item.offset)));
+  // Half the box each way, less a little, so the longest bar doesn't run into the edge.
+  const arm = height / 2 - 8;
+
+  return (
+    <div className="relative min-w-0" style={{ height }}>
+      <div aria-hidden className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-[var(--border-default)]" />
+      <div className="relative flex h-full items-center gap-1.5">
+        {items.map((item) => {
+          const over = item.offset >= 0;
+          return (
+            <span key={item.key} data-tip={item.tip} className="relative flex h-full min-w-0 flex-1 items-center">
+              <span
+                aria-hidden
+                className={cn("absolute left-0 w-full", over ? "bottom-1/2 rounded-t-[3px]" : "top-1/2 rounded-b-[3px]")}
+                style={{
+                  height: `${Math.max(2, (Math.abs(item.offset) / furthest) * arm)}px`,
+                  background: over ? "var(--accent)" : "var(--tone-warning-fg)",
+                }}
+              />
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // One weak link, marked. Banding by threshold put 75% in warning ochre and 80% in the
 // accent — a hue change for five points, which reads as "one of these is broken" rather
 // than "this one is lowest". And because the accent and the success green are the same
@@ -373,7 +623,9 @@ export function ScorePanel({ score, parts, caption }: { score: number; parts: { 
         {parts.map((part) => (
           <div key={part.label} className="flex min-w-0 items-center gap-3 border-t border-[var(--border-hairline)] py-2.5 first:border-t-0">
             <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--text-body)]">{part.label}</span>
-            <span className="relative h-1.5 w-[38%] max-w-[150px] shrink-0 overflow-hidden rounded-full bg-[var(--surface-strong)]">
+            {/* h-2, matching `RankedBars` and `GroupBars`. Three bar heights across one page
+                (1.5, 2, 2) is the kind of drift nobody names but everybody sees. */}
+            <span className="relative h-2 w-[38%] max-w-[150px] shrink-0 overflow-hidden rounded-full bg-[var(--surface-strong)]">
               <span
                 className="absolute inset-y-0 left-0 rounded-full"
                 style={{ width: `${Math.round(Math.max(0, Math.min(1, part.ratio)) * 100)}%`, background: bandColour(part.ratio, weakest) }}

@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, CircleSlash, Coins, Inbox, Layers, Sparkles, Target, Timer, TrendingUp } from "lucide-react";
+import { Activity, Coins, Inbox, Layers, Sparkles, Target, Timer, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 
@@ -10,10 +10,23 @@ import { ChatCardList } from "@/components/chat/chat-use-case-card";
 import { JumpToTop } from "@/components/chat/chat-ui";
 import { MiniChatRail, type RailAnswer } from "@/components/chat/mini-chat-rail";
 import { Markdown } from "@/components/document-record/markdown";
-import { DataTable, GroupBars, MiniList, ScorePanel, StatBand, StatusDot, SummaryPanel, TileBox, TileEmpty } from "@/components/portfolio/tiles";
+import { PhaseFlow, type PhaseFlowRow } from "@/components/portfolio/phase-flow";
+import {
+  ColumnChart,
+  DataTable,
+  GroupBars,
+  MiniList,
+  ScorePanel,
+  ShareBand,
+  StatBand,
+  StatusDot,
+  SummaryPanel,
+  TileBox,
+  TileEmpty,
+} from "@/components/portfolio/tiles";
 import { TimeChart } from "@/components/portfolio/time-chart";
 import { PersonAvatar, ProfileSwitcher } from "@/components/profile";
-import { CHIP, FilterMenuButton, MenuDivider, MenuItem, MenuLabel, MenuSurface, PHASE_TONES, PhaseIcon, Tag } from "@/components/ui/kit";
+import { CHIP, FilterMenuButton, MenuDivider, MenuItem, MenuLabel, MenuSurface, Tag } from "@/components/ui/kit";
 import { STAGE_GROUPS, firstName, phaseForStage, shortStageLabel } from "@/data/lifecycle";
 import {
   ALL_RECORDS,
@@ -62,7 +75,6 @@ import {
   usd,
   valueByFunction,
   valueSummary,
-  valueSeries,
   type PhaseMap,
 } from "@/lib/portfolio";
 import { cn } from "@/lib/cn";
@@ -85,14 +97,10 @@ const SPAN = "lg:col-span-2";
 // accent (which means "the measure") or a status tone.
 const CAPABILITY_FILL = ["var(--avatar-5-fg)", "var(--avatar-1-fg)", "var(--avatar-2-fg)"];
 
-// Money states aren't a category — they're a state of health, so they take status
-// colour: earning, paid for, still asking, stopped.
-const MONEY_TONE: Record<string, string> = {
-  live: "var(--status-success)",
-  committed: "var(--accent)",
-  pipeline: "var(--text-faint)",
-  stopped: "var(--tone-warning-fg)",
-};
+// `MONEY_TONE` (a status colour per money state, for a dot on each table row) lived here
+// while "Spend and Return" was a table. The rows are paired bars now, and the two series
+// already own the only two colours in that tile — a third, per-row, was a second colour
+// system in the same box.
 
 // Phase membership stays in `lifecycle.ts`; the derivations take it as an argument.
 const PHASES: PhaseMap = { order: Object.keys(STAGE_GROUPS), phaseOf: phaseForStage };
@@ -353,113 +361,56 @@ function PortfolioFilterMenu({
   );
 }
 
-// One row per phase. Every row opens the board filtered to that phase.
-//
-// The "on the board" bar used to be the count scaled to the fullest phase — 4, 3, 3, 1
-// drawn as 100%, 75%, 75%, 25%, which is a picture of the number sitting next to it and
-// nothing more. It carries the queue instead: the whole bar is the phase's count, and the
-// part of it waiting on a decision is filled in the warning tone. That answers "how much
-// of this pile is stuck on us", which no single number in the row did, and it absorbs the
-// Waiting column rather than repeating it.
-function PhaseFlowTable({
-  cards,
-  board,
-  flow,
-  cycle,
-}: {
-  // Everything ever raised — the denominator the "reached" column is a share of.
-  cards: UseCaseCard[];
-  // What is actually on the board, so the bar's hover can name the records it counts.
-  board: UseCaseCard[];
-  flow: ReturnType<typeof funnel>;
-  cycle: ReturnType<typeof medianCycleDaysByPhase>;
-}) {
+// The four phase rows, assembled for `PhaseFlow`. Everything the old table's four columns
+// carried, minus the columns: the ribbon takes "reached", the bars take "typical days", and
+// the live count sits under the phase name.
+function phaseFlowRows(
+  cards: UseCaseCard[],
+  board: UseCaseCard[],
+  flow: ReturnType<typeof funnel>,
+  cycle: ReturnType<typeof medianCycleDaysByPhase>,
+): PhaseFlowRow[] {
   const reached = conversion(cards, PHASES);
-  const busiest = Math.max(1, ...flow.map((row) => row.count));
 
   // "3 waiting" is a number you can't act on. The hover names them, with whose decision
-  // each one is and how long it has been sitting — the reason the amber part of the bar
-  // is worth drawing at all.
+  // each one is and how long it has been sitting.
   //
   // The record lines carry no colon on purpose. The tooltip layer reads `Label: value` and
   // sets the label in a `shrink-0` column, so a 26-character record title left its value a
   // ribbon three lines deep. Written as plain lines they run the full width of the tip and
-  // wrap like sentences; only the two short counts above them use the two-column form.
-  const waitingTip = (phase: string, count: number) => {
-    const waiting = board.filter((card) => phaseForStage(card.substage) === phase && card.needsAttention);
+  // wrap like sentences; only the short counts above them use the two-column form.
+  const phaseTip = (row: (typeof flow)[number], share: number, ever: number) => {
+    const waiting = board.filter((card) => phaseForStage(card.substage) === row.phase && card.needsAttention);
     const shown = waiting.slice(0, 4);
     return [
-      phase,
-      `On the board: ${count}`,
-      `Waiting on a decision: ${waiting.length || "none"}`,
+      row.phase,
+      `Reached: ${ever} of ${cards.length} ever raised (${pct(share)})`,
+      `On the board: ${row.count}`,
+      `Stages: ${row.stages.map(shortStageLabel).join(", ") || "none occupied"}`,
+      waiting.length ? `Waiting on a decision: ${waiting.length}` : null,
       ...shown.map((card) => `${card.title} — ${card.actionOwner}, ${card.pendingFor ?? "just flagged"}`),
       waiting.length > shown.length ? `and ${waiting.length - shown.length} more` : null,
+      "Opens the board filtered to this phase",
     ]
       .filter(Boolean)
       .join("\n");
   };
 
-  return (
-    <div className="min-w-0">
-      {/* Grid, not a table: the "on the board" cell holds a bar, and a bar in a <td>
-          fights the mono right-alignment every other figure column wants. */}
-      <div className="grid grid-cols-[minmax(170px,240px)_minmax(0,1fr)_96px_104px] items-center gap-x-6 border-b border-[var(--border-hairline)] pb-2 text-[11px] font-medium text-[var(--text-muted)]">
-        <span>Phase</span>
-        <span>On the Board</span>
-        <span className="text-right">Reached</span>
-        <span className="text-right">Typical Days</span>
-      </div>
-      {flow.map((row, index) => {
-        const conv = reached[index];
-        const time = cycle[row.phase];
-        return (
-          <div
-            key={row.phase}
-            className="grid grid-cols-[minmax(170px,240px)_minmax(0,1fr)_96px_104px] items-center gap-x-6 border-b border-[var(--border-hairline)] py-2.5 last:border-b-0"
-          >
-            <Link
-              href={`/?phase=${encodeURIComponent(row.phase)}`}
-              data-tip={`${row.phase}\nStages: ${row.stages.map(shortStageLabel).join(", ") || "none occupied"}\nOpens the board filtered to this phase`}
-              className="flex min-w-0 items-center gap-2 text-[13px] text-[var(--text-body)] transition hover:text-[var(--accent-strong)]"
-            >
-              {/* No step number: the rows are already in lifecycle order, and the glyph
-                  identifies the phase — numbering them was a third marker for one thing. */}
-              <PhaseIcon phase={row.phase} size={13} style={{ color: `var(--tone-${PHASE_TONES[row.phase] ?? "neutral"}-fg)` }} />
-              <span className="truncate">{row.phase}</span>
-            </Link>
-            <span
-              className="flex min-w-0 max-w-[260px] items-center gap-2"
-              data-tip={waitingTip(row.phase, row.count)}
-            >
-              <span className="font-mono w-4 shrink-0 text-[12px] font-medium text-[var(--text-primary)]">{row.count}</span>
-              <span className="flex h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-[var(--surface-strong)]">
-                {/* Width against the fullest phase so the bars stay comparable; the split
-                    inside it is this phase's own. */}
-                <span className="flex" style={{ width: `${(row.count / busiest) * 100}%` }}>
-                  <span style={{ width: `${(1 - row.attention / (row.count || 1)) * 100}%`, background: "var(--accent)" }} />
-                  <span style={{ width: `${(row.attention / (row.count || 1)) * 100}%`, background: "var(--tone-warning-fg)" }} />
-                </span>
-              </span>
-              {row.attention ? <span className="font-mono shrink-0 text-[11px] text-[var(--tone-warning-fg)]">{row.attention} waiting</span> : null}
-            </span>
-            <span className="font-mono text-right text-[12px] text-[var(--text-primary)]" data-tip={`${conv.reached} of ${cards.length} ever raised`}>
-              {pct(conv.share)}
-            </span>
-            <span
-              className="font-mono text-right text-[12px] text-[var(--text-primary)]"
-              data-tip={
-                time?.sample
-                  ? `Median of ${time.sample} ${time.sample === 1 ? "record" : "records"} that have left this phase${time.open ? `; ${time.open} still in it` : ""}`
-                  : "Nothing has left this phase yet"
-              }
-            >
-              {time?.sample ? `${time.days}d` : <span className="text-[var(--text-faint)]">—</span>}
-            </span>
-          </div>
-        );
-      })}
-    </div>
-  );
+  return flow.map((row, index) => {
+    const conv = reached[index];
+    const time = cycle[row.phase];
+    return {
+      phase: row.phase,
+      share: conv.share,
+      count: row.count,
+      attention: row.attention,
+      days: time?.sample ? time.days : null,
+      tip: phaseTip(row, conv.share, conv.reached),
+      daysTip: time?.sample
+        ? `${row.phase}\nMedian of ${time.sample} ${time.sample === 1 ? "record" : "records"} that have left this phase${time.open ? `\nStill in it: ${time.open}` : ""}`
+        : `${row.phase}\nNothing has left this phase yet`,
+    };
+  });
 }
 
 // ── Health ──
@@ -524,14 +475,10 @@ function HealthTab({
               icon: <Inbox size={13} />,
               tip: "Records flagged for their action owner",
             },
-            {
-              label: "Not moving",
-              value: String(h.blocked),
-              delta: `${h.openGates} gates open`,
-              deltaTone: h.blocked ? "warn" : undefined,
-              icon: <CircleSlash size={13} />,
-              tip: "Parked, or blocked at a gate",
-            },
+            // A "Not moving" cell stood here. It was the only stat on the page whose detail
+            // was a whole tile of its own further down — "Blockers" lists those records with
+            // their stage, their age and their owner — and the summary sentence between the
+            // two named them as well. Three statements of one count.
             {
               label: "Days to a decision",
               value: String(h.decisionDays),
@@ -559,32 +506,34 @@ function HealthTab({
           facts about the same four phases, so they are one table — where things are, how
           many ever got here, how long it takes, who is waiting. The monthly line sits
           under it because time is the one axis that isn't per-phase. */}
+      <TileBox className={SPAN} title="Pipeline" hint={`${cards.length} ever raised`}>
+        <PhaseFlow rows={phaseFlowRows(cards, board, flow, cycle)} />
+      </TileBox>
+
+      {/* Its own tile now. The pipeline above became a chart in its own right, and a phase
+          axis and a time axis in one box read as one broken chart — a line starting under a
+          funnel invites you to match its points to the four phases, which is not what it
+          plots. */}
       <TileBox
         className={SPAN}
-        title="Pipeline"
-        hint={`${cards.length} ever raised`}
-        footer={scoped ? "The monthly line is portfolio-wide; the scope filter narrows the table only." : undefined}
+        title="Decision Time"
+        hint="median days from intake to a first gate decision"
+        footer={scoped ? "Portfolio-wide: the scope filter narrows the pipeline above, not this line." : undefined}
       >
-        <PhaseFlowTable cards={cards} board={board} flow={flow} cycle={cycle} />
-        <div className="mt-5 border-t border-[var(--border-hairline)] pt-4">
-          {/* The target moves off the plot and into this row, as a dashed swatch — the
-              same shape the value chart uses for its two series. On the plot its label sat
-              at the top right, which is exactly where a line coming down from 24 days to 14
-              passes through. */}
-          <div className="mb-2.5 flex flex-wrap items-baseline gap-x-4 gap-y-1">
-            <span className="mr-auto text-[12px] text-[var(--text-label)]">Decision Time</span>
-            <span className="text-[11px] text-[var(--text-muted)]">median days, intake to first gate</span>
-            <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
-              <span aria-hidden className="h-0 w-4 border-t border-dashed border-[var(--border-input)]" />
-              {DECISION_TARGET_DAYS}d target
-            </span>
-          </div>
-          <TimeChart
-            data={decisionSpeedSeries(months)}
-            series={[{ key: "days", name: "Days", colour: "var(--accent)" }]}
-            reference={{ y: DECISION_TARGET_DAYS }}
-            yFormat={(value) => `${value}d`}
-          />
+        <TimeChart
+          data={decisionSpeedSeries(months)}
+          series={[{ key: "days", name: "Days", colour: "var(--accent)" }]}
+          reference={{ y: DECISION_TARGET_DAYS }}
+          yFormat={(value) => `${value}d`}
+        />
+        {/* The target is a dashed swatch under the plot rather than a label on it, where
+            `insideTopRight` put it exactly where a line coming down from 24 days to 14
+            passes through. Below, because every legend on this page now sits below. */}
+        <div className="mt-2 flex justify-end">
+          <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
+            <span aria-hidden className="h-0 w-4 border-t border-dashed border-[var(--border-input)]" />
+            {DECISION_TARGET_DAYS}d target
+          </span>
         </div>
       </TileBox>
 
@@ -656,9 +605,11 @@ function ValueTab({ cards, months, scoped }: { cards: UseCaseCard[]; months: typ
   // and what was asked for and stopped.
   const live = productionRows(cards);
   const stopped = stoppedRows(cards);
-  // Only the misses are worth naming: eight of ten targets are met, and a list of
-  // eight rows saying "fine" is what made this block unreadable.
-  const behind = kpiAttainment(cards).filter((row) => !row.met);
+  // `targets` / `behind` (every KPI, and the ones short of plan) went with the hidden
+  // "Targets Against Plan" block. `summary` above still counts them for the stat band.
+  // Every function, not the default top six: the band below states each one's share of the
+  // total, so a truncated list would make those shares wrong.
+  const byFunction = valueByFunction(cards, Number.MAX_SAFE_INTEGER);
   // The biggest unfunded ask — the one the money table's "still an ask" row is mostly made
   // of, and the one decision worth the most.
 
@@ -686,13 +637,12 @@ function ValueTab({ cards, months, scoped }: { cards: UseCaseCard[]; months: typ
               trendLabel: span,
               tip: "Benefit counted only once something is in production",
             },
-            {
-              label: "Payback",
-              value: h.paybackMonths ? `${h.paybackMonths} mo` : "—",
-              delta: "on committed spend",
-              icon: <Timer size={13} />,
-              tip: "Committed investment divided by the annualised benefit of what is live",
-            },
+            // A "Payback" cell stood here — committed spend over the benefit of what is
+            // live. Two reasons it went: the summary sentence right below already says the
+            // live ones "repay in about 14 months", and "Spend and Return" now prints a
+            // ratio per state, so the same relationship was on the tab twice on two
+            // different populations (all committed against live-only benefit, versus each
+            // state against itself). One of those had to go, and the stat was the vaguer.
             {
               label: "Targets met",
               value: `${summary.met}/${summary.total}`,
@@ -711,59 +661,113 @@ function ValueTab({ cards, months, scoped }: { cards: UseCaseCard[]; months: typ
 
       {/* Where the money is, then how it got there. The table comes first: it's today's
           position, which is what gets read, and the chart is the six months behind it. */}
+      {/* Four states, and for each one what it cost against what it returns. As a table
+          this was four rows of two money figures, which is the comparison the tab exists to
+          make and the one arrangement that hides it: "Live and earning" and "Still an ask"
+          were the same shape of row, and nothing said that one of those benefits is banked
+          and the other is a hope. Paired bars on one scale say it without a sentence. */}
       <TileBox
         className={SPAN}
         title="Spend and Return"
-        footer={scoped ? "The monthly lines are portfolio-wide; the table narrows with the scope." : undefined}
+        // The caveat the deleted monthly chart used to carry, now pointed at the sparklines
+        // that outlived it — those read the portfolio's own history and don't narrow.
+        footer={scoped ? "The trend lines above are portfolio-wide; the scope filter narrows these bars." : undefined}
       >
-        <DataTable
-          columns={["State", "Records", "Committed", "Benefit a Year"]}
-          rows={money
+        <ColumnChart
+          height={180}
+          series={[
+            // Two weights of the same green, not green against clay: these are the same
+            // money in two states, and clay is this product's warning family — it made
+            // "benefit" read as the thing that had gone wrong. The paler bar is what went
+            // in, the accent is what comes back, so the eye lands on the return.
+            { name: "Committed", fill: "var(--accent-ring)" },
+            { name: "Benefit a year", fill: "var(--accent)" },
+          ]}
+          columns={money
             .filter((state) => state.count > 0)
-            .map((state) => ({
-              key: state.key,
-              label: state.label,
-              tone: MONEY_TONE[state.key],
-              values: [
-                state.count,
-                usd(state.investment),
-                // Only the live row's benefit is money the business has; everywhere else
-                // it's a projection, so it's set back rather than printed as fact.
-                state.benefit ? (
-                  <span style={{ color: state.key === "live" ? "var(--status-success)" : "var(--text-muted)" }}>{usd(state.benefit)}</span>
-                ) : (
-                  "—"
+            .map((state) => {
+              const ratio = state.investment ? state.benefit / state.investment : 0;
+              return {
+                key: state.key,
+                values: [state.investment, state.benefit],
+                displays: [
+                  usd(state.investment),
+                  // Only the live state's benefit is money the business has; everywhere
+                  // else it's a projection, so it's set back rather than printed as fact.
+                  state.benefit ? <span style={{ color: state.key === "live" ? "var(--status-success)" : "var(--text-muted)" }}>{usd(state.benefit)}</span> : "—",
+                ],
+                label: (
+                  <>
+                    <span className="max-w-full truncate text-[13px] text-[var(--text-body)]">{state.label}</span>
+                    {/* Two lines, not three. The record count went to the hover: it was the
+                        third mono figure under a column that already prints two money
+                        figures above it, and it isn't what this tile is about.
+
+                        The ratio stays, because two bar lengths still leave the reader
+                        dividing one by the other — and it's the whole judgement: three
+                        states run at about 1.5×, and the stopped one gave back less than
+                        half of what it took. */}
+                    <span
+                      className="font-mono text-[11px] [font-variant-numeric:tabular-nums]"
+                      style={{ color: ratio >= 1 ? "var(--status-success)" : "var(--tone-warning-fg)" }}
+                    >
+                      {ratio.toFixed(1)}× back
+                    </span>
+                  </>
                 ),
-              ],
-              tip:
-                state.key === "live"
-                  ? `${state.label}\nRecords: ${state.count}\nSpent: ${usd(state.investment)}\nEarning: ${usd(state.benefit)} a year`
-                  : `${state.label}\nRecords: ${state.count}\nCommitted: ${usd(state.investment)}\nProjected benefit: ${usd(state.benefit)} a year`,
-            }))}
+                tip:
+                  state.key === "live"
+                    ? `${state.label}\nRecords: ${state.count}\nSpent: ${usd(state.investment)}\nEarning: ${usd(state.benefit)} a year`
+                    : `${state.label}\nRecords: ${state.count}\nCommitted: ${usd(state.investment)}\nProjected benefit: ${usd(state.benefit)} a year`,
+              };
+            })}
         />
-        <div className="mt-5 border-t border-[var(--border-hairline)] pt-4">
-          <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
-            <span className="mr-auto text-[12px] text-[var(--text-label)]">Month by Month</span>
-            <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
-              <span aria-hidden className="h-[2px] w-4" style={{ background: "var(--accent)" }} />
-              Committed
-            </span>
-            <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
-              <span aria-hidden className="h-[2px] w-4" style={{ background: "var(--tone-info-fg)" }} />
-              Benefit of live
-            </span>
-          </div>
-          <TimeChart
-            data={valueSeries(months)}
-            series={[
-              { key: "investment", name: "Committed", colour: "var(--accent)" },
-              // Clay, not a second green: accent-green against success-green read as one
-              // line crossing itself.
-              { key: "benefit", name: "Benefit", colour: "var(--tone-info-fg)" },
-            ]}
-            yFormat={usd}
-          />
-        </div>
+      </TileBox>
+
+      {/* A "Month by Month" tile stood here — two cumulative lines, committed against the
+          benefit of what is live, over the same six months. It went because this tab was
+          drawing that series three times: the first two stats in the band above each carry
+          it as a sparkline, and a magnified third copy with an axis was the single largest
+          block on the tab for a shape already stated twice. The exact monthly figures were
+          only ever available on a hover, which is where they still are. */}
+
+      {/* Where the money went, by the part of the business that asked for it. This only
+          existed as a sentence the rail could say — the one question on this tab that had no
+          picture, and the one a leader asks before "which records". Bars because the answer
+          is a comparison of six lengths, not six figures to read.
+
+          Directly under "Spend and Return" on purpose: both are the same money cut a
+          different way — by what state it's in, then by who asked for it. The ledger of
+          individual records used to sit between them, so the tab said "money, records,
+          money, records" instead of finishing one thought before starting the next.
+
+          A band, not a ranking. This was a second `ColumnChart`, then a bar list, then a dot
+          plot, and the shape kept being wrong because the question was: eight functions each
+          hold between 8% and 17% of the money, so there is almost no spread to rank, and any
+          side-by-side chart of them is eight near-identical lengths. Split as one band, the
+          answer is the proportion — which is what "by function" is actually asking.
+
+          Every function, not the top six. A band whose segments don't add up to the whole
+          states shares that aren't true, so the `max` is lifted and the hint carries the
+          total the band represents. */}
+      <TileBox
+        className={SPAN}
+        title="Investment by Function"
+        hint={`${usd(byFunction.reduce((sum, row) => sum + row.investment, 0))} across ${byFunction.length} functions`}
+      >
+        <ShareBand
+          segments={byFunction.map((row) => ({
+            key: row.fn,
+            label: row.fn,
+            value: row.investment,
+            display: usd(row.investment),
+            meta: `${row.count} ${row.count === 1 ? "record" : "records"}`,
+            // Only what the segment doesn't already say. It used to repeat the record count and
+            // the committed figure, both of which are printed inside the segment now, so two of
+            // the hover's three lines were the thing you were hovering.
+            tip: `${row.fn}\nBenefit a year: ${usd(row.benefit)}\nReturn: ${(row.benefit / (row.investment || 1)).toFixed(1)}× committed`,
+          }))}
+        />
       </TileBox>
 
       {/* One row per live record, in columns. As five free-form groups this was unreadable:
@@ -779,8 +783,11 @@ function ValueTab({ cards, months, scoped }: { cards: UseCaseCard[]; months: typ
       >
         {live.length ? (
           <>
+            {/* No "Live Since" column. The rows are sorted newest-live first, so the date was
+                stating the order they were already in, and a go-live date isn't a number anyone
+                acts on at portfolio level — it's on the hover, with the payback and the hours. */}
             <DataTable
-              columns={["Record", "Live Since", "Cost", "Benefit a Year", "Users", "Targets"]}
+              columns={["Record", "Cost", "Benefit a Year", "Users", "Targets"]}
               rows={live.map((row) => ({
                 key: row.card.id,
                 label: (
@@ -789,7 +796,6 @@ function ValueTab({ cards, months, scoped }: { cards: UseCaseCard[]; months: typ
                   </Link>
                 ),
                 values: [
-                  formatMonthDay(row.card.liveSince ?? AS_OF),
                   usd(row.card.investmentUsd),
                   usd(row.card.annualBenefitUsd),
                   row.card.activeUsers ? compactNumber(row.card.activeUsers) : "—",
@@ -801,39 +807,14 @@ function ValueTab({ cards, months, scoped }: { cards: UseCaseCard[]; months: typ
                     "—"
                   ),
                 ],
-                tip: `${row.card.id} ${row.card.title}\nFunction: ${row.card.businessFunction}\nPayback: ${row.payback ? `${row.payback} months` : "not measurable"}\nHours saved: ${compactNumber(row.card.hoursSavedPerYear ?? 0)} a year`,
+                tip: `${row.card.id} ${row.card.title}\nLive since: ${formatDay(row.card.liveSince ?? AS_OF)}\nFunction: ${row.card.businessFunction}\nPayback: ${row.payback ? `${row.payback} months` : "not measurable"}\nHours saved: ${compactNumber(row.card.hoursSavedPerYear ?? 0)} a year`,
               }))}
             />
-            <div className="mt-5 border-t border-[var(--border-hairline)] pt-4">
-              <div className="mb-2 text-[12px] text-[var(--text-label)]">
-                {behind.length ? `Missed Targets · ${behind.length} of ${summary.total}` : `All ${summary.total} targets are being met`}
-              </div>
-              {behind.length ? (
-                <MiniList
-                  rows={behind.map((row) => ({
-                    key: `${row.card.id}-${row.name}`,
-                    node: (
-                      <div className="flex min-w-0 items-baseline gap-2.5">
-                        <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--text-body)]">
-                          {row.name}
-                          <span className="text-[var(--text-muted)]"> · {row.card.title}</span>
-                        </span>
-                        {/* "62% against a 70% target", not "62% of 70%" — the second reads as
-                            a fraction of a fraction. */}
-                        <span className="font-mono shrink-0 text-[13px] font-medium text-[var(--tone-warning-fg)]">
-                          {row.actual}
-                          {row.unit}
-                        </span>
-                        <span className="font-mono shrink-0 text-[11px] text-[var(--text-muted)]">
-                          against {row.target}
-                          {row.unit}
-                        </span>
-                      </div>
-                    ),
-                  }))}
-                />
-              ) : null}
-            </div>
+            {/* A "Targets Against Plan" block sat here: all ten production KPIs as bars either
+                side of a zero line, over for met and under for behind. Hidden for now, not
+                deleted — `DeviationBars` is still in `tiles.tsx` and `attainmentSummary` still
+                feeds the "Targets met" stat in the band above, so restoring it is this block
+                and one import. */}
           </>
         ) : (
           <TileEmpty>Nothing in this scope has reached production yet.</TileEmpty>
@@ -848,7 +829,14 @@ function ValueTab({ cards, months, scoped }: { cards: UseCaseCard[]; months: typ
           rows={stopped.map((card) => ({
             key: card.id,
             node: (
-              <div className="flex min-w-0 items-center gap-2.5">
+              // Three things per row: what it was, whether it was refused or paused, and what
+              // was being asked for. The stop date came off for the same reason the go-live
+              // date did — these are sorted newest-stopped first, so "12 Jun 2026" restated the
+              // row's position, and every one of them carried a redundant "2026".
+              <div
+                data-tip={`${card.title}\nStopped: ${formatDay(card.closedOn ?? AS_OF)}\nAsk: ${usd(card.investmentUsd)}`}
+                className="flex min-w-0 items-center gap-2.5"
+              >
                 <Link href={card.href} className="min-w-0 flex-1 truncate text-[13px] text-[var(--text-body)] hover:text-[var(--accent-strong)]">
                   {card.title}
                 </Link>
@@ -856,7 +844,6 @@ function ValueTab({ cards, months, scoped }: { cards: UseCaseCard[]; months: typ
                   {card.lifecycle}
                 </Tag>
                 <span className="font-mono w-12 shrink-0 text-right text-[12px] text-[var(--text-primary)]">{usd(card.investmentUsd)}</span>
-                <span className="font-mono shrink-0 text-[11px] text-[var(--text-muted)]">{formatDay(card.closedOn ?? AS_OF)}</span>
               </div>
             ),
           }))}

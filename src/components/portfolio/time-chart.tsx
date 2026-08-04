@@ -73,8 +73,8 @@ export function TimeChart({
   return (
     <div style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
-        {/* No negative left margin: pulling the plot left clipped the widest y label
-            ($1.8M) against the tile edge. The axis reserves its own width instead. */}
+        {/* No negative left margin: pulling the plot left clipped the widest y label against
+            the tile edge. The axis reserves its own width instead. */}
         <LineChart data={data} margin={{ top: 10, right: 8, bottom: 0, left: 0 }}>
           <CartesianGrid vertical={false} stroke="var(--border-hairline)" />
           <XAxis
@@ -93,7 +93,11 @@ export function TimeChart({
             tick={{ fontSize: 11, fill: "var(--text-muted)", fontFamily: "var(--mono)" }}
             tickLine={false}
             axisLine={false}
-            width={58}
+            // 38, down from 58. 58 was reserved for "$1.8M" on the money chart that used to
+            // share this component; the one chart left on the page labels days ("24d"), so
+            // 20px of the reserved gutter was empty and the plot started a fifth of the way
+            // in from the tile's edge.
+            width={38}
             tickMargin={6}
             // Four gridlines, not the six recharts picks by default: the lines are
             // scaffolding for reading a value, and one every 25% is enough to do that.
@@ -118,8 +122,12 @@ export function TimeChart({
               name={entry.name}
               stroke={entry.colour}
               strokeWidth={2}
-              dot={{ r: 2, strokeWidth: 0, fill: entry.colour }}
-              activeDot={{ r: 3.5 }}
+              strokeLinecap="round"
+              // Hollow dots: a filled dot at r=2 on a 2px stroke is a bulge in the line, so
+              // six of them read as a lumpy stroke rather than as six measured months. A ring
+              // in the surface colour says "this is a sample" and leaves the line straight.
+              dot={{ r: 3, strokeWidth: 1.5, stroke: entry.colour, fill: "var(--surface)" }}
+              activeDot={{ r: 4, strokeWidth: 1.5, stroke: "var(--surface)", fill: entry.colour }}
               isAnimationActive={false}
             />
           ))}
