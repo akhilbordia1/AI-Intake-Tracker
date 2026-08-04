@@ -316,73 +316,45 @@ export function GroupBars({ groups }: { groups: { key: string; label: string; co
 // The measure that is actually lowest carries the warning tone; the rest are the accent.
 const bandColour = (ratio: number, weakest: number) => (ratio === weakest ? "var(--tone-warning-fg)" : "var(--accent)");
 
-// The dial, drawn as the thing it's a score of: one arc per measure, a quarter of the
-// circle each because they're evenly weighted, filled to its own level in its own band
-// colour. A single sweeping donut was decoration — it restated the number in its middle
-// and said nothing the rows didn't, and at a stroke heavy enough to read it dominated
-// the tile. Four arcs make the weighting visible and the weak quarter obvious.
-function PulseDial({
-  score,
-  parts,
-  caption,
-  weakest,
-}: {
-  score: number;
-  parts: { label: string; ratio: number }[];
-  caption?: string;
-  weakest: number;
-}) {
-  const size = 108;
-  const stroke = 7;
+// A composite score as one arc, with the four measures it averages beside it.
+//
+// Two earlier attempts and what was wrong with each: a ring cut into four segments, where
+// a quarter-arc at 75% is barely distinguishable from a full one and the gaps read as a
+// broken ring; and a flat bar, which is legible but says "another row" on a page already
+// made of rows. One continuous arc is the right shape for one number — the gap at the end
+// *is* the shortfall, and 17% of a circle is a thing you can see without reading.
+function ScoreDial({ score, caption, colour }: { score: number; caption?: string; colour: string }) {
+  const size = 132;
+  const stroke = 9;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
-  // A slot per measure, minus a gap so the arcs read as four things and not one ring.
-  const gap = 7;
-  const slot = circumference / parts.length;
-  const arc = slot - gap;
+  const filled = circumference * Math.max(0, Math.min(1, score));
 
   return (
-    <span className="flex shrink-0 flex-col items-center justify-center">
-      <span className="relative inline-flex">
-        {/* Rotated so the first measure starts at twelve o'clock and they run clockwise
-            in the same order as the rows beside them. Butt caps, not round: at this
-            stroke a rounded cap on a nearly-empty arc renders as a stray pill. */}
-        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90">
-          {parts.map((part, index) => {
-            const filled = arc * Math.max(0, Math.min(1, part.ratio));
-            const offset = -index * slot;
-            return (
-              <g key={part.label} data-tip={`${part.label} · ${Math.round(part.ratio * 100)}%`}>
-                <circle
-                  cx={size / 2}
-                  cy={size / 2}
-                  r={radius}
-                  fill="none"
-                  stroke="var(--surface-strong)"
-                  strokeWidth={stroke}
-                  strokeDasharray={`${arc} ${circumference - arc}`}
-                  strokeDashoffset={offset}
-                />
-                <circle
-                  cx={size / 2}
-                  cy={size / 2}
-                  r={radius}
-                  fill="none"
-                  stroke={bandColour(part.ratio, weakest)}
-                  strokeWidth={stroke}
-                  strokeDasharray={`${filled} ${circumference - filled}`}
-                  strokeDashoffset={offset}
-                />
-              </g>
-            );
-          })}
-        </svg>
-        <span className="absolute inset-0 flex flex-col items-center justify-center gap-0.5">
-          <span className="text-[24px] font-semibold leading-none tracking-[-0.02em] text-[var(--text-primary)] [font-variant-numeric:tabular-nums]">
-            {Math.round(score * 100)}%
-          </span>
-          {caption ? <span className="text-[11px] leading-none text-[var(--text-muted)]">{caption}</span> : null}
+    <span className="relative inline-flex shrink-0">
+      {/* Rotated so it starts at twelve o'clock, and round-capped: at 83% the cap reads as
+          the end of a measure rather than a cut. */}
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="var(--surface-strong)" strokeWidth={stroke} />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke={colour}
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={`${filled} ${circumference - filled}`}
+        />
+      </svg>
+      <span className="absolute inset-0 flex flex-col items-center justify-center gap-1">
+        <span
+          className="text-[30px] font-semibold leading-none tracking-[-0.02em] [font-variant-numeric:tabular-nums]"
+          style={{ color: "var(--text-primary)" }}
+        >
+          {Math.round(score * 100)}%
         </span>
+        {caption ? <span className="text-[11px] leading-none text-[var(--text-muted)]">{caption}</span> : null}
       </span>
     </span>
   );
@@ -392,19 +364,16 @@ function PulseDial({
 // hides its own reasoning, and a leader's first question is "made of what?".
 export function ScorePanel({ score, parts, caption }: { score: number; parts: { label: string; ratio: number }[]; caption?: string }) {
   const weakest = Math.min(...parts.map((part) => part.ratio));
+  const scoreColour = score >= 0.95 ? "var(--status-success)" : score >= 0.7 ? "var(--accent)" : "var(--tone-warning-fg)";
+
   return (
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-stretch sm:gap-6">
-      <PulseDial score={score} parts={parts} caption={caption} weakest={weakest} />
-      {/* Hairline rows, and the bar takes whatever width is left: a fixed 64px bar
-          stranded the percentages a long way from their labels. */}
-      <div className="min-w-0 flex-1">
-        {parts.map((part, index) => (
-          <div key={part.label} className="flex min-w-0 items-center gap-3 border-t border-[var(--border-hairline)] py-2 first:border-t-0 sm:py-2.5">
-            {/* The index is what ties a row to its arc: two measures can land in the same
-                colour band, so colour alone doesn't identify which quarter is which. */}
-            <span className="font-mono shrink-0 text-[11px] text-[var(--text-faint)]">{index + 1}</span>
+    <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center sm:gap-7">
+      <ScoreDial score={score} caption={caption} colour={scoreColour} />
+      <div className="min-w-0 flex-1 self-stretch">
+        {parts.map((part) => (
+          <div key={part.label} className="flex min-w-0 items-center gap-3 border-t border-[var(--border-hairline)] py-2.5 first:border-t-0">
             <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--text-body)]">{part.label}</span>
-            <span className="relative h-1.5 w-[38%] max-w-[160px] shrink-0 overflow-hidden rounded-full bg-[var(--surface-strong)]">
+            <span className="relative h-1.5 w-[38%] max-w-[150px] shrink-0 overflow-hidden rounded-full bg-[var(--surface-strong)]">
               <span
                 className="absolute inset-y-0 left-0 rounded-full"
                 style={{ width: `${Math.round(Math.max(0, Math.min(1, part.ratio)) * 100)}%`, background: bandColour(part.ratio, weakest) }}

@@ -363,16 +363,41 @@ function PortfolioFilterMenu({
 // Waiting column rather than repeating it.
 function PhaseFlowTable({
   cards,
+  board,
   flow,
   cycle,
 }: {
   // Everything ever raised — the denominator the "reached" column is a share of.
   cards: UseCaseCard[];
+  // What is actually on the board, so the bar's hover can name the records it counts.
+  board: UseCaseCard[];
   flow: ReturnType<typeof funnel>;
   cycle: ReturnType<typeof medianCycleDaysByPhase>;
 }) {
   const reached = conversion(cards, PHASES);
   const busiest = Math.max(1, ...flow.map((row) => row.count));
+
+  // "3 waiting" is a number you can't act on. The hover names them, with whose decision
+  // each one is and how long it has been sitting — the reason the amber part of the bar
+  // is worth drawing at all.
+  //
+  // The record lines carry no colon on purpose. The tooltip layer reads `Label: value` and
+  // sets the label in a `shrink-0` column, so a 26-character record title left its value a
+  // ribbon three lines deep. Written as plain lines they run the full width of the tip and
+  // wrap like sentences; only the two short counts above them use the two-column form.
+  const waitingTip = (phase: string, count: number) => {
+    const waiting = board.filter((card) => phaseForStage(card.substage) === phase && card.needsAttention);
+    const shown = waiting.slice(0, 4);
+    return [
+      phase,
+      `On the board: ${count}`,
+      `Waiting on a decision: ${waiting.length || "none"}`,
+      ...shown.map((card) => `${card.title} — ${card.actionOwner}, ${card.pendingFor ?? "just flagged"}`),
+      waiting.length > shown.length ? `and ${waiting.length - shown.length} more` : null,
+    ]
+      .filter(Boolean)
+      .join("\n");
+  };
 
   return (
     <div className="min-w-0">
@@ -404,11 +429,7 @@ function PhaseFlowTable({
             </Link>
             <span
               className="flex min-w-0 max-w-[260px] items-center gap-2"
-              data-tip={
-                row.attention
-                  ? `${row.count} on the board, ${row.attention} waiting on a decision`
-                  : `${row.count} on the board, none waiting on a decision`
-              }
+              data-tip={waitingTip(row.phase, row.count)}
             >
               <span className="font-mono w-4 shrink-0 text-[12px] font-medium text-[var(--text-primary)]">{row.count}</span>
               <span className="flex h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-[var(--surface-strong)]">
@@ -544,7 +565,7 @@ function HealthTab({
         hint={`${cards.length} ever raised`}
         footer={scoped ? "The monthly line is portfolio-wide; the scope filter narrows the table only." : undefined}
       >
-        <PhaseFlowTable cards={cards} flow={flow} cycle={cycle} />
+        <PhaseFlowTable cards={cards} board={board} flow={flow} cycle={cycle} />
         <div className="mt-5 border-t border-[var(--border-hairline)] pt-4">
           {/* The target moves off the plot and into this row, as a dashed swatch — the
               same shape the value chart uses for its two series. On the plot its label sat
