@@ -28,6 +28,36 @@ export type RiskTier = "Lightweight" | "Standard" | "Full";
 export type Capability = "Analytical" | "Generative" | "Agentic";
 export type RiskLevel = "Low" | "Medium" | "High";
 
+// ── Governance vocabulary ──
+// How much of a human stays in the loop, set at Qualification. The tier a record's risk
+// level *requires* is a separate thing (see `oversightRequiredFor`) — the gap between what
+// a record has and what its risk demands is the committee's single most useful number.
+export type Oversight = "Always" | "On exceptions" | "None";
+// What the use case touches. Declared at Ideation, confirmed at Assessment.
+export type DataExposure = "GxP-impacting" | "21 CFR Part 11" | "PII in scope";
+// Which functions had to review it, triggered at Triage.
+export type ComplianceReview = "Responsible AI" | "Data privacy" | "Security" | "Quality & GxP" | "Legal";
+// The five things that decide whether a live use case is actually adopted, recorded at
+// Adoption. Three states, not a boolean: "not started" and "in progress" are the
+// distinction an audit trail turns on.
+export type ControlState = "In place" | "In progress" | "Not started";
+export type AdoptionControls = {
+  training: ControlState;
+  responsibleAi: ControlState;
+  supportModel: ControlState;
+  biasMonitoring: ControlState;
+  sopEmbedded: ControlState;
+};
+
+// The oversight a risk level requires. A record carrying less than this is what
+// "under-supervised" means, and it's a governance finding rather than a project problem —
+// nobody below the committee can change a risk tier.
+export const oversightRequiredFor: Record<RiskLevel, Oversight[]> = {
+  High: ["Always"],
+  Medium: ["Always", "On exceptions"],
+  Low: ["Always", "On exceptions", "None"],
+};
+
 // The prototype's "today". Every derivation takes it as an argument rather than
 // calling `new Date()`, so an aging number can't differ between the prerender and
 // the client — and re-anchoring the whole demo is this one line.
@@ -78,7 +108,13 @@ export type UseCaseCard = {
   // One currency, whole dollars: a prototype that converts currencies is a prototype
   // arguing with itself.
   investmentUsd: number;
+  // What the business case *claims* the thing will return in a year. Every record has one,
+  // including the ones that will never be built — it's an assertion, not a measurement.
   annualBenefitUsd: number;
+  // What Monitoring & Tracking has actually measured, once it's live. Only live records carry
+  // it, and it is routinely lower than the claim: the gap between the two is the single most
+  // important number a portfolio has, and one field holding both would hide it.
+  confirmedBenefitUsd?: number;
   funded: boolean;
   riskTier: RiskTier;
   riskLevel: RiskLevel;
@@ -91,6 +127,22 @@ export type UseCaseCard = {
   kpis?: { name: string; actual: number; target: number; unit: "%" | "days" | "pts" }[];
   // Decisions already taken, oldest first — `gate` is only the current one.
   gateHistory?: { id: string; status: GateStatus; decided: string; approver: string }[];
+
+  // ── The governance layer ──
+  // What a committee asks that the board never does: who is watching this thing, what it
+  // touches, which functions had to review it, and whether the things that make adoption
+  // stick actually happened. Every one is recorded at a specific stage, so a record that
+  // hasn't reached that stage leaves the field off rather than carrying a default — an
+  // unset oversight level and "None" are different facts.
+  //
+  // Set at Qualification, so anything still in Ideation or Prioritisation has none.
+  oversight?: Oversight;
+  // Declared at Ideation and confirmed at Assessment.
+  dataExposure?: DataExposure[];
+  // Triggered at Triage. A record before Triage leaves it off.
+  reviews?: ComplianceReview[];
+  // Recorded at Adoption, so only production records carry it.
+  adoption?: AdoptionControls;
 };
 
 export const USE_CASES: UseCaseCard[] = [
@@ -186,6 +238,9 @@ export const USE_CASES: UseCaseCard[] = [
     funded: true,
     riskTier: "Full",
     riskLevel: "Medium",
+    oversight: "Always",
+    dataExposure: ["GxP-impacting", "21 CFR Part 11"],
+    reviews: ["Responsible AI", "Quality & GxP", "Security"],
     businessFunction: "R&D",
     capability: "Generative",
     gateHistory: [{ id: "R1", status: "Passed", decided: "2026-06-22", approver: "Priya Rao" }],
@@ -216,6 +271,9 @@ export const USE_CASES: UseCaseCard[] = [
     funded: false,
     riskTier: "Standard",
     riskLevel: "Medium",
+    oversight: "On exceptions",
+    dataExposure: ["PII in scope"],
+    reviews: ["Legal", "Data privacy"],
     businessFunction: "Legal",
     capability: "Analytical",
     href: "/overview",
@@ -244,6 +302,8 @@ export const USE_CASES: UseCaseCard[] = [
     funded: false,
     riskTier: "Lightweight",
     riskLevel: "Low",
+    dataExposure: ["PII in scope"],
+    reviews: ["Data privacy"],
     businessFunction: "HR",
     capability: "Generative",
     href: "/overview",
@@ -272,6 +332,9 @@ export const USE_CASES: UseCaseCard[] = [
     funded: false,
     riskTier: "Full",
     riskLevel: "High",
+    oversight: "On exceptions",
+    dataExposure: ["PII in scope"],
+    reviews: ["Responsible AI", "Data privacy", "Security"],
     businessFunction: "Sales",
     capability: "Analytical",
     gateHistory: [{ id: "R1", status: "Passed", decided: "2026-06-24", approver: "Priya Rao" }],
@@ -303,6 +366,8 @@ export const USE_CASES: UseCaseCard[] = [
     funded: false,
     riskTier: "Standard",
     riskLevel: "Medium",
+    oversight: "On exceptions",
+    reviews: ["Security"],
     businessFunction: "Finance",
     capability: "Analytical",
     gateHistory: [{ id: "R1", status: "Passed", decided: "2026-06-15", approver: "Priya Rao" }],
@@ -334,6 +399,9 @@ export const USE_CASES: UseCaseCard[] = [
     funded: true,
     riskTier: "Standard",
     riskLevel: "Medium",
+    oversight: "On exceptions",
+    dataExposure: ["PII in scope"],
+    reviews: ["Data privacy", "Security"],
     businessFunction: "Support",
     capability: "Generative",
     gateHistory: [{ id: "R1", status: "Passed", decided: "2026-05-26", approver: "Priya Rao" }],
@@ -365,6 +433,9 @@ export const USE_CASES: UseCaseCard[] = [
     funded: true,
     riskTier: "Full",
     riskLevel: "Medium",
+    oversight: "Always",
+    dataExposure: ["GxP-impacting"],
+    reviews: ["Responsible AI", "Security"],
     businessFunction: "Supply Chain",
     capability: "Analytical",
     gateHistory: [{ id: "R1", status: "Passed", decided: "2026-06-08", approver: "Priya Rao" }],
@@ -397,9 +468,13 @@ export const USE_CASES: UseCaseCard[] = [
     liveSince: "2026-05-30",
     investmentUsd: 140_000,
     annualBenefitUsd: 205_000,
+    confirmedBenefitUsd: 150_000,
     funded: true,
     riskTier: "Lightweight",
     riskLevel: "Low",
+    oversight: "On exceptions",
+    reviews: ["Responsible AI"],
+    adoption: { training: "In place", responsibleAi: "In place", supportModel: "In place", biasMonitoring: "Not started", sopEmbedded: "In progress" },
     businessFunction: "Marketing",
     capability: "Analytical",
     activeUsers: 240,
@@ -439,6 +514,9 @@ export const USE_CASES: UseCaseCard[] = [
     funded: false,
     riskTier: "Full",
     riskLevel: "High",
+    oversight: "None",
+    dataExposure: ["PII in scope"],
+    reviews: ["Responsible AI", "Security", "Legal"],
     businessFunction: "Support",
     capability: "Agentic",
     gateHistory: [{ id: "R1", status: "Passed", decided: "2026-04-24", approver: "Priya Rao" }],
@@ -486,9 +564,14 @@ export const PORTFOLIO_ARCHIVE: UseCaseCard[] = [
     liveSince: "2026-03-12",
     investmentUsd: 180_000,
     annualBenefitUsd: 240_000,
+    confirmedBenefitUsd: 190_000,
     funded: true,
     riskTier: "Standard",
     riskLevel: "Low",
+    oversight: "Always",
+    dataExposure: ["PII in scope"],
+    reviews: ["Legal", "Data privacy"],
+    adoption: { training: "In place", responsibleAi: "In place", supportModel: "In place", biasMonitoring: "In progress", sopEmbedded: "In progress" },
     businessFunction: "Legal",
     capability: "Analytical",
     activeUsers: 180,
@@ -525,9 +608,14 @@ export const PORTFOLIO_ARCHIVE: UseCaseCard[] = [
     liveSince: "2026-04-24",
     investmentUsd: 310_000,
     annualBenefitUsd: 520_000,
+    confirmedBenefitUsd: 300_000,
     funded: true,
     riskTier: "Full",
     riskLevel: "Medium",
+    oversight: "Always",
+    dataExposure: ["GxP-impacting"],
+    reviews: ["Responsible AI", "Quality & GxP"],
+    adoption: { training: "In place", responsibleAi: "In place", supportModel: "In progress", biasMonitoring: "Not started", sopEmbedded: "Not started" },
     businessFunction: "Supply Chain",
     capability: "Analytical",
     activeUsers: 320,
@@ -564,9 +652,14 @@ export const PORTFOLIO_ARCHIVE: UseCaseCard[] = [
     liveSince: "2026-06-05",
     investmentUsd: 260_000,
     annualBenefitUsd: 430_000,
+    confirmedBenefitUsd: 300_000,
     funded: true,
     riskTier: "Full",
     riskLevel: "Medium",
+    oversight: "None",
+    dataExposure: ["PII in scope", "21 CFR Part 11"],
+    reviews: ["Responsible AI", "Security", "Data privacy"],
+    adoption: { training: "In place", responsibleAi: "Not started", supportModel: "In place", biasMonitoring: "Not started", sopEmbedded: "Not started" },
     businessFunction: "Finance",
     capability: "Analytical",
     activeUsers: 460,
@@ -603,9 +696,12 @@ export const PORTFOLIO_ARCHIVE: UseCaseCard[] = [
     liveSince: "2026-06-26",
     investmentUsd: 95_000,
     annualBenefitUsd: 150_000,
+    confirmedBenefitUsd: 140_000,
     funded: true,
     riskTier: "Lightweight",
     riskLevel: "Low",
+    oversight: "None",
+    adoption: { training: "In place", responsibleAi: "In place", supportModel: "In place", biasMonitoring: "In progress", sopEmbedded: "In place" },
     businessFunction: "Support",
     capability: "Generative",
     activeUsers: 1_250,
@@ -639,6 +735,9 @@ export const PORTFOLIO_ARCHIVE: UseCaseCard[] = [
     funded: false,
     riskTier: "Full",
     riskLevel: "High",
+    oversight: "On exceptions",
+    dataExposure: ["PII in scope"],
+    reviews: ["Responsible AI", "Legal", "Data privacy"],
     businessFunction: "HR",
     capability: "Analytical",
   },
@@ -666,6 +765,8 @@ export const PORTFOLIO_ARCHIVE: UseCaseCard[] = [
     funded: false,
     riskTier: "Full",
     riskLevel: "High",
+    oversight: "None",
+    reviews: ["Responsible AI", "Legal"],
     businessFunction: "Marketing",
     capability: "Agentic",
   },
@@ -694,6 +795,9 @@ export const PORTFOLIO_ARCHIVE: UseCaseCard[] = [
     funded: false,
     riskTier: "Standard",
     riskLevel: "Medium",
+    oversight: "None",
+    dataExposure: ["PII in scope"],
+    reviews: ["Data privacy"],
     businessFunction: "Sales",
     capability: "Agentic",
   },
@@ -722,6 +826,9 @@ export type PortfolioMonth = {
   // Both cumulative at month end: investment committed, and the annualised benefit
   // of whatever is live by then.
   committedUsd: number;
+  // Confirmed benefit of everything live at that month end — measured, not claimed. The
+  // committed line above it is money out; this is money back, and they are not the same kind
+  // of number even though they share an axis.
   benefitUsd: number;
 };
 
@@ -749,7 +856,7 @@ export const PORTFOLIO_SNAPSHOTS: PortfolioMonth[] = [
     wip: { "Intake & Prioritization": 3, "Governance & Risk": 2, Delivery: 2, "Operate & Adopt": 2 },
     medianDaysToDecision: 27,
     committedUsd: 490_000,
-    benefitUsd: 240_000,
+    benefitUsd: 190_000,
   },
   {
     key: "2026-04",
@@ -761,7 +868,7 @@ export const PORTFOLIO_SNAPSHOTS: PortfolioMonth[] = [
     wip: { "Intake & Prioritization": 4, "Governance & Risk": 3, Delivery: 2, "Operate & Adopt": 2 },
     medianDaysToDecision: 22,
     committedUsd: 490_000,
-    benefitUsd: 760_000,
+    benefitUsd: 490_000,
   },
   {
     key: "2026-05",
@@ -773,7 +880,7 @@ export const PORTFOLIO_SNAPSHOTS: PortfolioMonth[] = [
     wip: { "Intake & Prioritization": 4, "Governance & Risk": 3, Delivery: 3, "Operate & Adopt": 3 },
     medianDaysToDecision: 19,
     committedUsd: 890_000,
-    benefitUsd: 965_000,
+    benefitUsd: 640_000,
   },
   {
     key: "2026-06",
@@ -785,7 +892,7 @@ export const PORTFOLIO_SNAPSHOTS: PortfolioMonth[] = [
     wip: { "Intake & Prioritization": 5, "Governance & Risk": 4, Delivery: 3, "Operate & Adopt": 2 },
     medianDaysToDecision: 16,
     committedUsd: 1_520_000,
-    benefitUsd: 1_545_000,
+    benefitUsd: 1_080_000,
   },
   {
     key: "2026-07",
@@ -799,7 +906,7 @@ export const PORTFOLIO_SNAPSHOTS: PortfolioMonth[] = [
     wip: { "Intake & Prioritization": 4, "Governance & Risk": 3, Delivery: 3, "Operate & Adopt": 1 },
     medianDaysToDecision: 14,
     committedUsd: 1_785_000,
-    benefitUsd: 1_545_000,
+    benefitUsd: 1_080_000,
   },
 ];
 

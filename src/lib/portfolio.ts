@@ -274,7 +274,31 @@ export function capacityByOwner(cards: UseCaseCard[], asOf: string, max = 6) {
 
 // ── Money ──
 
-export type MoneyState = { key: string; label: string; count: number; investment: number; benefit: number };
+// What a record has actually been measured to return. Only live records have one; everything
+// else has a claim, which is a different kind of number and is read off `annualBenefitUsd`.
+export const confirmedBenefit = (card: UseCaseCard) => (card.lifecycle === "Live" ? (card.confirmedBenefitUsd ?? 0) : 0);
+
+// Confirmed against claimed on the live cohort — the realization rate. The portfolio's most
+// load-bearing ratio: a benefit figure with no realization rate beside it can't be told apart
+// from a business case that was simply written optimistically.
+export function realization(cards: UseCaseCard[]) {
+  const live = cards.filter((card) => card.lifecycle === "Live");
+  const projected = live.reduce((total, card) => total + card.annualBenefitUsd, 0);
+  const confirmed = live.reduce((total, card) => total + confirmedBenefit(card), 0);
+  return { live: live.length, projected, confirmed, ratio: projected ? confirmed / projected : 0, shortfall: projected - confirmed };
+}
+
+// `basis` says what kind of number the benefit column holds for that state — measured, merely
+// projected, or written off. Without it the table reads as five comparable figures when only
+// the first row is a measurement.
+export type MoneyState = {
+  key: string;
+  label: string;
+  count: number;
+  investment: number;
+  benefit: number;
+  basis: "Confirmed" | "Projected" | "At risk" | "Written off";
+};
 
 // Four buckets, and every record lands in exactly one: what is earning, what is
 // paid for but not earning yet, what is still an ask, and what stopped.
@@ -290,6 +314,12 @@ export function moneyByState(cards: UseCaseCard[]): MoneyState[] {
     pipeline: "Still an ask",
     stopped: "Stopped or parked",
   };
+  const basis: Record<string, MoneyState["basis"]> = {
+    live: "Confirmed",
+    committed: "Projected",
+    pipeline: "At risk",
+    stopped: "Written off",
+  };
   return ["live", "committed", "pipeline", "stopped"].map((key) => {
     const inBucket = cards.filter((card) => bucket(card) === key);
     return {
@@ -297,7 +327,11 @@ export function moneyByState(cards: UseCaseCard[]): MoneyState[] {
       label: labels[key],
       count: inBucket.length,
       investment: inBucket.reduce((total, card) => total + card.investmentUsd, 0),
-      benefit: inBucket.reduce((total, card) => total + card.annualBenefitUsd, 0),
+      // The live row reports what was measured; every other row can only report the claim.
+      // Summing `annualBenefitUsd` across all four would add one measurement to three
+      // assertions and call the result a portfolio benefit.
+      benefit: inBucket.reduce((total, card) => total + (key === "live" ? confirmedBenefit(card) : card.annualBenefitUsd), 0),
+      basis: basis[key],
     };
   });
 }
@@ -312,11 +346,12 @@ export function valueSeries(months: PortfolioMonth[]) {
 }
 
 export function valueByFunction(cards: UseCaseCard[], max = 6) {
-  const rows = new Map<string, { fn: string; investment: number; benefit: number; count: number }>();
+  const rows = new Map<string, { fn: string; investment: number; benefit: number; confirmed: number; count: number }>();
   for (const card of cards) {
-    const row = rows.get(card.businessFunction) ?? { fn: card.businessFunction, investment: 0, benefit: 0, count: 0 };
+    const row = rows.get(card.businessFunction) ?? { fn: card.businessFunction, investment: 0, benefit: 0, confirmed: 0, count: 0 };
     row.investment += card.investmentUsd;
     row.benefit += card.annualBenefitUsd;
+    row.confirmed += confirmedBenefit(card);
     row.count += 1;
     rows.set(card.businessFunction, row);
   }
@@ -526,7 +561,9 @@ export function reconcile(cards: UseCaseCard[], months: PortfolioMonth[], phases
     const committed = cards.filter((card) => card.fundedOn && card.fundedOn < end).reduce((total, card) => total + card.investmentUsd, 0);
     if (committed !== month.committedUsd) problems.push(`${month.label}: ${usd(month.committedUsd)} committed, records say ${usd(committed)}`);
 
-    const benefit = cards.filter((card) => card.liveSince && card.liveSince < end).reduce((total, card) => total + card.annualBenefitUsd, 0);
+    // Confirmed, not claimed: the snapshot line is money back, so it can only be made of
+    // measurements.
+    const benefit = cards.filter((card) => card.liveSince && card.liveSince < end).reduce((total, card) => total + confirmedBenefit(card), 0);
     if (benefit !== month.benefitUsd) problems.push(`${month.label}: ${usd(month.benefitUsd)} of benefit, records say ${usd(benefit)}`);
   }
 
@@ -613,12 +650,16 @@ export function valueSummary(cards: UseCaseCard[], months: PortfolioMonth[], asO
   // The figures carry the bold, the connecting words don't. A whole bolded lead sentence
   // emphasises nothing in particular; bolding only the money, the counts and the record
   // names lets someone read the numbers straight down and the prose only if they want it.
+  const real = realization(cards);
   return [
-    `**${usd(h.investment)}** committed against **${usd(h.benefit)}** of annualised benefit, which the **${h.live} live** use cases repay in about **${
+    `**${usd(h.investment)}** committed against **${usd(h.benefit)}** of *confirmed* benefit, which the **${h.live} live** use cases repay in about **${
       h.paybackMonths
     } months**.`,
     [
-      `- The ${live?.count} live ones cost **${usd(live?.investment ?? 0)}** and return **${usd(live?.benefit ?? 0)}** a year.`,
+      // Confirmed against claimed, in the first bullet, because it reframes every figure above
+      // it: the benefit number is not a small version of the business cases, it's what is left
+      // of them once someone measured.
+      `- The ${live?.count} live ones cost **${usd(live?.investment ?? 0)}** and return **${usd(live?.benefit ?? 0)}** a year — **${pct(real.ratio)}** of the ${usd(real.projected)} their business cases projected.`,
       `- **${attainment.met} of ${attainment.total}** production targets are met${
         misses.length ? `; behind on ${misses.map((row) => `${row.name.toLowerCase()} at [${row.card.title}](${row.card.href})`).join(" and ")}` : ""
       }.`,
@@ -642,9 +683,9 @@ export function portfolioDigest(cards: UseCaseCard[], months: PortfolioMonth[], 
 // ai-upgrade: same note as the digest — the shape is Markdown, the numbers are real.
 export function moneyTable(cards: UseCaseCard[]): string {
   const money = moneyByState(cards);
-  return `| State | Count | Investment | Annual benefit |
-| --- | --- | --- | --- |
-${money.map((state) => `| ${state.label} | ${state.count} | ${usd(state.investment)} | ${usd(state.benefit)} |`).join("\n")}`;
+  return `| State | Count | Investment | Annual benefit | Basis |
+| --- | --- | --- | --- | --- |
+${money.map((state) => `| ${state.label} | ${state.count} | ${usd(state.investment)} | ${usd(state.benefit)} | ${state.basis} |`).join("\n")}`;
 }
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

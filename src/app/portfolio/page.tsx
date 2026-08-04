@@ -67,6 +67,7 @@ import {
   pct,
   portfolioDigest,
   productionRows,
+  realization,
   pulse,
   riskMix,
   stoppedRows,
@@ -115,12 +116,12 @@ const LEADERSHIP_HISTORY: ChatSession[] = [
       { role: "user", text: "What's the value so far?", time: "9:24 AM" },
       {
         role: "assistant",
-        text: "$1.79M is committed against $1.55M of annualised benefit from the 5 live use cases — a payback of about 14 months across the portfolio.",
+        text: "$1.79M is committed against $1.08M of confirmed benefit from the 5 live use cases — about 20 months to pay back. Their business cases projected $1.55M, so we are realising 70% of what was promised.",
       },
       { role: "user", text: "Which one pays back fastest?", time: "9:26 AM" },
       {
         role: "assistant",
-        text: "Meeting Notes Summariser: $95K spent for $150K a year, so about 8 months. It's also the cheapest thing we've shipped.",
+        text: "Meeting Notes Summariser: $95K spent, $140K a year confirmed against $150K projected, so about 8 months. It is also the closest to its business case of anything we have shipped.",
       },
     ],
   },
@@ -599,6 +600,7 @@ function ValueTab({ cards, months, scoped }: { cards: UseCaseCard[]; months: typ
   const h = headline(cards, months, AS_OF);
   const span = months.length > 1 ? `${months[0].label} → ${months[months.length - 1].label}` : undefined;
   const money = moneyByState(cards);
+  const real = realization(cards);
   const summary = attainmentSummary(kpiAttainment(cards));
   const prod = impact(cards);
   // The ledger, in two halves keyed by the record: what is live and what it returns,
@@ -628,14 +630,16 @@ function ValueTab({ cards, months, scoped }: { cards: UseCaseCard[]; months: typ
               tip: "Investment on live and funded work",
             },
             {
-              label: "Annualised benefit",
+              label: "Confirmed benefit",
               value: usd(h.benefit),
-              delta: `from ${h.live} live`,
-              deltaTone: "good",
+              // The realization rate, not the count of live records — a benefit figure with no
+              // rate beside it can't be told apart from a business case written optimistically.
+              delta: `${pct(real.ratio)} of ${usd(real.projected)} projected`,
+              deltaTone: real.ratio >= 0.8 ? "good" : "warn",
               icon: <TrendingUp size={13} />,
               trend: months.map((month) => month.benefitUsd),
               trendLabel: span,
-              tip: "Benefit counted only once something is in production",
+              tip: "Measured at Monitoring and Tracking, not claimed in the business case",
             },
             // A "Payback" cell stood here — committed spend over the benefit of what is
             // live. Two reasons it went: the summary sentence right below already says the
@@ -713,6 +717,10 @@ function ValueTab({ cards, months, scoped }: { cards: UseCaseCard[]; months: typ
                     >
                       {ratio.toFixed(1)}× back
                     </span>
+                    {/* What kind of number the return bar is. Only the live row is a
+                        measurement; the rest are a projection, an ask, or money written off, and
+                        four bars of the same colour read as four comparable facts otherwise. */}
+                    <span className="text-[10px] uppercase tracking-[0.06em] text-[var(--text-faint)]">{state.basis}</span>
                   </>
                 ),
                 tip:
