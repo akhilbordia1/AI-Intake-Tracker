@@ -445,61 +445,109 @@ export function ColumnChart({
 // is the money split". It is also the language the funnel above it already speaks: a solid
 // filled shape, a single-hue ramp, labels inside. `ShareBand` requires that the segments *are*
 // the whole; pass a truncated list and the shares are a lie.
-// The band's ramp, kept inside the range where white text stays legible.
+// A shade per cell, darkest for the largest.
 //
-// This has been wrong in both directions. First it ran `--accent` down to 30% accent, which
-// put Sales and Marketing in a dead zone where neither white (2.5:1) nor `--accent-strong`
-// (3.9:1) was readable. Then it was flattened to one fill, which fixed the text and threw the
-// ordering away. The fix is to ramp *within* the dark half: `--accent-strong` at the wide end
-// down to a mix of `--accent` and `--accent-ring` at the narrow one, which measures about
-// 10:1 and 5:1 against white respectively — a visible ramp where every segment can hold its
-// own labels.
-const RAMP_LIGHT_END = "color-mix(in srgb, var(--accent) 75%, var(--accent-ring))";
-const rampFill = (position: number) => `color-mix(in srgb, var(--accent-strong) ${Math.round((1 - position) * 100)}%, ${RAMP_LIGHT_END})`;
+// The range is not a taste choice — it's the widest one the ink allows. `--accent-strong` on
+// `--accent-ring` measures 4.5:1, exactly the floor for text this size, and on `--accent-soft`
+// 8.7:1. So those two are the ends, and anything darker than `--accent-ring` would need white
+// ink, which is what broke the first three attempts at this: a ramp wide enough to see, with one
+// ink colour, has a middle where neither white nor dark is readable.
+//
+// Ordered by the cell's place in the whole list rather than within its row, so the shade keeps
+// falling left-to-right, top-to-bottom instead of restarting on the second row.
+const cellFill = (position: number) => `color-mix(in srgb, var(--accent-ring) ${Math.round((1 - position) * 100)}%, var(--accent-soft))`;
 
-export function ShareBand({
+// Split the sorted segments into `rows` bands, each taking about an equal share of the total.
+// A band closes once it's nearer its share with the current segment than it would be with the
+// next one, so the greedy pass doesn't always overshoot — and never before every remaining band
+// has a segment left to fill it.
+function splitIntoBands<T extends { value: number }>(segments: T[], rows: number): T[][] {
+  const total = segments.reduce((sum, segment) => sum + Math.max(0, segment.value), 0);
+  const target = total / rows;
+  const bands: T[][] = [];
+  let current: T[] = [];
+  let running = 0;
+
+  segments.forEach((segment, index) => {
+    current.push(segment);
+    running += Math.max(0, segment.value);
+    const left = segments.length - index - 1;
+    const next = segments[index + 1];
+    const bandsLeft = rows - bands.length - 1;
+    if (bandsLeft > 0 && left > bandsLeft && running >= target - (next ? Math.max(0, next.value) / 2 : 0)) {
+      bands.push(current);
+      current = [];
+      running = 0;
+    }
+  });
+  if (current.length) bands.push(current);
+  return bands;
+}
+
+export function ShareMosaic({
   segments,
-  // 104, so a segment holds three lines without crowding: what it is, how much, and the
-  // count that used to be reachable only on a hover.
-  height = 104,
+  height = 196,
+  rows = 2,
 }: {
+  // Sorted largest-first by the caller. `value` must be the whole of what's being split — the
+  // areas are shares, so a truncated list states shares that aren't true.
   segments: { key: string; label: string; display: string; meta?: string; value: number; tip?: string }[];
   height?: number;
+  rows?: number;
 }) {
   const total = segments.reduce((sum, segment) => sum + Math.max(0, segment.value), 0);
   if (!total) return <TileEmpty />;
+  const bands = splitIntoBands(segments, Math.max(1, Math.min(rows, segments.length)));
+  // Each cell's place in the full list, so its shade doesn't restart at the second row.
+  const rank = new Map(segments.map((segment, index) => [segment.key, segments.length > 1 ? index / (segments.length - 1) : 0]));
 
   return (
-    <div className="flex w-full overflow-hidden rounded-[8px]" style={{ height }}>
-      {segments.map((segment, index) => (
-        <div
-          key={segment.key}
-          data-tip={segment.tip}
-          // Hairline gaps in the surface colour, so the segments read as separate parts of one
-          // band rather than as one bar with text scattered along it.
-          // px-2.5, not px-3: the narrowest segment is 84px wide, and 24px of padding left
-          // "2 records" truncating to "2 record…".
-          className="flex min-w-0 flex-col justify-center gap-1 border-r border-[var(--surface)] px-2.5 last:border-r-0"
-          style={{
-            width: `${(Math.max(0, segment.value) / total) * 100}%`,
-            background: rampFill(segments.length > 1 ? index / (segments.length - 1) : 0),
-          }}
-        >
-          <span className="truncate text-[12px] font-semibold leading-none text-[var(--surface)]">{segment.label}</span>
-          <span className="font-mono truncate text-[13px] leading-none text-[var(--surface)] [font-variant-numeric:tabular-nums]">{segment.display}</span>
-          {/* The count, in the segment rather than behind a hover. Held back a little — context
-              for the figure above it — but only to 0.85: at 0.75 it fell under 4:1 against the
-              pale end of the ramp. */}
-          {segment.meta ? (
-            <span
-              className="font-mono truncate text-[11px] leading-none text-[var(--surface)] [font-variant-numeric:tabular-nums]"
-              style={{ opacity: 0.85 }}
-            >
-              {segment.meta}
-            </span>
-          ) : null}
-        </div>
-      ))}
+    // Two rows of cells rather than one strip of eight. A single row gave every cell the same
+    // height, so eight near-equal values became eight near-identical uprights and the tile had
+    // no form; on two rows the cells differ in both dimensions and the biggest reads top-left.
+    //
+    // Area stays exactly proportional: a row is as tall as its own share of the total, and a
+    // cell as wide as its share within that row, so (value / rowSum) × (rowSum / total) is
+    // value / total.
+    <div className="flex w-full flex-col overflow-hidden rounded-[8px]" style={{ height }}>
+      {bands.map((band, bandIndex) => {
+        const bandTotal = band.reduce((sum, segment) => sum + Math.max(0, segment.value), 0);
+        return (
+          <div
+            key={band[0].key}
+            className={cn("flex min-h-0 min-w-0", bandIndex < bands.length - 1 && "border-b border-[var(--surface)]")}
+            style={{ height: `${(bandTotal / total) * 100}%` }}
+          >
+            {band.map((segment, index) => (
+              <div
+                key={segment.key}
+                data-tip={segment.tip}
+                // Gaps in the surface colour, so the cells read as separate areas of one whole
+                // rather than as a grid of cards.
+                className={cn(
+                  "flex min-w-0 flex-col justify-center gap-1.5 px-3",
+                  index < band.length - 1 && "border-r border-[var(--surface)]",
+                )}
+                style={{ width: `${(Math.max(0, segment.value) / bandTotal) * 100}%`, background: cellFill(rank.get(segment.key) ?? 0) }}
+              >
+                {/* Told apart by size and case, not opacity: 12px semibold over 13px mono over
+                    11px mono was three near-identical lines, and dimming one of them cost
+                    contrast for a hierarchy that size and case give for free. The sum is the
+                    figure anyone reads, so it gets to be one. */}
+                <span className="truncate text-[10px] font-semibold uppercase tracking-[0.07em] text-[var(--accent-strong)]">{segment.label}</span>
+                <span className="font-mono truncate text-[19px] font-semibold leading-none text-[var(--accent-strong)] [font-variant-numeric:tabular-nums]">
+                  {segment.display}
+                </span>
+                {segment.meta ? (
+                  <span className="font-mono truncate text-[11px] leading-none text-[var(--accent-strong)] [font-variant-numeric:tabular-nums]">
+                    {segment.meta}
+                  </span>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        );
+      })}
     </div>
   );
 }

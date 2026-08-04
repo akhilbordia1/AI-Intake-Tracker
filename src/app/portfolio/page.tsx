@@ -17,7 +17,7 @@ import {
   GroupBars,
   MiniList,
   ScorePanel,
-  ShareBand,
+  ShareMosaic,
   StatBand,
   StatusDot,
   SummaryPanel,
@@ -741,21 +741,22 @@ function ValueTab({ cards, months, scoped }: { cards: UseCaseCard[]; months: typ
           individual records used to sit between them, so the tab said "money, records,
           money, records" instead of finishing one thought before starting the next.
 
-          A band, not a ranking. This was a second `ColumnChart`, then a bar list, then a dot
+          A mosaic, not a ranking. This was a second `ColumnChart`, then a bar list, then a dot
           plot, and the shape kept being wrong because the question was: eight functions each
           hold between 8% and 17% of the money, so there is almost no spread to rank, and any
-          side-by-side chart of them is eight near-identical lengths. Split as one band, the
-          answer is the proportion — which is what "by function" is actually asking.
+          side-by-side chart of them is eight near-identical lengths. Split by area, the answer
+          is the proportion — which is what "by function" is actually asking — and two rows of
+          cells give the tile some form, where one strip of eight gave every cell the same
+          height and so reproduced the flatness it was meant to escape.
 
-          Every function, not the top six. A band whose segments don't add up to the whole
-          states shares that aren't true, so the `max` is lifted and the hint carries the
-          total the band represents. */}
+          Every function, not the top six. Areas that don't add up to the whole state shares
+          that aren't true, so the `max` is lifted and the hint carries the total. */}
       <TileBox
         className={SPAN}
         title="Investment by Function"
         hint={`${usd(byFunction.reduce((sum, row) => sum + row.investment, 0))} across ${byFunction.length} functions`}
       >
-        <ShareBand
+        <ShareMosaic
           segments={byFunction.map((row) => ({
             key: row.fn,
             label: row.fn,
