@@ -24,7 +24,7 @@ import {
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
-import { AppShell, ContentPanel, PanelBreadcrumb, PanelTabs, PanelViewRow, RailHeader, useRailMode } from "@/components/app-shell";
+import { AppShell, ContentPanel, PanelTabs, PanelViewRow, RailHeader, useRailMode } from "@/components/app-shell";
 import { ChatHistoryButton, useChatSessions, type ChatSession, type ChatTurn } from "@/components/chat/chat-history";
 import { ChatCardList } from "@/components/chat/chat-use-case-card";
 import { JumpToTop } from "@/components/chat/chat-ui";
@@ -289,6 +289,34 @@ export function TrackerView({ initialPhase, initialTab }: { initialPhase?: strin
   }, [attentionOnly, scopedUseCases, search]);
   const columns = useMemo(() => buildColumns(activeView, filteredUseCases), [activeView, filteredUseCases]);
 
+  // The row's count, and the standing action. Built here rather than inside each mode so the two rows
+  // can't say it differently: the count is what the active mode actually counts — the board counts
+  // what its filters left, the committee counts everything ever raised, closed records included —
+  // and the tip spells that out.
+  const rowCount = (
+    <span
+      data-tip={
+        leadership
+          ? `${ALL_RECORDS.length} records — ${USE_CASES.length} on the board, ${ALL_RECORDS.length - USE_CASES.length} closed`
+          : `${filteredUseCases.length} ${filteredUseCases.length === 1 ? "use case" : "use cases"}`
+      }
+      className={cn(CHIP, "font-mono shrink-0 bg-[var(--surface-strong)] text-[var(--text-label)]")}
+    >
+      {leadership ? ALL_RECORDS.length : filteredUseCases.length}
+    </span>
+  );
+  // The rail can also start a use case from a described idea; this is the door for people who'd
+  // rather fill the intake in. A square plus rather than a labelled button: it is the only primary
+  // control on the surface, so the accent alone identifies it, and spelled out it was the widest
+  // thing in a row of filters — three words of chrome for a door most sessions never use. The label
+  // survives as the tooltip and the accessible name, which is where an icon-only control has to keep
+  // it.
+  const newUseCase = (
+    <ButtonLink href="/intake" tone="primary" aria-label="New use case" data-tip="New use case" className="w-9 justify-center px-0">
+      <Plus size={16} />
+    </ButtonLink>
+  );
+
   return (
     <AppShell
       railExpanded={railMode.expanded}
@@ -355,15 +383,16 @@ export function TrackerView({ initialPhase, initialTab }: { initialPhase?: strin
       }
     >
       <ContentPanel
-        // The same breadcrumb the record pages use, so the tracker's panel header reads as the first
-        // step of that path rather than a title of its own. It names the mode, because "All use cases"
-        // over a page of portfolio composites is the wrong label for what's on screen.
-        breadcrumb={<PanelBreadcrumb items={[{ label: leadership ? "Reporting" : "All use cases" }]} />}
+        // No breadcrumb here any more: it and its count moved down to the view row, where the count
+        // sits beside the filters that change it. What's left in this header is the product, the mode,
+        // and who you are.
         tabs={
-          // The mode, named. Two words rather than glyphs: "Registry" and "Reporting" are not things
-          // an icon can distinguish, and the two display icons that used to sit here (a board and a
-          // table) have moved down to the row where they belong.
+          // The mode, named, and boxed as one control. As a plain tab strip the active half took a
+          // white card and a border of its own, which is the exact shape Board / Table wears a row
+          // below — two levels wearing one costume. A segmented toggle says "two states of one
+          // switch", which is what this is, and it can't be confused for the row beneath it.
           <PanelTabs
+            segmented
             activeId={mode}
             onSelect={(id) => setMode(id as PanelMode)}
             tabs={[
@@ -372,72 +401,75 @@ export function TrackerView({ initialPhase, initialTab }: { initialPhase?: strin
             ]}
           />
         }
-        // Only what belongs to *both* modes. Search, the attention filter and the grouping menu are
-        // about records, so they moved into the registry's own view row — a search box that filters a
-        // kanban you can't see is a control that lies, and a header that changes shape between modes
-        // reads as two different pages.
+        // Who you are, and the way to go and find a record. The attention filter and the grouping menu
+        // are further down in the registry's own view row: they subtract from what is shown, so they
+        // belong beside the thing they subtract from.
         controls={
           <>
-            {/* The one action either mode is for. The rail can also start a use case
-                from a described idea; this is the door for people who'd rather fill
-                the intake in. */}
-            <ButtonLink href="/intake" tone="primary">
-              <Plus size={14} />
-              New use case
-            </ButtonLink>
-            <span aria-hidden className="mx-0.5 h-4 w-px shrink-0 bg-[var(--border-default)]" />
             <ProfileSwitcher currentUser={activeProfile} onUserChange={setActiveProfile} compact />
+            {/* Search sits with the profile in the top row rather than among the filters, on both modes.
+                It is a different kind of thing from the filters it used to sit beside: those subtract
+                from what is shown, this one goes and finds something — so it is navigation, and it is
+                offered wherever you are.
+                
+                Which is why typing into it from Reporting switches to Registry: there is nothing on a
+                page of portfolio composites for a record query to narrow, and a search box that
+                silently does nothing is worse than one that isn't there. It takes you to the records
+                instead. */}
+            <CollapsingSearch
+              value={search}
+              onChange={(next) => {
+                setSearch(next);
+                if (next && leadership) setMode("registry");
+              }}
+            />
           </>
         }
         // The board and the table manage their own overflow (sideways columns, a capped table); the
         // leadership tab is a column of tiles that has to scroll as one.
         scroll={leadership}
         titleMeta={
-          <>
-            {/* Just the number, as a chip: "11 use cases" spelled out beside a crumb
-                that already says "use cases" was the same word twice. */}
-            <span
-              data-tip={
-                leadership
-                  ? `${ALL_RECORDS.length} records — ${USE_CASES.length} on the board, ${ALL_RECORDS.length - USE_CASES.length} closed`
-                  : `${filteredUseCases.length} ${filteredUseCases.length === 1 ? "use case" : "use cases"}`
-              }
-              className={cn(CHIP, "font-mono bg-[var(--surface-strong)] text-[var(--text-label)]")}
+          // Only the phase chip is left here. A filter you arrived at by link has to be visible and
+          // removable, or the board just looks like it lost most of its cards — and it belongs to the
+          // panel rather than to a mode, since the link that sets it can land on either.
+          phaseFilter ? (
+            <button
+              type="button"
+              onClick={() => setPhaseFilter(undefined)}
+              data-tip="Clear the phase filter"
+              className={cn(
+                CHIP,
+                "inline-flex items-center gap-1 border border-[var(--accent-border)] bg-[var(--accent-soft)] text-[var(--accent-strong)] transition hover:bg-[var(--surface-hover)]",
+              )}
             >
-              {/* The committee counts everything ever raised, including the closed records the board
-                  never shows — so the chip has to change with the tab or it contradicts the tiles. */}
-              {leadership ? ALL_RECORDS.length : filteredUseCases.length}
-            </span>
-            {/* A filter you arrived at by link has to be visible and removable, or the
-                board just looks like it lost most of its cards. */}
-            {phaseFilter ? (
-              <button
-                type="button"
-                onClick={() => setPhaseFilter(undefined)}
-                data-tip="Clear the phase filter"
-                className={cn(
-                  CHIP,
-                  "inline-flex items-center gap-1 border border-[var(--accent-border)] bg-[var(--accent-soft)] text-[var(--accent-strong)] transition hover:bg-[var(--surface-hover)]",
-                )}
-              >
-                <PhaseIcon phase={phaseFilter} size={12} />
-                {phaseFilter}
-                <X size={12} />
-              </button>
-            ) : null}
-          </>
+              <PhaseIcon phase={phaseFilter} size={12} />
+              {phaseFilter}
+              <X size={12} />
+            </button>
+          ) : null
         }
       >
         {leadership ? (
-          <LeadershipViews />
+          // No `action`: "New use case" is the registry's door. A committee reading the portfolio is
+          // not filing an idea, and a primary button for it was the loudest thing on a page of
+          // measures.
+          <LeadershipViews count={rowCount} narrow={railMode.collapsed} />
         ) : (
           <>
             {/* The registry's view row — the same `PanelViewRow` reporting uses. Board and Table are
                 views of one set of records, so they sit here rather than beside the mode; the controls
                 that only make sense over records came down with them. */}
             <PanelViewRow
+              heading="Use cases"
+              count={rowCount}
+              action={newUseCase}
               views={
+                // An icon toggle rather than a labelled strip: two familiar glyphs carry it, and
+                // labelled tabs beside an 18px heading read as a second set of modes — the thing the
+                // row above is for. Segmented, because it is one switch with two states.
                 <PanelTabs
+                  segmented
+                  compact
                   activeId={displayMode}
                   onSelect={(id) => setDisplayMode(id as DisplayMode)}
                   tabs={[
@@ -448,11 +480,11 @@ export function TrackerView({ initialPhase, initialTab }: { initialPhase?: strin
               }
               controls={
                 <>
-                  <CollapsingSearch value={search} onChange={setSearch} />
                   <Button
                     onClick={() => setAttentionOnly(!attentionOnly)}
                     active={attentionOnly}
                     aria-pressed={attentionOnly}
+                    data-tip={`${attentionCount} ${attentionCount === 1 ? "use case needs" : "use cases need"} your attention`}
                     className={cn(attentionOnly && "border-[var(--accent-border)] bg-[var(--accent-soft)] text-[var(--accent-strong)]")}
                   >
                     <Inbox size={14} />

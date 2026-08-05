@@ -124,10 +124,19 @@ const quarterLabel = (key: string) => {
 
 type PortfolioTab = "overview" | "pipeline" | "value" | "governance" | "functions";
 
-// No max-width and no auto margins: these views sit inside the tracker's panel now, beside a 300px
-// chat rail, so the panel is the measure. Capped at 1080 *and* inset in a panel, the tiles stopped a
-// couple of hundred pixels short of their own card on a wide screen.
 const TAB_GRID = "grid w-full grid-cols-1 items-start gap-4 lg:grid-cols-2";
+
+// What the tiles give back when the rail is put away — not a number somebody picked, but exactly the
+// width the panel just gained, so the tiles read as they do with the conversation open.
+//
+// The arithmetic: collapsing swaps the rail's 364px track for a 36px strip, so the panel grows by 328.
+// (Not 376 — the shell's 12px column gap survives the collapse, and the strip still takes its 36.)
+// Subtracting that from the content box puts every tile back where it was.
+//
+// Without it, a 1900px window ran the Annual Performance table's four figures across a metre of screen
+// and turned the health bars into horizon lines. A flat 1280px cap was tried first and was the wrong
+// shape of answer: the right width here is defined by the layout, not by a constant.
+const RAIL_TRACK = "calc(100% - 328px)";
 const SPAN = "lg:col-span-2";
 
 // `CAPABILITY_FILL` (three avatar hues for the capability split) went with `GroupBars`: the tally
@@ -1315,7 +1324,16 @@ function FunctionsTab({ cards, months }: { cards: UseCaseCard[]; months: typeof 
 // Nested rather than flattened into the panel's own tab row: seven tabs in one row would put "Board"
 // and "Governance" at the same level, and they are not — the first two are ways of reading records,
 // these five are readings of the whole portfolio.
-export function LeadershipViews() {
+export function LeadershipViews({
+  count,
+  action,
+  narrow = false,
+}: {
+  count?: ReactNode;
+  action?: ReactNode;
+  // The rail is put away, so the panel has the whole window and the tiles need holding back.
+  narrow?: boolean;
+}) {
   const [tab, setTab] = useState<PortfolioTab>("overview");
   // The whole portfolio over the whole window. `filterUseCasesByScope` still runs so the tracker's
   // scope helper stays the one definition of "team" and "mine" — it just isn't offered here, because
@@ -1343,28 +1361,36 @@ export function LeadershipViews() {
     return match ? PORTFOLIO_SNAPSHOTS.filter((month) => quarterLabel(month.key) === quarter) : PORTFOLIO_SNAPSHOTS;
   }, [quarter]);
 
+  const viewTabs = (
+    // Named, not icon-only. `compact` is right for Board / Table, where two familiar glyphs carry it —
+    // but a gauge, a pulse, a coin, a shield and a building are five icons nobody can rank by eye, and
+    // "which of these is Governance" is not a guess a committee should have to make.
+    <PanelTabs
+      activeId={tab}
+      onSelect={(id) => setTab(id as PortfolioTab)}
+      tabs={[
+        { id: "overview", label: "Overview", icon: <Gauge size={15} /> },
+        { id: "pipeline", label: "Pipeline", icon: <Activity size={15} /> },
+        { id: "value", label: "Value", icon: <Coins size={15} /> },
+        { id: "governance", label: "Governance", icon: <ShieldCheck size={15} /> },
+        { id: "functions", label: "Functions", icon: <Building2 size={15} /> },
+      ]}
+    />
+  );
+
   return (
     <div className="flex min-w-0 flex-col">
       {/* The reporting mode's view row: which reading on the left, what it is scoped to on the right.
           The same `PanelViewRow` the registry mode uses for Board / Table and its filters, so the two
           modes present themselves identically. */}
+      {/* The row keeps what applies to every reading — the heading, the count, and the two scopes the
+          whole page is filtered by. The five views moved down into the content: they select what is
+          *below* them, and up here they sat on the panel's own edge, a long way left of the first tile
+          they belong to and reading as a third level of chrome under two rows of it. */}
       <PanelViewRow
-        views={
-          // Named, not icon-only. `compact` is right for Board / Table, where two familiar glyphs
-          // carry it — but a gauge, a pulse, a coin, a shield and a building are five icons nobody can
-          // rank by eye, and "which of these is Governance" is not a guess a committee should make.
-          <PanelTabs
-            activeId={tab}
-            onSelect={(id) => setTab(id as PortfolioTab)}
-            tabs={[
-              { id: "overview", label: "Overview", icon: <Gauge size={15} /> },
-              { id: "pipeline", label: "Pipeline", icon: <Activity size={15} /> },
-              { id: "value", label: "Value", icon: <Coins size={15} /> },
-              { id: "governance", label: "Governance", icon: <ShieldCheck size={15} /> },
-              { id: "functions", label: "Functions", icon: <Building2 size={15} /> },
-            ]}
-          />
-        }
+        heading="Portfolio"
+        count={count}
+        action={action}
         controls={
           <>
             <StripSelect
@@ -1394,7 +1420,9 @@ export function LeadershipViews() {
         }
       />
 
-      <div className="px-5 pb-8 pt-4">
+      <div className="mx-auto w-full px-5 pb-8 pt-4" style={narrow ? { maxWidth: RAIL_TRACK } : undefined}>
+        {/* On the content's own measure, so the strip starts at the first tile's left edge. */}
+        <div className="mb-4">{viewTabs}</div>
         {/* An empty scope gets one sentence, not a grid of zeros: a pulse of 100% over no records is
             the most confident wrong number this page could print. */}
         {cards.length === 0 ? (

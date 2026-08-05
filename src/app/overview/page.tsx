@@ -269,8 +269,12 @@ export default function OverviewPage() {
         }
         controls={
           <>
-            <ProfileSwitcher currentUser={currentUser} onUserChange={setCurrentUser} compact />
+            {/* Details first, the profile last — the same order the tracker's header ends on, so the
+                switcher is the final thing in the header row on every surface. A rule between them:
+                one is a panel this page can show, the other is who you are. */}
             <TabBarToggle label="Details" icon={<Info size={15} />} active={detailsOpen} onClick={() => setDetailsOpen((open) => !open)} />
+            <span aria-hidden className="mx-0.5 h-4 w-px shrink-0 bg-[var(--border-default)]" />
+            <ProfileSwitcher currentUser={currentUser} onUserChange={setCurrentUser} compact />
           </>
         }
       >
@@ -392,8 +396,17 @@ function LifecycleTable({ currentUser }: { currentUser: string }) {
                   {/* A skipped stage has no outcome — it has a reason, and whose
                       call it was. */}
                   <span
-                    data-tip={skip ? `Skipped by ${skip.by}, ${skip.when} — ${skip.reason}` : state === "upcoming" ? undefined : `${outcome?.[0]} — ${outcome?.[1]}`}
-                    className={cn("block truncate text-[12px]", state === "complete" || state === "active" ? "text-[var(--text-body)]" : "text-[var(--text-muted)]")}
+                    data-tip={
+                      skip
+                        ? `Skipped by ${skip.by}, ${skip.when} — ${skip.reason}`
+                        : state === "upcoming"
+                          ? undefined
+                          : `${outcome?.[0]} — ${outcome?.[1]}`
+                    }
+                    className={cn(
+                      "block truncate text-[12px]",
+                      state === "complete" || state === "active" ? "text-[var(--text-body)]" : "text-[var(--text-muted)]",
+                    )}
                   >
                     {skip ? skip.reason : state === "upcoming" ? "Not recorded yet" : (outcome?.[1] ?? "—")}
                   </span>

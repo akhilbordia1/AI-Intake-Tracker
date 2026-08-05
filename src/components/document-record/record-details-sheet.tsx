@@ -116,7 +116,10 @@ export function RecordDetailsSheet({ onClose }: { onClose: () => void }) {
     { key: "activity", label: "Activity", count: RECORD_ACTIVITY.length },
   ];
   return (
-    <aside className="sheet-in-right flex min-h-0 flex-col overflow-hidden rounded-[12px] border border-[var(--border-default)] bg-[var(--surface)] ">
+    // `h-full`: the sheet fills the column it covers. It used to be a third grid column that stretched
+    // by itself; now it is laid over the chat rail, so without a height of its own it sized to its rows
+    // and the conversation's composer showed through the gap beneath it.
+    <aside className="sheet-in-right flex h-full min-h-0 flex-col overflow-hidden rounded-[12px] border border-[var(--border-default)] bg-[var(--surface)]">
       <div className="flex shrink-0 items-center gap-2 border-b border-[var(--border-hairline)] px-3 py-2">
         <div className="no-scrollbar flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
           {tabs.map((t) => (

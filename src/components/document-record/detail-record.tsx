@@ -526,12 +526,7 @@ function DocumentField({
   const loadingWidth = boxWidth === "w-full" ? "max-w-[360px]" : boxWidth;
 
   const control = (
-    <StageField
-      spec={field}
-      value={value}
-      onChange={(next) => s.setField(field.label, next)}
-      onSuggest={() => s.suggestField(field)}
-    />
+    <StageField spec={field} value={value} onChange={(next) => s.setField(field.label, next)} onSuggest={() => s.suggestField(field)} />
   );
 
   // The "Capturing…" overlay sits on top of the field rather than replacing it —
@@ -636,12 +631,12 @@ function StageStatusPill({
   const state = isSkipped
     ? { label: "Skipped", colour: "var(--tone-waived-fg)", title: "Not part of this record's path" as string | undefined }
     : isComplete
-    ? { label: "Complete", colour: "var(--status-success)", title: undefined as string | undefined }
-    : !canEdit
-      ? { label: "Locked", colour: "var(--tone-warning-fg)", title: `${owner} owns this stage — switch profile to edit` }
-      : blockedReason
-        ? { label: "Blocked by gate", colour: "var(--tone-danger-fg)", title: blockedReason }
-        : { label: "Active", colour: "var(--accent)", title: undefined };
+      ? { label: "Complete", colour: "var(--status-success)", title: undefined as string | undefined }
+      : !canEdit
+        ? { label: "Locked", colour: "var(--tone-warning-fg)", title: `${owner} owns this stage — switch profile to edit` }
+        : blockedReason
+          ? { label: "Blocked by gate", colour: "var(--tone-danger-fg)", title: blockedReason }
+          : { label: "Active", colour: "var(--accent)", title: undefined };
 
   return (
     <span data-tip={state.title} className="inline-flex shrink-0 items-center gap-1.5 text-[12px] font-medium" style={{ color: state.colour }}>
@@ -754,8 +749,7 @@ function GtacRecommendation() {
       <div className="flex items-center gap-2">
         <Sparkles size={13} className="shrink-0 text-[var(--accent)]" />
         <span className="text-[12px] font-semibold text-[var(--text-primary)]">
-          Recommendation ·{" "}
-          <span style={{ color: call === "GO" ? "var(--status-success)" : "var(--tone-danger-fg)" }}>{call}</span>
+          Recommendation · <span style={{ color: call === "GO" ? "var(--status-success)" : "var(--tone-danger-fg)" }}>{call}</span>
         </span>
       </div>
       <p className="mt-2 text-[13px] leading-[1.6] text-[var(--text-body)]">
@@ -800,7 +794,15 @@ function StageFieldsGrid({
       className={cn(embedded ? "px-6 pb-10 pt-5" : "no-scrollbar min-h-0 flex-1 overflow-y-auto px-8 pb-12 pt-6")}
       aria-label={`${stage.name} stage`}
     >
-      <StageFormHeader stage={stage} s={s} currentUser={currentUser} canEdit={canEdit} isComplete={isComplete} isSkipped={isSkipped} heading={heading} />
+      <StageFormHeader
+        stage={stage}
+        s={s}
+        currentUser={currentUser}
+        canEdit={canEdit}
+        isComplete={isComplete}
+        isSkipped={isSkipped}
+        heading={heading}
+      />
 
       {/* A decision stage gets the agent's read on the decision before the fields
           that record it — this is the one stage where the answer is a judgement
@@ -1197,8 +1199,8 @@ function SplitStageView({
         embedded
         editAll={editAll}
         heading={
-            <StagePathMenu activeIndex={stageIndex} completedIndexes={completedIndexes} skippedIndexes={skippedIndexes} onSelect={onSelectStage} />
-          }
+          <StagePathMenu activeIndex={stageIndex} completedIndexes={completedIndexes} skippedIndexes={skippedIndexes} onSelect={onSelectStage} />
+        }
         onBlockedEdit={
           guided
             ? undefined
@@ -1298,8 +1300,12 @@ function SplitStageView({
         }
         controls={
           <>
-            <ProfileSwitcher currentUser={currentUser} onUserChange={onUserChange} lockedBy={lockedOwner ?? undefined} compact />
+            {/* Details first, the profile last — the same order the tracker's header ends on, so the
+                switcher is the final thing in the header row on every surface. A rule between them:
+                one is a panel this page can show, the other is who you are. */}
             <TabBarToggle label="Details" icon={<Info size={15} />} active={detailsOpen} onClick={onOpenDetails} />
+            <span aria-hidden className="mx-0.5 h-4 w-px shrink-0 bg-[var(--border-default)]" />
+            <ProfileSwitcher currentUser={currentUser} onUserChange={onUserChange} lockedBy={lockedOwner ?? undefined} compact />
           </>
         }
         scroll={false}
@@ -1320,7 +1326,10 @@ function SplitStageView({
                   type="button"
                   onClick={onToggleSkip}
                   data-tip={isSkipped ? "Put this stage back in the path" : "Take this stage out of this record's path"}
-                  className={cn(shellButton(), isSkipped && "border-[var(--tone-waived-border)] bg-[var(--tone-waived-bg)] text-[var(--tone-waived-fg)]")}
+                  className={cn(
+                    shellButton(),
+                    isSkipped && "border-[var(--tone-waived-border)] bg-[var(--tone-waived-bg)] text-[var(--tone-waived-fg)]",
+                  )}
                 >
                   {isSkipped ? <RotateCcw size={13} /> : <MinusCircle size={13} />}
                   {isSkipped ? "Reinstate stage" : "Skip stage"}
@@ -1737,7 +1746,13 @@ const IDEATION_SEED: { role: "assistant" | "user"; text: string }[] = [
 // Fields the opening idea description already establishes (filled up front) —
 // including the ones the follow-up questions don't cover, so the stage can be
 // submitted once the flow is done.
-const IDEATION_SEED_FIELDS = ["Proposed use case name", "Problem statement", "Business objective", "AI capability and approach", "Business function or area"];
+const IDEATION_SEED_FIELDS = [
+  "Proposed use case name",
+  "Problem statement",
+  "Business objective",
+  "AI capability and approach",
+  "Business function or area",
+];
 // Anything that reads as a "go ahead" when the agent asks to confirm a fill.
 const YES_RE = /\b(yes|yep|yeah|yup|confirm|go ahead|do it|sure|ok|okay|proceed|fill|please)\b/i;
 
@@ -2179,7 +2194,11 @@ const STAGE_STARTERS: Record<string, { owner: StarterSpec[]; viewer: StarterSpec
         reply:
           "No — it's document summarisation with a human reviewing every output, so it stays inside policy. Nothing here is an automated decision about a person.",
       },
-      { icon: "spark", label: "Set oversight and decision impact", fill: ["Human oversight level", "Decision impact level", "Data sensitivity class"] },
+      {
+        icon: "spark",
+        label: "Set oversight and decision impact",
+        fill: ["Human oversight level", "Decision impact level", "Data sensitivity class"],
+      },
     ],
     viewer: [
       { icon: "shield", label: "Why did this pass screening?", read: ["Human oversight level", "Decision impact level"] },
@@ -2247,7 +2266,11 @@ const STAGE_STARTERS: Record<string, { owner: StarterSpec[]; viewer: StarterSpec
       // now declares a baseline and a target per measure, and value and quality are
       // different conversations with the business.
       { icon: "info", label: "Set the value targets", fill: ["Active users", "Hours saved a year", "Return on build cost (ROI)"] },
-      { icon: "info", label: "Set the quality targets", fill: ["Review time reduction", "Summary accuracy", "Writer satisfaction (CSAT)", "Targets locked for delivery"] },
+      {
+        icon: "info",
+        label: "Set the quality targets",
+        fill: ["Review time reduction", "Summary accuracy", "Writer satisfaction (CSAT)", "Targets locked for delivery"],
+      },
     ],
     viewer: [
       { icon: "info", label: "What are the KPIs?", read: ["Active users", "Hours saved a year", "Return on build cost (ROI)", "Summary accuracy"] },
@@ -2260,7 +2283,11 @@ const STAGE_STARTERS: Record<string, { owner: StarterSpec[]; viewer: StarterSpec
       { icon: "spark", label: "How often do we retrain?", fill: ["Solution capability", "Retraining cadence"] },
     ],
     viewer: [
-      { icon: "shield", label: "What are the guardrails?", read: ["Human review checkpoint", "Access control and identity", "Audit trail & retention"] },
+      {
+        icon: "shield",
+        label: "What are the guardrails?",
+        read: ["Human review checkpoint", "Access control and identity", "Audit trail & retention"],
+      },
       { icon: "info", label: "How often is it retrained?", read: ["Retraining cadence"] },
     ],
   },
@@ -2799,15 +2826,11 @@ function StageField({
   }
 
   if (spec.kind === "cards") {
-    return (
-      <CardMultiSelect hideHeader label={spec.label} options={spec.options ?? []} values={selected} onChange={onChange} />
-    );
+    return <CardMultiSelect hideHeader label={spec.label} options={spec.options ?? []} values={selected} onChange={onChange} />;
   }
 
   if (spec.kind === "chips") {
-    return (
-      <ChipMultiSelect hideHeader label={spec.label} options={spec.options ?? []} values={selected} onChange={onChange} />
-    );
+    return <ChipMultiSelect hideHeader label={spec.label} options={spec.options ?? []} values={selected} onChange={onChange} />;
   }
 
   // Free text (short or long) uses the growing editor so nothing truncates and

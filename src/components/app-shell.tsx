@@ -295,20 +295,36 @@ export function ContentPanel({
         <Link href="/" className="shrink-0 text-[14px] font-medium text-[var(--text-primary)] transition hover:text-[var(--accent-strong)]">
           AI Factory
         </Link>
-        <span aria-hidden className="h-4 w-px shrink-0 bg-[var(--border-default)]" />
+        {/* The rule only where something follows the mark in the flow. With the tabs centred out of the
+            flow there was nothing after it, so the rule hung off the mark's right shoulder pointing at
+            empty space. */}
+        {breadcrumb || title || titleMeta ? <span aria-hidden className="h-4 w-px shrink-0 bg-[var(--border-default)]" /> : null}
         {icon ? <span className="shrink-0 text-[var(--accent)]">{icon}</span> : null}
         {title ? <h1 className="font-display min-w-0 shrink-0 truncate text-[18px] leading-tight text-[var(--text-primary)]">{title}</h1> : null}
         {/* Breadcrumb before the count: what the panel *is* comes before how much
             of it there is. */}
         {breadcrumb}
         {titleMeta}
-        {/* The tabs are a different kind of thing from the panel's name, so a rule
-            separates them rather than more whitespace. */}
+        {/* Where the tabs are the only thing in this row besides the mark and the profile, they sit on
+            the panel's own midline rather than tucked against the mark — a two-state switch between
+            whole surfaces belongs on the axis of the thing it switches, and `mx-auto` would only
+            centre it in whatever space the mark and the controls left over. Absolutely placed, it is
+            centred whatever is either side of it, and it needs no dividing rule because nothing is
+            beside it to divide from.
+
+            Where a breadcrumb or a title comes first, the tabs stay in the flow after it with a rule
+            between them: there they are a step in a path, not a switch. */}
         {tabs ? (
-          <>
-            <span aria-hidden className="ml-1.5 h-4 w-px shrink-0 bg-[var(--border-default)]" />
-            <div className="shrink-0">{tabs}</div>
-          </>
+          breadcrumb || title || titleMeta ? (
+            <>
+              <span aria-hidden className="ml-1.5 h-4 w-px shrink-0 bg-[var(--border-default)]" />
+              <div className="shrink-0">{tabs}</div>
+            </>
+          ) : (
+            <div className="pointer-events-none absolute inset-x-0 top-1/2 z-10 flex -translate-y-1/2 justify-center">
+              <div className="pointer-events-auto">{tabs}</div>
+            </div>
+          )
         ) : null}
         {controls ? <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-1.5">{controls}</div> : null}
       </div>
@@ -332,11 +348,53 @@ export function ContentPanel({
 //
 // The mode tabs stay up in the panel header. Three rows of chrome — header, mode, view — is a lot of
 // furniture above the first number, and vertical space is the thing this page keeps running out of.
-export function PanelViewRow({ views, controls }: { views: ReactNode; controls?: ReactNode }) {
+export function PanelViewRow({
+  heading,
+  count,
+  views,
+  controls,
+  action,
+}: {
+  // The mode's own title, and the row's anchor. The panel header names the *product* and which mode
+  // is active; this says what you are looking at, at a size that reads as a page heading rather than
+  // as another control — a header made only of controls gives the eye nowhere to land.
+  heading: string;
+  count?: ReactNode;
+  // The views within the mode. Optional: where there are only two of them they're better off as an
+  // icon toggle among the controls than as a labelled strip competing with the heading.
+  views?: ReactNode;
+  controls?: ReactNode;
+  // The surface's standing action, last. Kept out of `controls` so it sits after the rule whichever
+  // mode is showing, rather than drifting to a different place in each.
+  action?: ReactNode;
+}) {
   return (
-    <div className="flex min-h-[46px] shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-1.5 border-b border-[var(--border-hairline)] px-5 py-1.5">
-      {views}
-      {controls ? <div className="flex flex-wrap items-center justify-end gap-1.5">{controls}</div> : null}
+    // Full width, always. A `measure` prop lived here for one revision so the heading could line up
+    // with capped content below — but this row is chrome, and chrome belongs at the panel's edges: the
+    // scope selects pulled 300px in from the right edge read as floating in the middle of the card.
+    <div className="flex min-h-[52px] shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-[var(--border-hairline)] px-5 py-2">
+      {/* Display serif at 18px, the size `ContentPanel` gives its own title — this row *is* the page
+            heading now that the panel header is identity and mode only. No rule after it: 18px serif
+            beside 13px sans separates itself, and this header had more rules than it had groups. */}
+      <h2 className="font-display shrink-0 text-[18px] leading-tight text-[var(--text-primary)]">{heading}</h2>
+      {count}
+      {/* Views sit with the heading, not with the filters. Which view you're in is part of *what
+            you're looking at*; search and the filters are what has been taken away from it. On the
+            right they made a run of five controls that had to be read one at a time to find out which
+            were about the data and which about the drawing of it. */}
+      {views ? <div className="ml-1.5 shrink-0">{views}</div> : null}
+      {/* One group, tight: `gap-1` inside the filters and the rule before the action are what say
+            "these belong together, that one doesn't". At an even 6px everything read as a queue of
+            unrelated buttons. */}
+      <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
+        {controls}
+        {action ? (
+          <>
+            <span aria-hidden className="mx-0.5 h-4 w-px shrink-0 bg-[var(--border-default)]" />
+            {action}
+          </>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -379,28 +437,34 @@ export function AppShell({
   //
   // On `/detail` the details sheet stays next to its record and the rail goes outside it: the sheet
   // is part of the object, the chat is about it.
-  const columns = railExpanded
-    ? "minmax(0,1fr)"
-    : !hasRail
-      ? "minmax(0,1fr)"
-      : aside
-        ? `minmax(0,62fr) minmax(0,38fr) ${railTrack}`
-        : `minmax(0,1fr) ${railTrack}`;
+  // Two columns, always: the content and the side track. The details sheet used to add a third, which
+  // squeezed the record it describes into the middle of three panels — and the sheet is *about* the
+  // record, so taking width from it to show it is the wrong trade. It shares the rail's column now and
+  // covers it, which is also what a sheet is: something that comes over what you were doing.
+  const columns = railExpanded || !hasRail ? "minmax(0,1fr)" : `minmax(0,1fr) ${railTrack}`;
   return (
     // One row of content: the rail and the panel, each carrying its own header.
     <main className="chat-glow flex h-screen flex-col overflow-hidden bg-[var(--shell-canvas)] text-[var(--text-primary)]">
       {banner}
       <div className="grid min-h-0 min-w-0 flex-1 gap-x-3 overflow-hidden px-3 py-3" style={{ gridTemplateColumns: columns }}>
         {railExpanded ? null : <div className="flex min-h-0 min-w-0 flex-col">{children}</div>}
-        {railExpanded ? null : aside}
         {/* The rail's grid item always renders: a display:none item is skipped by
  auto-placement, which would slide the panel into the rail's track. The
  conversation inside is hidden instead, so putting the rail away and
  bringing it back doesn't lose it. */}
         {hasRail ? (
-          <section className="flex min-h-0 min-w-0 flex-col overflow-hidden">
+          <section className="relative flex min-h-0 min-w-0 flex-col overflow-hidden" style={{ gridColumn: 2 }}>
             {railHeader}
             <div className={cn("flex min-h-0 flex-1 flex-col", railCollapsed && "hidden")}>{rail}</div>
+            {/* Placed in the same grid cell and layered over it, so the conversation stays mounted
+                underneath — close the sheet and the thread is where you left it. */}
+            {aside ? (
+              // Opaque, so nothing of the conversation reads through the sheet's own rounded corners —
+              // the panel it covers has to look covered. Rounded to the same 12px as the sheet: as a
+              // square block its four corners poked out past the sheet's arcs, and against the canvas's
+              // composer glow they read as white notches behind the card.
+              <div className="absolute inset-0 z-10 flex min-h-0 min-w-0 flex-col rounded-[12px] bg-[var(--shell-canvas)]">{aside}</div>
+            ) : null}
           </section>
         ) : null}
       </div>
