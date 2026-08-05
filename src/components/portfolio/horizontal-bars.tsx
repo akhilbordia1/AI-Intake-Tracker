@@ -51,7 +51,9 @@ export function HorizontalBars({
       dataKey="label"
       tick={{ fontSize: 11, fill: "var(--text-body)" }}
       tickLine={false}
-      axisLine={{ stroke: "var(--border-default)" }}
+      // `CartesianGrid` rules the baseline in the column layout, so an axis line on top of it lays two
+      // greys a pixel apart and reads as a flat series at zero.
+      axisLine={false}
       interval={0}
       tickMargin={8}
     />

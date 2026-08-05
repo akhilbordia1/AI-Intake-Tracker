@@ -4,7 +4,7 @@ import { Activity, ArrowDown, ArrowUp, Building2, Coins, Gauge, Layers, ShieldCh
 import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
 
-import { PanelTabs, PanelViewRow } from "@/components/app-shell";
+import { PanelTabRow, PanelTabs, PanelViewRow } from "@/components/app-shell";
 import { PhaseFlow, type PhaseFlowRow } from "@/components/portfolio/phase-flow";
 import { ControlRadar } from "@/components/portfolio/control-radar";
 import { HorizontalBars } from "@/components/portfolio/horizontal-bars";
@@ -14,6 +14,7 @@ import {
   ColumnChart,
   DataTable,
   MatrixTable,
+  MeasureRows,
   MiniList,
   QueueList,
   ScorePanel,
@@ -261,40 +262,12 @@ function OverviewTab({ cards, months }: { cards: UseCaseCard[]; months: typeof P
       {/* Side by side: the verdict, and the four numbers it is a verdict on. The band ran full width
           under the dial, which put those figures a long way from the composite they feed and left
           the dial's own tile two thirds empty. */}
-      <div className={cn(SPAN, "grid items-stretch gap-4 lg:grid-cols-2")}>
-        <TileBox
-          className="h-full"
-          title="Portfolio Health"
-          // No weights line. They were printed per row (cost the labels their width), then moved to a
-          // footer, which restated all four labels to add four numbers nobody reads on the way past.
-          // The rail answers "how is the health score weighted?" — that is the right home for a
-          // question asked once.
-          hint={
-            health.moved === null ? undefined : (
-              // The movement as a chip rather than coloured words in a sentence: this is the one
-              // number on the tile that isn't a share, and mono green mid-sentence read as a typo.
-              <span className="flex items-center gap-1.5">
-                <span
-                  className="font-mono inline-flex items-center gap-0.5 rounded-full border px-2 py-0.5 text-[11px] font-medium leading-none"
-                  style={
-                    health.moved >= 0
-                      ? { color: "var(--tone-success-fg)", background: "var(--tone-success-bg)", borderColor: "var(--tone-success-border)" }
-                      : { color: "var(--tone-warning-fg)", background: "var(--tone-warning-bg)", borderColor: "var(--tone-warning-border)" }
-                  }
-                >
-                  {health.moved >= 0 ? <ArrowUp size={11} /> : <ArrowDown size={11} />}
-                  {Math.abs(health.moved)} pts
-                </span>
-                since last quarter
-              </span>
-            )
-          }
-        >
-          <ScorePanel score={health.score / 100} scale="points" caption={health.verdict.toLowerCase()} parts={health.parts} />
-        </TileBox>
-
+      {/* The four headline numbers first, as one thin row across the panel. They were a 2x2 grid
+          beside the health composite, which put two summarising objects side by side and made the
+          reader decide which was the summary. A row of light cells above a heavier card is the shape
+          every analytics page in the references opens with — the numbers, then the reading of them. */}
+      <div className={SPAN}>
         <StatBand
-          layout="grid"
           items={[
             {
               label: "In flight",
@@ -343,34 +316,72 @@ function OverviewTab({ cards, months }: { cards: UseCaseCard[]; months: typeof P
         />
       </div>
 
-      {/* Four measures a committee is held to, each against its target and the last quarter's
-          close. Four different units, so the share-of-target column is what makes them
-          comparable — "how far along" is the only scale they share. */}
+      {/* The composite and its written read, side by side. The prose was at the bottom of the tab,
+          four blocks below the score it explains; a verdict and the sentences that justify it belong
+          on one line. */}
+      <div className={cn(SPAN, "grid items-stretch gap-4 lg:grid-cols-2")}>
+        <TileBox
+          className="h-full"
+          title="Portfolio Health"
+          // No weights line. They were printed per row (cost the labels their width), then moved to a
+          // footer, which restated all four labels to add four numbers nobody reads on the way past.
+          // The rail answers "how is the health score weighted?" — that is the right home for a
+          // question asked once.
+          hint={
+            health.moved === null ? undefined : (
+              // The movement as a chip rather than coloured words in a sentence: this is the one
+              // number on the tile that isn't a share, and mono green mid-sentence read as a typo.
+              <span className="flex items-center gap-1.5">
+                <span
+                  className="font-mono inline-flex items-center gap-0.5 rounded-full border px-2 py-0.5 text-[11px] font-medium leading-none"
+                  style={
+                    health.moved >= 0
+                      ? { color: "var(--tone-success-fg)", background: "var(--tone-success-bg)", borderColor: "var(--tone-success-border)" }
+                      : { color: "var(--tone-warning-fg)", background: "var(--tone-warning-bg)", borderColor: "var(--tone-warning-border)" }
+                  }
+                >
+                  {health.moved >= 0 ? <ArrowUp size={11} /> : <ArrowDown size={11} />}
+                  {Math.abs(health.moved)} pts
+                </span>
+                since last quarter
+              </span>
+            )
+          }
+        >
+          <ScorePanel score={health.score / 100} scale="points" caption={health.verdict.toLowerCase()} parts={health.parts} />
+        </TileBox>
+
+        {/* Two things, which is what a committee reads a page like this for: where the quarter landed,
+            and what to do about it. It was a lead paragraph plus two labelled bullets that each wrapped
+            to a second line — prose with dots in front of it. */}
+        <SummaryPanel
+          className="h-full"
+          title="Reading of the quarter"
+          meta={summaryProvenance(cards, months, AS_OF)}
+          source={reading.summary}
+          actions={reading.actions}
+        />
+      </div>
+
+      {/* Four measures a committee is held to, each against its target. Four different units, so
+          "how far along" is the only scale they share — and that is what the bar draws, rather than
+          asking the reader to compute it from two numeric columns. */}
       <TileBox className={SPAN} title="Annual Performance" hint="derived from the records; targets and prior quarter are set">
-        <DataTable
-          columns={["Measure", "Last Quarter", "Now", "Annual Target", "Against Target"]}
+        <MeasureRows
           rows={annual.map((row) => ({
             key: row.key,
             label: row.label,
-            values: [
-              formatMeasure(row.priorQuarter, row.unit),
-              // The current figure carries the direction of travel, because a number between a
-              // prior and a target is meaningless without knowing which way it moved.
-              <span key="now" className="inline-flex items-center gap-1.5" style={{ color: "var(--text-primary)" }}>
-                {formatMeasure(row.now, row.unit)}
-                <span style={{ color: row.moved >= 0 ? "var(--status-success)" : "var(--tone-warning-fg)" }}>{row.moved >= 0 ? "▲" : "▼"}</span>
-              </span>,
-              formatMeasure(row.target, row.unit),
-              <span key="against" style={{ color: row.onTrack ? "var(--status-success)" : "var(--tone-warning-fg)" }}>
-                {pct(row.against)}
-              </span>,
-            ],
+            now: formatMeasure(row.now, row.unit),
+            target: formatMeasure(row.target, row.unit),
+            ratio: row.against,
+            moved: row.moved,
+            onTrack: row.onTrack,
             tip: `${row.label}\nLast quarter: ${formatMeasure(row.priorQuarter, row.unit)}\nNow: ${formatMeasure(row.now, row.unit)}\nAnnual target: ${formatMeasure(row.target, row.unit)}\n${row.onTrack ? "On track" : `${pct(row.against)} of the way there`}`,
           }))}
         />
-        {/* The reading of the table, not a restatement of it: every measure improved and none is
-            on track, which is a different sentence from any single row. */}
-        <p className="mt-4 border-t border-[var(--border-hairline)] pt-3 text-[12px] text-[var(--text-muted)]">
+        {/* The reading of the rows, not a restatement of them: every measure improved and none is on
+            track, which is a different sentence from any single row. */}
+        <p className="mt-3 border-t border-[var(--border-hairline)] pt-3 text-[12px] text-[var(--text-muted)]">
           {annual.every((row) => row.moved >= 0) ? "Every measure moved the right way" : "Not every measure moved the right way"}
           {annual.some((row) => !row.onTrack)
             ? `, and ${annual.filter((row) => !row.onTrack).length} of ${annual.length} are behind target. Strongest is ${[...annual]
@@ -406,26 +417,10 @@ function OverviewTab({ cards, months }: { cards: UseCaseCard[]; months: typeof P
         />
       </TileBox>
 
-      {/* One prose block on this tab, not two — the "Summary" panel that stood above this said the
-          same things in different words, so its surface was kept and its content dropped.
-
-          Prose with bullets, not a label column. The three findings were briefly a two-column grid
-          with a rule between each row, which turned three sentences into a three-row table — and a
-          table of one-sentence cells is the shape that says "scan me" about writing meant to be read.
-          The lead carries the impact and the two bullets carry cause and action, which is the same
-          shape the value summary uses. */}
-      <div className={SPAN}>
-        <SummaryPanel
-          title="Reading of the Quarter"
-          meta={summaryProvenance(cards, months, AS_OF)}
-          source={[reading.impact, [`- **Bottleneck** — ${reading.bottleneck}`, `- **Next action** — ${reading.nextAction}`].join("\n")].join("\n\n")}
-        />
-      </div>
-
-      {/* A "Blockers" tile stood here — records blocked at a gate or sitting more than a week. It
-          went because "Waiting on This Committee" above covers the same ground with a sharper filter
-          (only what needs a ruling from this table) and the summary sentence names the same records
-          by name. Three statements of one list. */}
+      {/* The prose moved up beside the health score. A "Blockers" tile stood here too — records
+          blocked at a gate or sitting more than a week — and went because "Waiting on This Committee"
+          covers the same ground with a sharper filter (only what needs a ruling from this table).
+ */}
     </div>
   );
 }
@@ -1327,10 +1322,13 @@ function FunctionsTab({ cards, months }: { cards: UseCaseCard[]; months: typeof 
 export function LeadershipViews({
   count,
   action,
+  search,
   narrow = false,
 }: {
   count?: ReactNode;
   action?: ReactNode;
+  // The panel's search, built by the shell so both modes hand out the same control.
+  search?: ReactNode;
   // The rail is put away, so the panel has the whole window and the tiles need holding back.
   narrow?: boolean;
 }) {
@@ -1362,10 +1360,16 @@ export function LeadershipViews({
   }, [quarter]);
 
   const viewTabs = (
-    // Named, not icon-only. `compact` is right for Board / Table, where two familiar glyphs carry it —
-    // but a gauge, a pulse, a coin, a shield and a building are five icons nobody can rank by eye, and
-    // "which of these is Governance" is not a guess a committee should have to make.
+    // Named, not icon-only: a gauge, a pulse, a coin, a shield and a building are five icons nobody can
+    // rank by eye, and "which of these is Governance" is not a guess a committee should have to make.
+    //
+    // Chips rather than tabs. Three levels of switch on one screen need three shapes: the mode is a
+    // boxed toggle on the canvas, the registry's two views are icon buttons beside their heading, and
+    // these are a row of chips. A chip row reads as "pick one of these five", which is what it is —
+    // where an underlined tab strip claims to be navigation, and the mode switch above is already
+    // making that claim.
     <PanelTabs
+      chips
       activeId={tab}
       onSelect={(id) => setTab(id as PortfolioTab)}
       tabs={[
@@ -1418,11 +1422,13 @@ export function LeadershipViews({
             />
           </>
         }
+        search={search}
       />
+      {/* The five readings, on their own row under the subject — the same shape the registry uses for
+          Board and Table. */}
+      <PanelTabRow>{viewTabs}</PanelTabRow>
 
       <div className="mx-auto w-full px-5 pb-8 pt-4" style={narrow ? { maxWidth: RAIL_TRACK } : undefined}>
-        {/* On the content's own measure, so the strip starts at the first tile's left edge. */}
-        <div className="mb-4">{viewTabs}</div>
         {/* An empty scope gets one sentence, not a grid of zeros: a pulse of 100% over no records is
             the most confident wrong number this page could print. */}
         {cards.length === 0 ? (

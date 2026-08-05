@@ -51,7 +51,10 @@ export function StageValueChart({
           dataKey="label"
           tick={{ fontSize: 10, fill: "var(--text-muted)", fontFamily: "var(--mono)" }}
           tickLine={false}
-          axisLine={{ stroke: "var(--border-default)" }}
+          // No axis line. `CartesianGrid` already rules y=0 in the hairline, so drawing an axis over it
+          // put two greys a pixel apart along the baseline — which reads as a second series flat at
+          // zero rather than as an axis.
+          axisLine={false}
           interval={0}
           tickMargin={8}
           // Twelve stage names on one axis: angled, because horizontal they overlap and dropping

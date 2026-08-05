@@ -117,6 +117,7 @@ export function PanelTabs({
   right,
   compact = false,
   segmented = false,
+  chips = false,
 }: {
   tabs: PanelTab[];
   activeId: string;
@@ -129,12 +130,18 @@ export function PanelTabs({
   // it, and the active one is the raised white half. For a pair of mutually exclusive reads of
   // the same data — Health or Value — where a tab strip implies a list you could add to.
   segmented?: boolean;
+  // Chips: each view a small rounded button, the active one filled in the accent's softest step with
+  // an accent border. The third of three shapes on one screen — the mode switch is a boxed toggle on
+  // the canvas, the registry's two views are icon buttons beside their heading, and these are chips.
+  // A chip row says "pick one of these five", which is what it is; an underline says "navigation",
+  // which is what the mode switch above already claims.
+  chips?: boolean;
 }) {
   return (
     <div
       className={cn(
         "no-scrollbar flex shrink-0 items-center overflow-x-auto",
-        segmented ? "gap-0.5 rounded-[10px] border border-[var(--border-default)] bg-[var(--surface-strong)] p-0.5" : "gap-1",
+        segmented ? "gap-0.5 rounded-[10px] border border-[var(--border-default)] bg-[var(--surface-strong)] p-0.5" : chips ? "gap-1.5" : "gap-1",
       )}
     >
       {tabs.map((tab) => {
@@ -142,24 +149,34 @@ export function PanelTabs({
         const shape = cn(
           "inline-flex shrink-0 items-center gap-1.5 text-[13px] transition",
           "outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]",
-          segmented ? "h-8 rounded-[8px]" : "h-9 rounded-[10px]",
-          compact ? "w-9 justify-center" : "px-3",
+          segmented ? "h-8 rounded-[8px]" : chips ? "h-8 rounded-full border" : "h-9 rounded-[10px]",
+          compact ? "w-9 justify-center" : chips ? "px-3" : "px-3",
           segmented
             ? // Inside a boxed toggle the active half is told by its fill against the trough, so
               // it takes no border of its own — one would read as a box inside a box.
               active
               ? "bg-[var(--surface)] font-semibold text-[var(--text-primary)]"
               : "text-[var(--text-body)] hover:text-[var(--text-primary)]"
-            : active
-              ? "border border-[var(--border-default)] bg-white font-semibold text-[var(--text-primary)] "
-              : "text-[var(--text-body)] hover:bg-[var(--surface-hover)]",
+            : chips
+              ? active
+                ? "border-[var(--accent-border)] bg-[var(--accent-soft)] font-semibold text-[var(--accent-strong)]"
+                : "border-[var(--border-hairline)] bg-[var(--surface)] text-[var(--text-body)] hover:border-[var(--border-default)] hover:text-[var(--text-primary)]"
+              : active
+                ? "border border-[var(--border-default)] bg-white font-semibold text-[var(--text-primary)] "
+                : "text-[var(--text-body)] hover:bg-[var(--surface-hover)]",
         );
         // A tooltip only where the icon is the whole label. On a labelled tab it just
         // repeats the word you're already reading.
         const tip = compact ? tab.label : undefined;
         const inner = (
           <>
-            {tab.icon ? <span className={cn("shrink-0", active ? "text-[var(--accent)]" : "text-[var(--text-muted)]")}>{tab.icon}</span> : null}
+            {tab.icon ? (
+              <span
+                className={cn("shrink-0", active ? (chips ? "text-[var(--accent-strong)]" : "text-[var(--accent)]") : "text-[var(--text-muted)]")}
+              >
+                {tab.icon}
+              </span>
+            ) : null}
             {compact ? null : tab.label}
           </>
         );
@@ -285,49 +302,36 @@ export function ContentPanel({
   scroll?: boolean;
   children: ReactNode;
 }) {
+  // The header row is skipped entirely where a route puts nothing in it — the tracker's identity, mode
+  // and profile live in the top bar now, so its panel starts at its own first row instead of opening
+  // with a 52px bar holding one link.
+  const hasHeader = Boolean(icon || title || titleMeta || breadcrumb || tabs || controls);
+
   return (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[12px] border border-[var(--border-default)] bg-[var(--surface)]">
-      <div className="relative flex min-h-[52px] shrink-0 flex-wrap items-center gap-x-2.5 gap-y-1.5 border-b border-[var(--border-hairline)] px-6 py-2">
-        {/* The product mark, leading the panel header. It lived in the rail until the rail moved to the
-            right-hand column and took the app's only top-left identity with it — so it sits here, on
-            the same edge as the content it names, and stays the way back to the board. Ruled off from
-            the breadcrumb: the mark is the product, the crumb is where you are in it. */}
-        <Link href="/" className="shrink-0 text-[14px] font-medium text-[var(--text-primary)] transition hover:text-[var(--accent-strong)]">
-          AI Factory
-        </Link>
-        {/* The rule only where something follows the mark in the flow. With the tabs centred out of the
-            flow there was nothing after it, so the rule hung off the mark's right shoulder pointing at
-            empty space. */}
-        {breadcrumb || title || titleMeta ? <span aria-hidden className="h-4 w-px shrink-0 bg-[var(--border-default)]" /> : null}
-        {icon ? <span className="shrink-0 text-[var(--accent)]">{icon}</span> : null}
-        {title ? <h1 className="font-display min-w-0 shrink-0 truncate text-[18px] leading-tight text-[var(--text-primary)]">{title}</h1> : null}
-        {/* Breadcrumb before the count: what the panel *is* comes before how much
-            of it there is. */}
-        {breadcrumb}
-        {titleMeta}
-        {/* Where the tabs are the only thing in this row besides the mark and the profile, they sit on
-            the panel's own midline rather than tucked against the mark — a two-state switch between
-            whole surfaces belongs on the axis of the thing it switches, and `mx-auto` would only
-            centre it in whatever space the mark and the controls left over. Absolutely placed, it is
-            centred whatever is either side of it, and it needs no dividing rule because nothing is
-            beside it to divide from.
-
-            Where a breadcrumb or a title comes first, the tabs stay in the flow after it with a rule
-            between them: there they are a step in a path, not a switch. */}
-        {tabs ? (
-          breadcrumb || title || titleMeta ? (
+      {hasHeader ? (
+        <div className="relative flex min-h-[52px] shrink-0 flex-wrap items-center gap-x-2.5 gap-y-1.5 border-b border-[var(--border-hairline)] px-6 py-2">
+          {/* The product mark, for the routes whose header leads with a breadcrumb. */}
+          <Link
+            href="/"
+            className="font-display shrink-0 text-[18px] leading-tight text-[var(--text-primary)] transition hover:text-[var(--accent-strong)]"
+          >
+            AI Factory
+          </Link>
+          {breadcrumb || title || titleMeta ? <span aria-hidden className="h-4 w-px shrink-0 bg-[var(--border-default)]" /> : null}
+          {icon ? <span className="shrink-0 text-[var(--accent)]">{icon}</span> : null}
+          {title ? <h1 className="font-display min-w-0 shrink-0 truncate text-[18px] leading-tight text-[var(--text-primary)]">{title}</h1> : null}
+          {breadcrumb}
+          {titleMeta}
+          {tabs ? (
             <>
               <span aria-hidden className="ml-1.5 h-4 w-px shrink-0 bg-[var(--border-default)]" />
               <div className="shrink-0">{tabs}</div>
             </>
-          ) : (
-            <div className="pointer-events-none absolute inset-x-0 top-1/2 z-10 flex -translate-y-1/2 justify-center">
-              <div className="pointer-events-auto">{tabs}</div>
-            </div>
-          )
-        ) : null}
-        {controls ? <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-1.5">{controls}</div> : null}
-      </div>
+          ) : null}
+          {controls ? <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-1.5">{controls}</div> : null}
+        </div>
+      ) : null}
       {/* Content scrolls inside the panel; nothing bleeds past its rounded edge. */}
       <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden", scroll && "no-scrollbar overflow-y-auto")}>{children}</div>
       {footer ? (
@@ -340,6 +344,37 @@ export function ContentPanel({
 // ── The frame ──
 // Two grids sharing one column template: the rail/tab bar, then the rail body
 // and the panel. Whitespace — not a divider — separates rail from panel.
+
+// ── The top bar ──
+// Above the panel, directly on the canvas: what the product is, which of its two surfaces you are on,
+// and who you are. These were all inside the panel header, which made the panel's own chrome carry
+// three different scales of thing at once — the product, the mode, the view and the view's filters,
+// four levels in two rows. Out here the mode switch reads as switching *the whole page*, which is what
+// it does, and the panel below is free to be about one thing.
+export function AppTopBar({ center, right }: { center?: ReactNode; right?: ReactNode }) {
+  return (
+    // `relative` is load-bearing: without it the centred slot below resolves against the viewport
+    // rather than this column, which put the mode toggle on the *window's* midline while the panel it
+    // belongs to is narrower by the width of the rail. 56px and `pt-2 pb-3` give the row the same
+    // breathing space the panel's own first row has, so the mark and the rail's "Assistant" land level.
+    <div className="relative flex min-h-[56px] shrink-0 items-center gap-4 px-3 pb-3 pt-2">
+      <Link
+        href="/"
+        className="font-display shrink-0 text-[20px] leading-tight text-[var(--text-primary)] transition hover:text-[var(--accent-strong)]"
+      >
+        AI Factory
+      </Link>
+      {/* Centred on the window, absolutely, so it sits on the axis whatever the widths of the mark and
+          the profile either side of it. */}
+      {center ? (
+        <div className="pointer-events-none absolute inset-x-0 flex justify-center">
+          <div className="pointer-events-auto">{center}</div>
+        </div>
+      ) : null}
+      {right ? <span className="ml-auto flex shrink-0 items-center gap-1.5">{right}</span> : null}
+    </div>
+  );
+}
 
 // ── The view row ──
 // The second row of the panel: which view of the active mode is showing, and the controls that
@@ -354,53 +389,51 @@ export function PanelViewRow({
   views,
   controls,
   action,
+  search,
 }: {
-  // The mode's own title, and the row's anchor. The panel header names the *product* and which mode
-  // is active; this says what you are looking at, at a size that reads as a page heading rather than
-  // as another control — a header made only of controls gives the eye nowhere to land.
+  // What you are looking at, and how much of it. The panel's own subject — the mode and the product
+  // are up in the top bar now, so this row has one job.
   heading: string;
   count?: ReactNode;
-  // The views within the mode. Optional: where there are only two of them they're better off as an
-  // icon toggle among the controls than as a labelled strip competing with the heading.
+  // Views that belong beside the subject rather than on a row of their own — two icon buttons, where
+  // the pair is small enough to sit next to the heading without competing with it.
   views?: ReactNode;
   controls?: ReactNode;
-  // The surface's standing action, last. Kept out of `controls` so it sits after the rule whichever
-  // mode is showing, rather than drifting to a different place in each.
+  // The surface's standing action, set apart by a gap rather than a rule. Before `search`, not after:
+  // search is the last thing in the row on both modes, so its position doesn't move when you switch —
+  // and the green button in the middle of the run reads as the end of the *filters*, which it is.
   action?: ReactNode;
+  // Always last, so the one control that appears on every mode is always in the same place.
+  search?: ReactNode;
 }) {
   return (
-    // Full width, always. A `measure` prop lived here for one revision so the heading could line up
-    // with capped content below — but this row is chrome, and chrome belongs at the panel's edges: the
-    // scope selects pulled 300px in from the right edge read as floating in the middle of the card.
-    <div className="flex min-h-[52px] shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-[var(--border-hairline)] px-5 py-2">
-      {/* Display serif at 18px, the size `ContentPanel` gives its own title — this row *is* the page
-            heading now that the panel header is identity and mode only. No rule after it: 18px serif
-            beside 13px sans separates itself, and this header had more rules than it had groups. */}
-      <h2 className="font-display shrink-0 text-[18px] leading-tight text-[var(--text-primary)]">{heading}</h2>
+    // The rule is back. It came off while the panel header above it ended in one — two hairlines eight
+    // pixels apart banded the top of the panel. With that header gone this is the panel's first row, so
+    // the rule is what separates its subject from the views under it.
+    <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-[var(--border-hairline)] px-5 py-2.5">
+      <h2 className="shrink-0 text-[15px] font-semibold leading-tight text-[var(--text-primary)]">{heading}</h2>
       {count}
-      {/* Views sit with the heading, not with the filters. Which view you're in is part of *what
-            you're looking at*; search and the filters are what has been taken away from it. On the
-            right they made a run of five controls that had to be read one at a time to find out which
-            were about the data and which about the drawing of it. */}
       {views ? <div className="ml-1.5 shrink-0">{views}</div> : null}
-      {/* One group, tight: `gap-1` inside the filters and the rule before the action are what say
-            "these belong together, that one doesn't". At an even 6px everything read as a queue of
-            unrelated buttons. */}
       <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
         {controls}
-        {action ? (
-          <>
-            <span aria-hidden className="mx-0.5 h-4 w-px shrink-0 bg-[var(--border-default)]" />
-            {action}
-          </>
-        ) : null}
+        {action ? <span className="ml-1.5 shrink-0">{action}</span> : null}
+        {search ? <span className="ml-1.5 shrink-0">{search}</span> : null}
       </div>
     </div>
   );
 }
 
+// The views of the active mode, on their own row under the subject. Not in the row above: a tab strip
+// beside a heading and a run of filters is a third kind of control in a row that already had two.
+export function PanelTabRow({ children }: { children: ReactNode }) {
+  // `pt-3 pb-2`, and the content below adds its own `pt-4`: a chip row four pixels off the cards it
+  // switches read as attached to the first one rather than as sitting over all of them.
+  return <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 px-5 pb-2 pt-3">{children}</div>;
+}
+
 export function AppShell({
   banner,
+  topBar,
   railHeader,
   rail,
   aside,
@@ -410,6 +443,9 @@ export function AppShell({
 }: {
   // Full-width strip above everything (e.g. a returned / rejected notice).
   banner?: ReactNode;
+  // The canvas-level row above the columns: product, mode, person. Optional, because the record routes
+  // keep their identity inside the panel header beside their breadcrumb.
+  topBar?: ReactNode;
   // Both optional, though every route currently passes them — the one surface that didn't (the
   // standalone leadership view, which docked its assistant in a floating panel) is a tab of the
   // tracker now and uses the rail like everything else.
@@ -446,8 +482,16 @@ export function AppShell({
     // One row of content: the rail and the panel, each carrying its own header.
     <main className="chat-glow flex h-screen flex-col overflow-hidden bg-[var(--shell-canvas)] text-[var(--text-primary)]">
       {banner}
-      <div className="grid min-h-0 min-w-0 flex-1 gap-x-3 overflow-hidden px-3 py-3" style={{ gridTemplateColumns: columns }}>
-        {railExpanded ? null : <div className="flex min-h-0 min-w-0 flex-col">{children}</div>}
+      <div className="grid min-h-0 min-w-0 flex-1 gap-x-3 overflow-hidden px-3 pb-3 pt-1" style={{ gridTemplateColumns: columns }}>
+        {railExpanded ? null : (
+          // The top bar rides above the panel *inside its own column*, so the rail's header sits beside
+          // it rather than under it. Spanning the whole window it centred the mode on the window's axis,
+          // which is a different line from the panel's — and it pushed the rail's header down a row.
+          <div className="flex min-h-0 min-w-0 flex-col">
+            {topBar}
+            {children}
+          </div>
+        )}
         {/* The rail's grid item always renders: a display:none item is skipped by
  auto-placement, which would slide the panel into the rail's track. The
  conversation inside is hidden instead, so putting the rail away and

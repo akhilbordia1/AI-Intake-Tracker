@@ -24,7 +24,7 @@ import {
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
-import { AppShell, ContentPanel, PanelTabs, PanelViewRow, RailHeader, useRailMode } from "@/components/app-shell";
+import { AppShell, AppTopBar, ContentPanel, PanelTabs, PanelViewRow, RailHeader, useRailMode } from "@/components/app-shell";
 import { ChatHistoryButton, useChatSessions, type ChatSession, type ChatTurn } from "@/components/chat/chat-history";
 import { ChatCardList } from "@/components/chat/chat-use-case-card";
 import { JumpToTop } from "@/components/chat/chat-ui";
@@ -293,6 +293,24 @@ export function TrackerView({ initialPhase, initialTab }: { initialPhase?: strin
   // can't say it differently: the count is what the active mode actually counts — the board counts
   // what its filters left, the committee counts everything ever raised, closed records included —
   // and the tip spells that out.
+  // The phase filter's chip, beside the count. It arrived with the panel header's `titleMeta` and stays
+  // on the subject row for the same reason it existed: a filter you reached by link has to be visible
+  // and removable, or the board just looks like it lost most of its cards.
+  const phaseChip = phaseFilter ? (
+    <button
+      type="button"
+      onClick={() => setPhaseFilter(undefined)}
+      data-tip="Clear the phase filter"
+      className={cn(
+        CHIP,
+        "inline-flex shrink-0 items-center gap-1 border border-[var(--accent-border)] bg-[var(--accent-soft)] text-[var(--accent-strong)] transition hover:bg-[var(--surface-hover)]",
+      )}
+    >
+      <PhaseIcon phase={phaseFilter} size={12} />
+      {phaseFilter}
+      <X size={12} />
+    </button>
+  ) : null;
   const rowCount = (
     <span
       data-tip={
@@ -311,8 +329,23 @@ export function TrackerView({ initialPhase, initialTab }: { initialPhase?: strin
   // thing in a row of filters — three words of chrome for a door most sessions never use. The label
   // survives as the tooltip and the accessible name, which is where an icon-only control has to keep
   // it.
+  // Search belongs to the panel's subject row on both modes, so it is built once here and handed to
+  // whichever row is showing.
+  const searchControl = (
+    <CollapsingSearch
+      value={search}
+      onChange={(next) => {
+        setSearch(next);
+        if (next && leadership) setMode("registry");
+      }}
+    />
+  );
   const newUseCase = (
-    <ButtonLink href="/intake" tone="primary" aria-label="New use case" data-tip="New use case" className="w-9 justify-center px-0">
+    // 34, not 36. It measures the same as the two outlined buttons beside it and still read taller: a
+    // solid fill shows its whole box as ink where an outline shows a hairline, so equal heights are not
+    // equal weights. Two pixels off the filled one makes them look level, which is the thing that
+    // matters.
+    <ButtonLink href="/intake" tone="primary" aria-label="New use case" data-tip="New use case" className="h-[34px] w-[34px] justify-center px-0">
       <Plus size={16} />
     </ButtonLink>
   );
@@ -381,79 +414,39 @@ export function TrackerView({ initialPhase, initialTab }: { initialPhase?: strin
           />
         </div>
       }
+      topBar={
+        <AppTopBar
+          center={
+            // The mode, boxed as one control and centred on the window. Out of the panel entirely: it
+            // switches the whole page, and inside the panel header it read as one more of the panel's
+            // own controls.
+            <PanelTabs
+              segmented
+              activeId={mode}
+              onSelect={(id) => setMode(id as PanelMode)}
+              tabs={[
+                { id: "registry", label: "Registry", icon: <Layers size={15} /> },
+                { id: "reporting", label: "Reporting", icon: <Gauge size={15} /> },
+              ]}
+            />
+          }
+          right={<ProfileSwitcher currentUser={activeProfile} onUserChange={setActiveProfile} compact />}
+        />
+      }
     >
       <ContentPanel
-        // No breadcrumb here any more: it and its count moved down to the view row, where the count
-        // sits beside the filters that change it. What's left in this header is the product, the mode,
-        // and who you are.
-        tabs={
-          // The mode, named, and boxed as one control. As a plain tab strip the active half took a
-          // white card and a border of its own, which is the exact shape Board / Table wears a row
-          // below — two levels wearing one costume. A segmented toggle says "two states of one
-          // switch", which is what this is, and it can't be confused for the row beneath it.
-          <PanelTabs
-            segmented
-            activeId={mode}
-            onSelect={(id) => setMode(id as PanelMode)}
-            tabs={[
-              { id: "registry", label: "Registry", icon: <Layers size={15} /> },
-              { id: "reporting", label: "Reporting", icon: <Gauge size={15} /> },
-            ]}
-          />
-        }
-        // Who you are, and the way to go and find a record. The attention filter and the grouping menu
-        // are further down in the registry's own view row: they subtract from what is shown, so they
-        // belong beside the thing they subtract from.
-        controls={
-          <>
-            <ProfileSwitcher currentUser={activeProfile} onUserChange={setActiveProfile} compact />
-            {/* Search sits with the profile in the top row rather than among the filters, on both modes.
-                It is a different kind of thing from the filters it used to sit beside: those subtract
-                from what is shown, this one goes and finds something — so it is navigation, and it is
-                offered wherever you are.
-                
-                Which is why typing into it from Reporting switches to Registry: there is nothing on a
-                page of portfolio composites for a record query to narrow, and a search box that
-                silently does nothing is worse than one that isn't there. It takes you to the records
-                instead. */}
-            <CollapsingSearch
-              value={search}
-              onChange={(next) => {
-                setSearch(next);
-                if (next && leadership) setMode("registry");
-              }}
-            />
-          </>
-        }
+        // No header props: the product, the mode and the profile are in the top bar, so this panel opens
+        // on its own first row — the subject and its filters — instead of a bar holding one link.
+        //
         // The board and the table manage their own overflow (sideways columns, a capped table); the
-        // leadership tab is a column of tiles that has to scroll as one.
+        // reporting mode is a column of tiles that has to scroll as one.
         scroll={leadership}
-        titleMeta={
-          // Only the phase chip is left here. A filter you arrived at by link has to be visible and
-          // removable, or the board just looks like it lost most of its cards — and it belongs to the
-          // panel rather than to a mode, since the link that sets it can land on either.
-          phaseFilter ? (
-            <button
-              type="button"
-              onClick={() => setPhaseFilter(undefined)}
-              data-tip="Clear the phase filter"
-              className={cn(
-                CHIP,
-                "inline-flex items-center gap-1 border border-[var(--accent-border)] bg-[var(--accent-soft)] text-[var(--accent-strong)] transition hover:bg-[var(--surface-hover)]",
-              )}
-            >
-              <PhaseIcon phase={phaseFilter} size={12} />
-              {phaseFilter}
-              <X size={12} />
-            </button>
-          ) : null
-        }
       >
         {leadership ? (
           // No `action`: "New use case" is the registry's door. A committee reading the portfolio is
           // not filing an idea, and a primary button for it was the loudest thing on a page of
           // measures.
-          <LeadershipViews count={rowCount} narrow={railMode.collapsed} />
+          <LeadershipViews count={rowCount} narrow={railMode.collapsed} search={searchControl} />
         ) : (
           <>
             {/* The registry's view row — the same `PanelViewRow` reporting uses. Board and Table are
@@ -461,14 +454,18 @@ export function TrackerView({ initialPhase, initialTab }: { initialPhase?: strin
                 that only make sense over records came down with them. */}
             <PanelViewRow
               heading="Use cases"
-              count={rowCount}
-              action={newUseCase}
+              count={
+                <>
+                  {rowCount}
+                  {phaseChip}
+                </>
+              }
               views={
-                // An icon toggle rather than a labelled strip: two familiar glyphs carry it, and
-                // labelled tabs beside an 18px heading read as a second set of modes — the thing the
-                // row above is for. Segmented, because it is one switch with two states.
+                // Icon-only, beside the subject. A pair this small doesn't need a row of its own, and
+                // as labelled tabs under the heading they read as a second set of modes — which is the
+                // job of the toggle up on the canvas. Not segmented either: that shape belongs to the
+                // mode switch, and a view is a step below a mode.
                 <PanelTabs
-                  segmented
                   compact
                   activeId={displayMode}
                   onSelect={(id) => setDisplayMode(id as DisplayMode)}
@@ -478,6 +475,7 @@ export function TrackerView({ initialPhase, initialTab }: { initialPhase?: strin
                   ]}
                 />
               }
+              action={newUseCase}
               controls={
                 <>
                   <Button
@@ -494,6 +492,7 @@ export function TrackerView({ initialPhase, initialTab }: { initialPhase?: strin
                   <FilterMenu activeView={activeView} onViewChange={setActiveView} activeScope={scopeFilter} onScopeChange={setScopeFilter} />
                 </>
               }
+              search={searchControl}
             />
             {displayMode === "board" ? (
               <section className="flex min-h-0 flex-1 flex-col">
@@ -541,7 +540,10 @@ function CollapsingSearch({ value, onChange }: { value: string; onChange: (value
     return (
       <IconButton
         label="Search use cases"
-        size={32}
+        // 36, matching every other control in this row. At 32 it sat four pixels shorter than the
+        // buttons either side of it, which on a row of five controls reads as one of them being
+        // slightly wrong rather than as a deliberate difference.
+        size={36}
         onClick={() => {
           setOpen(true);
           requestAnimationFrame(() => inputRef.current?.focus());

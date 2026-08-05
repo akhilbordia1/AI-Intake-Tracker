@@ -85,7 +85,8 @@ export function TimeChart({
             dataKey="label"
             tick={{ fontSize: 11, fill: "var(--text-muted)", fontFamily: "var(--mono)" }}
             tickLine={false}
-            axisLine={{ stroke: "var(--border-default)" }}
+            // The grid already rules y=0 in the hairline; an axis line over it doubles the baseline.
+            axisLine={false}
             // The first and last points sat on the axes themselves. A little padding
             // gives them somewhere to be, and `interval={0}` keeps every month labelled
             // rather than letting recharts drop every other one as the tile narrows.

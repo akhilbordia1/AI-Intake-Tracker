@@ -910,12 +910,19 @@ export function annualPerformance(
 // it. Assembled from derivations rather than authored, so it cannot drift from the tiles — and
 // phrased as findings rather than as metrics, because a committee reads prose.
 // ai-upgrade: swap for a model call over the same derivations.
+// The quarter in two parts: what happened, and what to do about it.
+//
+// It used to return three labelled findings ("impact", "bottleneck", "next action") which the panel
+// set as a lead paragraph and two bullets — and two bullets that each wrapped to a second line is not
+// a list, it is prose with dots in front of it. A committee reads a page like this for exactly two
+// things, so those are the two things: one paragraph that says where the quarter landed and why, and
+// a short list of imperatives. The bottleneck moved into the paragraph, because it is a *reason*, not
+// an action anyone can take.
 export function committeeReading(cards: UseCaseCard[], months: PortfolioMonth[], phases: PhaseMap, asOf: string) {
   const real = realization(cards);
   const cycle = medianCycleDaysByPhase(cards, phases);
   const ranked = phasesBySpeed(cycle, phases);
   const slow = ranked[0];
-  const register = cards.filter((card) => card.lifecycle === "Active");
   const queue = committeeQueue(cards, asOf);
   const under = underSupervised(cards).filter((card) => card.lifecycle === "Live");
   const oldest = oldestOpenGate(cards, asOf);
@@ -923,28 +930,33 @@ export function committeeReading(cards: UseCaseCard[], months: PortfolioMonth[],
   const worstControl = [...controls].sort((a, b) => a.ratio - b.ratio)[0];
 
   return {
-    impact: `The portfolio returned **${usd(real.confirmed)}** annualised against **${usd(real.projected)}** projected — a ${pct(
-      real.ratio,
-    )} realization rate across ${real.live} live use cases, leaving ${usd(real.shortfall)} unrealised.`,
-    bottleneck: slow
-      ? `**${slow}** is the longest phase at a median **${cycle[slow]?.days} days** across ${cycle[slow]?.sample} records that have left it${
-          register.length ? `, with ${cycle[slow]?.open ?? 0} still in it` : ""
-        }.`
-      : `Nothing has left a phase yet, so there is no cycle time to report.`,
-    nextAction:
-      [
-        oldest
-          ? `Clear the ${oldest.card.gate?.id} decision on **${oldest.card.title}** — ${oldest.days} days with ${oldest.card.actionOwner}.`
-          : null,
-        under.length
-          ? `Reconcile oversight on ${under.length === 1 ? "**" + under[0].title + "**" : under.length + " live records"}: ${under.length === 1 ? "live" : "all live"}, ${under[0].riskLevel.toLowerCase()} risk, supervised below tier.`
-          : null,
-        worstControl && worstControl.inPlace < worstControl.total
-          ? `${worstControl.label} is in place on ${worstControl.inPlace} of ${worstControl.total} live records.`
-          : null,
-      ]
-        .filter(Boolean)
-        .join(" ") || `Nothing needs this committee: ${queue.length} open queues.`,
+    // No bold. Every figure and record name used to be wrapped in `**`, which put eight bold fragments
+    // in six lines — at that density the emphasis marks nothing and only adds weight. Figures read as
+    // figures because they are figures.
+    summary: [
+      // The shortfall came off: it is the difference between two figures already in the sentence, and
+      // a reader who wants it can subtract. Three clauses is what one sentence can carry.
+      `${usd(real.confirmed)} returned against ${usd(real.projected)} projected — a ${pct(real.ratio)} realization rate across ${real.live} live use cases.`,
+      slow ? `${slow} is the slowest phase at a median ${cycle[slow]?.days} days, with ${cycle[slow]?.open ?? 0} records still in it.` : null,
+    ]
+      .filter(Boolean)
+      .join(" "),
+    // Imperatives, one line each, most urgent first. Each names the record or the control it is about,
+    // because "reconcile oversight" without a subject is not an action.
+    actions: [
+      oldest ? `Clear the ${oldest.card.gate?.id} decision on ${oldest.card.title} — ${oldest.days} days with ${oldest.card.actionOwner}.` : null,
+      under.length
+        ? `Reconcile oversight on ${under.length === 1 ? under[0].title : `${under.length} live records`} — supervised below ${under.length === 1 ? "its" : "their"} risk tier.`
+        : null,
+      worstControl && worstControl.inPlace < worstControl.total
+        ? `Finish ${worstControl.label.toLowerCase()} — in place on ${worstControl.inPlace} of ${worstControl.total} live records.`
+        : null,
+      // Two, not three. A committee leaves a meeting with the next thing and the one after it; a third
+      // line is where a list starts being a backlog, and the agenda block below already holds the rest.
+    ]
+      .filter((line): line is string => Boolean(line))
+      .slice(0, 2),
+    openQueues: queue.length,
   };
 }
 
@@ -1040,8 +1052,15 @@ export function reconcile(cards: UseCaseCard[], months: PortfolioMonth[], phases
 // same prose with its sources beside it reads as a derivation you could check. It sits
 // in the panel's header, not a footer bar under it — a whole ruled-off strip for one
 // muted line was more chrome than the line was worth.
-export function summaryProvenance(cards: UseCaseCard[], months: PortfolioMonth[], asOf: string): string {
-  return `${cards.length} records · ${months.length} month-ends · ${formatDay(asOf)}`;
+// What a written summary was written from. Two forms: the date on its own for the header, and the
+// whole line for its tooltip. Spelled out, "18 records · 6 month-ends · 8 Jul 2026" was a mono
+// sentence as long as the title beside it, for a fact that is checked once and then trusted — the
+// as-of date is the part anyone actually reads at a glance.
+export function summaryProvenance(cards: UseCaseCard[], months: PortfolioMonth[], asOf: string) {
+  return {
+    short: formatDay(asOf),
+    full: `Written from ${cards.length} records and ${months.length} month-ends\nAs of: ${formatDay(asOf)}`,
+  };
 }
 
 export function healthSummary(cards: UseCaseCard[], months: PortfolioMonth[], phases: PhaseMap, asOf: string): string {

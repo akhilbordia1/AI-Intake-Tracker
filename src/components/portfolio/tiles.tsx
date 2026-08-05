@@ -27,12 +27,20 @@ export function SummaryPanel({
   title,
   source,
   meta,
+  actions,
+  className,
 }: {
   title: string;
   source: string;
-  // What the prose was written from, on the header's right. There is no footer bar: a
-  // ruled-off strip carrying one muted line was more chrome than the line was worth.
-  meta?: string;
+  // What to do about what the prose just said. Rendered as rows rather than as Markdown bullets: a
+  // bullet is a fragment of the paragraph above it, and these are separate things a person does.
+  // Numbered, because they are in order of urgency and a committee works down them.
+  actions?: string[];
+  className?: string;
+  // What the prose was written from, on the header's right — collapsed to the as-of date, with the
+  // whole provenance on hover. There is no footer bar either: a ruled-off strip carrying one muted
+  // line was more chrome than the line was worth.
+  meta?: { short: string; full: string };
 }) {
   return (
     // Tinted in the accent, because "quiet" stopped working. This was `--surface-muted` (#fcfbfa)
@@ -45,31 +53,55 @@ export function SummaryPanel({
     // padding sits on the two halves so the header rule runs the full width the way a tile's does.
     // The tracked-caps label and the glyph take the accent's darkest step, which is legible on this
     // fill at 8.7:1 and reads as the same family as the numbers it comments on.
-    <section className="rounded-[10px] border border-[var(--accent-border)] bg-[var(--accent-soft)]">
-      {/* Ruled off like a tile's header. This deliberately had no rule — the reasoning was that
-          a passage of prose doesn't need its title boxed off — but a summary sitting in a column
-          of tiles that all rule their headers was the one card built differently, and that read
-          as an oversight rather than as a distinction. The muted fill and the glyph are enough
-          to mark it as something written. */}
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-[var(--accent-border)] px-5 py-3">
-        <h3 className="inline-flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-[0.07em] text-[var(--accent-strong)]">
+    // Tinted in the accent, because "quiet" stopped working. This was `--surface-muted` (#fcfbfa) on a
+    // `--shell-canvas` (#faf9f6) page — two points apart per channel, which is no difference at all
+    // once the panel's own white card came off and the canvas showed through. A block that is *written*
+    // rather than measured has to be a different surface, not a slightly different white.
+    <section className={cn("flex flex-col rounded-[10px] border border-[var(--accent-border)] bg-[var(--accent-soft)]", className)}>
+      {/* One line, no rule. The header carried four emphasis devices at once — tracked uppercase, the
+          accent's darkest ink, a mono provenance line of its own, and a rule under the pair — over a
+          block that is three sentences long. Sentence case at 12px with the provenance pushed to the
+          right of the same line leaves the glyph and the tint to say "this was written", which is all
+          it needed to say. */}
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-5 pb-1 pt-4">
+        <h3 className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[var(--accent-strong)]">
           <Sparkles size={13} className="text-[var(--accent)]" />
           {title}
         </h3>
-        {meta ? <span className="font-mono text-[11px] text-[var(--accent-strong)] opacity-70">{meta}</span> : null}
+        {meta ? (
+          <span data-tip={meta.full} className="font-mono text-[11px] text-[var(--accent-strong)] opacity-60">
+            {meta.short}
+          </span>
+        ) : null}
       </div>
-      {/* No reading measure on top of the box. An 86ch cap inside a panel already capped
-          at 1080px left every line stopping a few hundred pixels short of its own right
-          edge, so each bullet wrapped early against a wide empty gutter. The box is the
-          measure here — it's three lines, not an article.
-
-          13px, down from Markdown's own 14px: this is the same direction as the earlier fix
-          that took a 15px override off it. The tile rows around it are 13px, so at 14px the
-          summary was still the largest text on the page, and three lines of it at that size
-          made the panel the tallest block above the numbers it comments on. */}
-      <div className="px-5 py-4">
-        <Markdown source={source} className="text-[13px] leading-[1.6]" />
+      {/* The lighter Fraunces (`.font-serif-body`, weight 380) rather than 13px sans. The point is
+          weight, not size: three lines of dense sans at 13px is a slab, and the serif's thinner strokes
+          at 14px take up more room while putting less ink on the page. It also *reads* as written
+          rather than as another label — which is the one thing this block is for, and the reason
+          DESIGN.md keeps a prose serif at all. */}
+      <div className="px-5 pb-4 pt-2">
+        <Markdown source={source} className="font-serif-body text-[14px] leading-[1.7] text-[var(--text-body)]" />
       </div>
+      {actions?.length ? (
+        <div className="border-t border-[var(--accent-border)] px-5 py-3">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--accent-strong)] opacity-70">Next steps</p>
+          <ol className="mt-2 flex flex-col gap-2">
+            {actions.map((action, index) => (
+              <li key={action} className="flex gap-2.5 text-[13px] leading-[1.5] text-[var(--text-body)]">
+                {/* The index as a counter rather than a bullet: it says "first, then" where a dot says
+                    "and also", and these are ordered by what is most overdue. */}
+                <span
+                  aria-hidden
+                  className="font-mono mt-[3px] grid h-[17px] w-[17px] shrink-0 place-items-center rounded-full bg-[var(--accent)] text-[10px] font-semibold text-[var(--surface)]"
+                >
+                  {index + 1}
+                </span>
+                <span className="min-w-0">{action}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -303,6 +335,61 @@ export function TargetCards({
         </div>
       ))}
     </section>
+  );
+}
+
+// Measures against their targets: one row each, the figure and the bar in the same line.
+//
+// This replaces a five-column table (Measure · Last Quarter · Now · Annual Target · Against Target)
+// on the Overview. Four rows by five columns is twenty numeric cells, and the only comparison anybody
+// makes across four measures in four different units is "how far along" — which the table asked you to
+// compute from two of its columns. The bar draws it. Last quarter survives as the direction arrow and
+// the hover, because a delta is a fact about one row rather than a column to be scanned.
+export function MeasureRows({
+  rows,
+}: {
+  rows: { key: string; label: string; now: string; target: string; ratio: number; moved: number; onTrack: boolean; tip?: string }[];
+}) {
+  if (!rows.length) return <TileEmpty />;
+  return (
+    <div className="flex flex-col">
+      {rows.map((row, index) => (
+        <div
+          key={row.key}
+          data-tip={row.tip}
+          className={cn(
+            "grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(72px,180px)_44px] items-center gap-x-4 gap-y-1 py-3",
+            index > 0 && "border-t border-[var(--border-hairline)]",
+          )}
+        >
+          <span className="min-w-0 truncate text-[13px] text-[var(--text-body)]">{row.label}</span>
+          {/* The figure, its direction, and what it is being measured against — one phrase, so the
+              reader never has to hold a number from one column against a number in another. */}
+          <span className="font-mono flex shrink-0 items-baseline gap-1.5 text-[13px] [font-variant-numeric:tabular-nums]">
+            <span className="text-[15px] font-semibold text-[var(--text-primary)]">{row.now}</span>
+            <span aria-hidden style={{ color: row.moved >= 0 ? "var(--status-success)" : "var(--tone-warning-fg)" }}>
+              {row.moved >= 0 ? "▲" : "▼"}
+            </span>
+            <span className="text-[var(--text-faint)]">/ {row.target}</span>
+          </span>
+          <span className="relative h-2 overflow-hidden rounded-full bg-[var(--surface-strong)]">
+            <span
+              className="absolute inset-y-0 left-0 rounded-full"
+              style={{
+                width: `${Math.round(Math.max(0.02, Math.min(1, row.ratio)) * 100)}%`,
+                background: row.onTrack ? "var(--status-success)" : "var(--accent)",
+              }}
+            />
+          </span>
+          <span
+            className="font-mono text-right text-[12px] font-medium [font-variant-numeric:tabular-nums]"
+            style={{ color: row.onTrack ? "var(--status-success)" : "var(--tone-warning-fg)" }}
+          >
+            {Math.round(row.ratio * 100)}%
+          </span>
+        </div>
+      ))}
+    </div>
   );
 }
 
