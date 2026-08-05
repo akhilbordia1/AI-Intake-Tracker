@@ -2984,7 +2984,7 @@ function PlanRow({ label, hint, children }: { label: string; hint?: string; chil
 
 function MandateBanner() {
   return (
-    <div className="rounded-[10px] border border-[var(--tone-success-border)] bg-gradient-to-r from-[#eef6f0] to-[#f6faf7] px-4 py-3">
+    <div className="rounded-[10px] border border-[var(--tone-success-border)] bg-gradient-to-r from-[var(--tone-success-bg)] to-[var(--surface)] px-4 py-3">
       <div className="flex items-center gap-3">
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[var(--tone-success-fg)] text-white">
           <Check size={19} strokeWidth={2.5} />
@@ -2998,7 +2998,7 @@ function MandateBanner() {
         {["2 binding conditions", "Go-live Q3 2026", "Standard tier"].map((chip) => (
           <span
             key={chip}
-            className="whitespace-nowrap rounded-full border border-[var(--tone-success-border)] bg-white/80 px-2.5 py-1 text-[12px] font-medium text-[#25603f]"
+            className="whitespace-nowrap rounded-full border border-[var(--tone-success-border)] bg-[var(--surface)]/80 px-2.5 py-1 text-[12px] font-medium text-[var(--tone-success-fg)]"
           >
             {chip}
           </span>
@@ -3119,7 +3119,7 @@ function LockableMetrics() {
             >
               <span className="text-[13px] font-medium leading-5 text-[var(--text-primary)]">{metric}</span>
               {isLocked ? (
-                <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-[#a9d9bc] bg-white px-2.5 py-1 text-[12px] font-semibold text-[var(--tone-success-fg)]">
+                <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-[var(--tone-success-border)] bg-[var(--surface)] px-2.5 py-1 text-[12px] font-semibold text-[var(--tone-success-fg)]">
                   <Lock size={12} /> Locked
                 </span>
               ) : (

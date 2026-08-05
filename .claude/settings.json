@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "p=$(jq -r \".tool_input.file_path\"); case \"$p\" in *src/data/registry.ts|*src/data/lifecycle.ts|*src/lib/portfolio.ts) out=$(RUN_DEMO=1 node src/lib/portfolio.ts 2>&1) || { printf \"%s\n\" \"$out\" >&2; exit 2; } ;; esac; exit 0",
+            "statusMessage": "Reconciling the seed…",
+            "timeout": 60
+          },
+          {
+            "type": "command",
+            "command": "p=$(jq -r \".tool_input.file_path\"); case \"$p\" in *.ts|*.tsx) hits=$(grep -nE \"\\\"#[0-9a-fA-F]{3,8}\\\"|\\[#[0-9a-fA-F]{3,8}\\]\" \"$p\") && { printf \"raw hex in %s — use a --token from globals.css (DESIGN.md: no raw hex in components):\n%s\n\" \"$p\" \"$hits\" >&2; exit 2; } ;; esac; exit 0",
+            "statusMessage": "Checking for raw hex…",
+            "timeout": 20
+          }
+        ]
+      }
+    ]
+  }
+}

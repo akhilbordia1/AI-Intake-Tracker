@@ -371,9 +371,9 @@ export function ContentPanel({
 export function AppTopBar({ center, right }: { center?: ReactNode; right?: ReactNode }) {
   return (
     // `relative` is load-bearing: without it the centred slot below resolves against the viewport
-    // rather than this column, which put the mode toggle on the *window's* midline while the panel it
-    // belongs to is narrower by the width of the rail. 56px and `pt-2 pb-3` give the row the same
-    // breathing space the panel's own first row has, so the mark and the rail's "Assistant" land level.
+    // rather than this row, which put the mode toggle on the *window's* midline while the row it belongs
+    // to stops at the rail. 56px and `pt-2 pb-3` give the row the same breathing space the panel's own
+    // first row has, so the mark and the rail's "Assistant" land level.
     <div className="relative flex min-h-[56px] shrink-0 items-center gap-4 px-3 pb-3 pt-2">
       <Link
         href="/"
@@ -492,34 +492,43 @@ export function AppShell({
   // the top bar's product mark, and the composer sits under the pointer's resting corner.
   //
   // On `/detail` the details sheet stays next to its record and the rail goes outside it: the sheet
-  // is part of the object, the chat is about it.
-  // Two columns, always: the content and the side track. The details sheet used to add a third, which
-  // squeezed the record it describes into the middle of three panels — and the sheet is *about* the
-  // record, so taking width from it to show it is the wrong trade. It shares the rail's column now and
-  // covers it, which is also what a sheet is: something that comes over what you were doing.
-  // One track or two. Expanded and collapsed are the one-track cases from opposite ends: the chat has
-  // taken the whole area, or it has left it — but an open details sheet keeps the track either way,
-  // because the sheet lives in it. Put the rail away with the sheet open and the column is the sheet's.
-  const railAway = railCollapsed && !aside;
+  // is part of the object, the chat is about it. So it gets a **track of its own, in the middle** —
+  // record, sheet, chat. It shared the rail's column and covered it for a while, which was cheaper in
+  // width but put the assistant behind the one panel you open to check a fact you might then want to
+  // ask about; a sheet that hides the chat makes the two halves of the record exclusive.
+  // The sheet is *not* a track of this grid: it splits the panel's column, so the top bar above it
+  // spans the record and the sheet together and stops at the rail. Two tracks here, as before.
+  const railAway = railCollapsed;
   const oneColumn = railExpanded || railAway || !hasRail;
   const columns = oneColumn ? "minmax(0,1fr)" : "minmax(0,1fr) 364px";
+  // Not while the chat is expanded — that state is the conversation taking the whole area, and the
+  // record it discusses (sheet included) steps aside.
+  const showAside = Boolean(aside) && !railExpanded;
   return (
     // One row of content: the rail and the panel, each carrying its own header.
     <main className="chat-glow flex h-screen flex-col overflow-hidden bg-[var(--shell-canvas)] text-[var(--text-primary)]">
       {banner}
       <div className="grid min-h-0 min-w-0 flex-1 gap-x-3 overflow-hidden px-3 pb-3 pt-1" style={{ gridTemplateColumns: columns }}>
         {railExpanded ? null : (
-          // The top bar rides above the panel *inside its own column*, so the rail's header sits beside
-          // it rather than under it. Spanning the whole window it centred the mode on the window's axis,
-          // which is a different line from the panel's — and it pushed the rail's header down a row.
+          // The top bar rides above *everything that isn't the chat*: the record and its details sheet
+          // are one column here, split below the bar, so the row runs to the rail's edge and stops. It
+          // ended at the panel's edge while the sheet was a track of the grid — the mark and the person
+          // penned into the left two-thirds with a card to their right and nothing above it — and it
+          // can't span the window either, or the rail's header is pushed down a row and the mode toggle
+          // centres on an axis the panel doesn't share.
           <div className="flex min-h-0 min-w-0 flex-col">
             {topBar}
-            {children}
+            <div className="flex min-h-0 min-w-0 flex-1 gap-x-3">
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
+              {/* The sheet: 364px, the rail's width, so the two side panels read as one track whichever
+                  is showing. */}
+              {showAside ? <section className="flex min-h-0 w-[364px] shrink-0 flex-col overflow-hidden">{aside}</section> : null}
+            </div>
           </div>
         )}
         {/* The rail's grid item always renders — `display:none` rather than unmounted, so putting the
  rail away and bringing it back doesn't lose the conversation. Hiding it is only safe
- because the template drops to one column at the same time: with two tracks still declared,
+ because the template drops the track at the same time: with the track still declared,
  a skipped item lets auto-placement slide the panel into the rail's.
 
  Column 2 only while there *is* a column 2. Pinned unconditionally, the expanded chat asked for
@@ -531,26 +540,8 @@ export function AppShell({
             className={cn("relative flex min-h-0 min-w-0 flex-col overflow-hidden", railAway && "hidden")}
             style={oneColumn ? undefined : { gridColumn: 2 }}
           >
-            {/* With the sheet open, a spacer the height of the top bar stands in for the rail's header.
-                Two things needed it: the sheet has to *start where the panel starts* — its own column
-                begins at the top of the grid row, so without this it hung 56px above the panel it
-                belongs to and the two cards read as unrelated — and the conversation underneath has to
-                begin below the sheet's top edge, or its first line shows in the strip above. The rail's
-                own controls go while the sheet is up: they act on a thread nobody can see, and the sheet
-                carries the close. */}
-            {aside ? <div aria-hidden className="h-14 shrink-0" /> : railHeader}
+            {railHeader}
             <div className="flex min-h-0 flex-1 flex-col">{rail}</div>
-            {/* Placed in the same grid cell and layered over it, so the conversation stays mounted
-                underneath — close the sheet and the thread is where you left it. */}
-            {aside ? (
-              // Opaque, so nothing of the conversation reads through the sheet's own rounded corners —
-              // the panel it covers has to look covered. Rounded to the same 12px as the sheet: as a
-              // square block its four corners poked out past the sheet's arcs, and against the canvas's
-              // composer glow they read as white notches behind the card.
-              <div className="absolute inset-x-0 bottom-0 top-14 z-10 flex min-h-0 min-w-0 flex-col rounded-[12px] bg-[var(--shell-canvas)]">
-                {aside}
-              </div>
-            ) : null}
           </section>
         ) : null}
       </div>

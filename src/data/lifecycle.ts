@@ -66,7 +66,10 @@ export const STAGES = [
     rows: [
       ["Risk governance tier", "Full"],
       ["Compliance assessment required", "Yes"],
-      ["Triage rationale and notes", "GxP relevance and regulatory-submission proximity confirmed; routed to the full assessment path rather than fast-track."],
+      [
+        "Triage rationale and notes",
+        "GxP relevance and regulatory-submission proximity confirmed; routed to the full assessment path rather than fast-track.",
+      ],
     ],
   },
   {
@@ -383,13 +386,19 @@ export function gateForStage(stageName: string) {
   return GATES.find((gate) => gate.afterStage === stageName);
 }
 
+// Every value is a token, so a gate chip and a Tag of the same status can't drift apart.
 export const GATE_TONE: Record<Gate["status"], { fg: string; bg: string; border: string }> = {
   "Not started": { fg: "var(--text-muted)", bg: "var(--surface-muted)", border: "var(--border-default)" },
   Waived: { fg: "var(--text-muted)", bg: "var(--surface-muted)", border: "var(--border-default)" },
-  "In review": { fg: "#a15c11", bg: "#f6f0e6", border: "#e6d4b8" },
-  Passed: { fg: "#15803d", bg: "#eef4ee", border: "#bfdcc7" },
-  Blocked: { fg: "#b32020", bg: "#f7eaea", border: "#e6c3c3" },
-  Rejected: { fg: "#b32020", bg: "#f7eaea", border: "#e6c3c3" },
+  // Tokens, not the hexes these four held — every value was already a copy of a `--tone-*` triple
+  // (`#a15c11` is `--tone-warning-fg`, `#f7eaea` is `--tone-danger-bg`), so the map was a second
+  // definition of the tone system that nothing kept in step. `Passed`'s border moves 3 points to
+  // `--tone-success-border`, the only value that wasn't already an exact copy. Strings, so this file
+  // stays node-loadable — they are read into inline `style`, never into a class.
+  "In review": { fg: "var(--tone-warning-fg)", bg: "var(--tone-warning-bg)", border: "var(--tone-warning-border)" },
+  Passed: { fg: "var(--tone-success-fg)", bg: "var(--tone-success-bg)", border: "var(--tone-success-border)" },
+  Blocked: { fg: "var(--tone-danger-fg)", bg: "var(--tone-danger-bg)", border: "var(--tone-danger-border)" },
+  Rejected: { fg: "var(--tone-danger-fg)", bg: "var(--tone-danger-bg)", border: "var(--tone-danger-border)" },
 };
 
 // Record-level metadata — shown in the Details sheet on /detail and as the key
