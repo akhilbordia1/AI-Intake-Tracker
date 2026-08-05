@@ -1,7 +1,8 @@
 "use client";
 
-import { ShieldCheck, Sparkles } from "lucide-react";
-import { useState } from "react";
+import { ChevronLeft, ShieldCheck, Sparkles } from "lucide-react";
+import Link from "next/link";
+import { useState, type ReactNode } from "react";
 
 import { PersonAvatar } from "@/components/profile";
 import { RiskSummaryModal } from "@/components/document-record/risk-modal";
@@ -76,9 +77,19 @@ export function RecordSummary({
   currentUser,
   divider = true,
   blank = false,
+  back,
+  actions,
 }: {
   currentUser: string;
   divider?: boolean;
+  // Where up is, as a chevron on the title's left. This replaced the panel's breadcrumb row: two rows
+  // of chrome above the record's name, one of which existed to say "All use cases › UC-142" while the
+  // name itself was the next line down. The id joins the title instead, and the crumb becomes the one
+  // thing it was for — a way back.
+  back?: { href: string; label: string };
+  // The right edge of the title line, for the controls the record itself owns (the Details sheet). They
+  // were in the panel header the breadcrumb took with it.
+  actions?: ReactNode;
   // A record with nothing captured. Its header can't claim a name, a problem, a risk
   // rating or a gate — none of that has been recorded — so it says what it is and shows
   // the owner of the stage it's sitting in. Every chip and the Risk Insight button drop
@@ -96,22 +107,54 @@ export function RecordSummary({
     // The rule comes and goes (it appears once content scrolls under the block), so
     // the padding can't move with it — the block would grow as you scrolled.
     <div className={cn("border-b px-6 pb-4 pt-5", divider ? "border-[var(--border-hairline)]" : "border-transparent")}>
-      <h2 className="font-display text-[28px] leading-tight text-[var(--text-primary)]">{blank ? "Untitled use case" : USE_CASE.name}</h2>
+      <div className="flex min-w-0 items-center gap-2.5">
+        {back ? (
+          // A box, not a bare glyph: on the title's line an unboxed chevron read as punctuation in front
+          // of the name rather than as the control that leaves the page. Bordered like the record's other
+          // real controls (Risk Insight, Details).
+          //
+          // 22px, sized to the *cap height* of the 22px title beside it rather than to a comfortable
+          // button. At 28 it was the tallest thing on the row and the eye read the way out before the
+          // name — a back control is a door, not a headline.
+          <Link
+            href={back.href}
+            aria-label={back.label}
+            data-tip={back.label}
+            className="grid h-[22px] w-[22px] shrink-0 place-items-center rounded-[6px] border border-[var(--border-default)] bg-[var(--surface)] text-[var(--text-label)] outline-none transition hover:border-[var(--accent-border)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent-strong)] focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
+          >
+            <ChevronLeft size={13} />
+          </Link>
+        ) : null}
+        {/* 22px, down from 28. At 28 the record's name was the biggest type in the product and it sat on
+            a row that now also carries a control either side of it — the name is the subject of the page,
+            not its masthead. Still the display serif: it's the record's name, which is the one piece of
+            authored content on the row — the controls either side of it are chrome. */}
+        <h2 className="font-display min-w-0 truncate text-[22px] leading-tight text-[var(--text-primary)]">
+          {blank ? "Untitled use case" : USE_CASE.name}
+        </h2>
+        {/* The id, which the breadcrumb used to carry. Mono and muted: it's the record's handle, not part
+            of its name. */}
+        {blank ? null : <span className="mt-0.5 shrink-0 font-mono text-[12px] text-[var(--text-muted)]">{USE_CASE.id}</span>}
+        {actions ? <span className="ml-auto flex shrink-0 items-center gap-1.5">{actions}</span> : null}
+      </div>
 
       {/* The same serif italic the empty fields use, so a record with no problem
           statement reads as "not captured yet" rather than as a record about nothing. */}
+      {/* 72ch, not 82: at 82 the problem statement ran two full lines across a 1500px panel and the
+          second one broke four words in, which reads as a paragraph that ran out rather than as a
+          two-line lead. */}
       {blank ? (
-        <p className="font-serif-body mt-2.5 max-w-[82ch] text-[14px] italic leading-6 text-[var(--text-faint)]">
+        <p className="font-serif-body mt-2 max-w-[72ch] text-[14px] italic leading-[1.6] text-[var(--text-faint)]">
           Nothing captured yet — the problem statement is the first thing Ideation asks for.
         </p>
       ) : (
-        <p className="mt-2.5 max-w-[82ch] text-[14px] leading-6 text-[var(--text-body)]">{stageValue("Ideation", "Problem statement")}</p>
+        <p className="mt-2 max-w-[72ch] text-[14px] leading-[1.6] text-[var(--text-body)]">{stageValue("Ideation", "Problem statement")}</p>
       )}
 
       {/* One meta line: facts on the left as plain text separated by rules, status
           on the right as chips. Four identical pills made the owner, a date and two
           different states all look like the same kind of thing. */}
-      <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-[12px] text-[var(--text-muted)]">
+      <div className="mt-3.5 flex flex-wrap items-center gap-x-3 gap-y-2 text-[12px] text-[var(--text-muted)]">
         {/* Labelled like the date beside it: a name on its own didn't say whether
             it was the requester, the approver or whose turn it is. */}
         <span data-tip={`Owns the ${activeStage.name} stage`} className="inline-flex items-center gap-1.5">
@@ -127,8 +170,11 @@ export function RecordSummary({
           Go-live <span className="font-mono text-[var(--text-body)]">{(blank ? undefined : recordDetail("Target go-live")) ?? "—"}</span>
         </span>
 
-        <MetaRule />
-        <span className="flex shrink-0 items-center gap-1.5">
+        {/* Pushed to the right edge, where the title row's own control sits — the comment above always
+            said "facts on the left, status on the right", but without `ml-auto` the chips crowded the
+            dates in the middle of the row and left a third of it empty. No rule in front of them any
+            more either: the gap does that job once the two groups are at opposite ends. */}
+        <span className="ml-auto flex shrink-0 items-center gap-1.5">
           {/* Both chips are now what a chip is: a state, not a control. The risk chip used
               to be the door to the written summary, which meant the one clickable thing on
               the record looked exactly like the tag beside it that does nothing. */}
@@ -139,7 +185,10 @@ export function RecordSummary({
           ) : null}
           {/* The gate chip drops the shield the risk chip carries: two identical glyphs
               side by side read as one badge split in half, and `R3` is already this
-              chip's identity. */}
+              chip's identity. A hairline between them, because both land on the warning tone often
+              enough (a Medium rating, a gate in review) that the pair read as one long amber blob —
+              and they are not one fact: one is how risky this is, the other is who hasn't signed. */}
+          {tier && gateOnActive ? <MetaRule /> : null}
           {gateOnActive ? (
             <Tag tone={gateStatusTone(gateOnActive.status)} data-tip={gateTip(gateOnActive)} className={CHIP}>
               <span className="font-mono">{gateOnActive.id}</span> · {gateOnActive.status}

@@ -7,7 +7,7 @@ Each SVG is a 24×24 stroke icon with `stroke="currentColor"` and `stroke-width=
 takes the colour of its container. The app renders them at 11–18px; set `width`/`height`
 to the size you need rather than scaling with CSS transforms.
 
-64 icons.
+63 icons.
 
 | Icon | File | Used in |
 | --- | --- | --- |
@@ -26,7 +26,7 @@ to the size you need rather than scaling with CSS transforms.
 | Check | `check.svg` | `src/components/chat/chat-ui.tsx`, `src/components/document-record/detail-record.tsx`, `src/components/document-record/record-details-sheet.tsx`, `src/components/forms/fields.tsx`, `src/components/profile.tsx`, `src/components/ui/kit.tsx` |
 | CheckCircle2 | `circle-check.svg` | `src/app/overview/page.tsx` |
 | ChevronDown | `chevron-down.svg` | `src/components/document-record/detail-record.tsx`, `src/components/forms/fields.tsx`, `src/components/portfolio/tiles.tsx`, `src/components/profile.tsx`, `src/components/ui/kit.tsx` |
-| ChevronLeft | `chevron-left.svg` | `src/components/document-record/detail-record.tsx`, `src/components/forms/fields.tsx` |
+| ChevronLeft | `chevron-left.svg` | `src/components/document-record/detail-record.tsx`, `src/components/document-record/record-summary.tsx`, `src/components/forms/fields.tsx` |
 | ChevronRight | `chevron-right.svg` | `src/components/app-shell.tsx`, `src/components/chat/chat-use-case-card.tsx`, `src/components/document-record/detail-record.tsx`, `src/components/forms/fields.tsx` |
 | Circle | `circle.svg` | `src/app/overview/page.tsx` |
 | CircleDot | `circle-dot.svg` | `src/app/overview/page.tsx`, `src/app/tracker-view.tsx` |
@@ -34,7 +34,7 @@ to the size you need rather than scaling with CSS transforms.
 | Columns3 | `columns-3.svg` | `src/app/tracker-view.tsx` |
 | CornerDownRight | `corner-down-right.svg` | `src/components/chat/mini-chat-rail.tsx` |
 | CornerUpLeft | `corner-up-left.svg` | `src/components/document-record/detail-record.tsx` |
-| FileText | `file-text.svg` | `src/app/overview/page.tsx`, `src/app/tracker-view.tsx`, `src/components/document-record/detail-record.tsx`, `src/components/document-record/record-details-sheet.tsx` |
+| FileText | `file-text.svg` | `src/app/tracker-view.tsx`, `src/components/document-record/detail-record.tsx`, `src/components/document-record/record-details-sheet.tsx` |
 | Filter | `funnel.svg` | `src/components/ui/kit.tsx` |
 | Flag | `flag.svg` | `src/app/overview/page.tsx`, `src/app/tracker-view.tsx` |
 | Gauge | `gauge.svg` | `src/app/leadership-views.tsx`, `src/app/tracker-view.tsx` |
@@ -57,7 +57,6 @@ to the size you need rather than scaling with CSS transforms.
 | Minus | `minus.svg` | `src/components/forms/fields.tsx` |
 | MinusCircle | `circle-minus.svg` | `src/app/overview/page.tsx`, `src/components/document-record/detail-record.tsx` |
 | PanelRightClose | `panel-right-close.svg` | `src/components/app-shell.tsx` |
-| PanelRightOpen | `panel-right-open.svg` | `src/components/app-shell.tsx` |
 | PenTool | `pen-tool.svg` | `src/components/ui/kit.tsx` |
 | Pencil | `pencil.svg` | `src/components/document-record/detail-record.tsx` |
 | Plus | `plus.svg` | `src/app/tracker-view.tsx`, `src/components/forms/fields.tsx` |
@@ -66,7 +65,7 @@ to the size you need rather than scaling with CSS transforms.
 | Search | `search.svg` | `src/app/tracker-view.tsx`, `src/components/forms/fields.tsx` |
 | ShieldCheck | `shield-check.svg` | `src/app/leadership-views.tsx`, `src/app/tracker-view.tsx`, `src/components/document-record/detail-record.tsx`, `src/components/document-record/record-details-sheet.tsx`, `src/components/document-record/record-summary.tsx`, `src/components/ui/kit.tsx` |
 | SlidersHorizontal | `sliders-horizontal.svg` | `src/components/ui/kit.tsx` |
-| Sparkles | `sparkles.svg` | `src/app/tracker-view.tsx`, `src/components/chat/chat-ui.tsx`, `src/components/document-record/detail-record.tsx`, `src/components/document-record/record-details-sheet.tsx`, `src/components/document-record/record-summary.tsx`, `src/components/forms/fields.tsx`, `src/components/portfolio/tiles.tsx` |
+| Sparkles | `sparkles.svg` | `src/app/tracker-view.tsx`, `src/components/app-shell.tsx`, `src/components/chat/chat-ui.tsx`, `src/components/document-record/detail-record.tsx`, `src/components/document-record/record-details-sheet.tsx`, `src/components/document-record/record-summary.tsx`, `src/components/forms/fields.tsx`, `src/components/portfolio/tiles.tsx` |
 | Split | `split.svg` | `src/components/ui/kit.tsx` |
 | Table2 | `table-2.svg` | `src/app/tracker-view.tsx` |
 | Target | `target.svg` | `src/app/leadership-views.tsx`, `src/components/ui/kit.tsx` |

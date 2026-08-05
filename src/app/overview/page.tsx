@@ -1,10 +1,10 @@
 "use client";
 
-import { CheckCircle2, Circle, CircleDot, FileText, Flag, Gavel, Info, ListChecks, MinusCircle, User } from "lucide-react";
+import { CheckCircle2, Circle, CircleDot, Flag, Gavel, Info, ListChecks, MinusCircle, User } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useRef, useState, type ReactNode } from "react";
 
-import { AppShell, ContentPanel, PanelBreadcrumb, RailHeader, TabBarToggle, useRailMode } from "@/components/app-shell";
+import { AppShell, AppTopBar, ContentPanel, RailHeader, RailToggle, TabBarToggle, useRailMode } from "@/components/app-shell";
 import { ChatHistoryButton, useChatSessions, type ChatSession, type ChatTurn } from "@/components/chat/chat-history";
 import { JumpToTop } from "@/components/chat/chat-ui";
 import { MiniChatRail } from "@/components/chat/mini-chat-rail";
@@ -254,38 +254,42 @@ export default function OverviewPage() {
           />
         </div>
       }
+      // The same canvas row the tracker opens with — product on the left, person on the right — so the
+      // mark, the profile and the rail's header land on one line whichever surface you are on.
+      topBar={
+        <AppTopBar
+          right={
+            <>
+              <ProfileSwitcher currentUser={currentUser} onUserChange={setCurrentUser} compact />
+              {railMode.collapsed ? <RailToggle onClick={railMode.toggleCollapse} /> : null}
+            </>
+          }
+        />
+      }
     >
       <ContentPanel
         // The record block stays put and the lifecycle scrolls under it, the way the
         // stage form works — so the name and its status are always on screen.
+        // No header row at all: the panel's first line *is* the record's name. The breadcrumb that used
+        // to sit above it said "All use cases › UC-142" one line before a 28px title saying the same
+        // record — so the way back is a chevron on the title, the id sits beside it, and the Details
+        // sheet's toggle takes the title line's right edge.
         scroll={false}
-        breadcrumb={
-          <PanelBreadcrumb
-            items={[
-              { label: "All use cases", href: "/" },
-              { label: USE_CASE.id, icon: <FileText size={13} />, title: USE_CASE.name },
-            ]}
-          />
-        }
-        controls={
-          <>
-            {/* Details first, the profile last — the same order the tracker's header ends on, so the
-                switcher is the final thing in the header row on every surface. A rule between them:
-                one is a panel this page can show, the other is who you are. */}
-            <TabBarToggle label="Details" icon={<Info size={15} />} active={detailsOpen} onClick={() => setDetailsOpen((open) => !open)} />
-            <span aria-hidden className="mx-0.5 h-4 w-px shrink-0 bg-[var(--border-default)]" />
-            <ProfileSwitcher currentUser={currentUser} onUserChange={setCurrentUser} compact />
-          </>
-        }
       >
-        <RecordSummary currentUser={currentUser} divider={tableScrolled} />
+        <RecordSummary
+          currentUser={currentUser}
+          divider={tableScrolled}
+          back={{ href: "/", label: "All use cases" }}
+          actions={<TabBarToggle label="Details" icon={<Info size={15} />} active={detailsOpen} onClick={() => setDetailsOpen((open) => !open)} />}
+        />
         {/* The table takes the record block's side padding, so its box lines up with
-            the name above it, and scrolls on its own beneath it. */}
-        <div
-          onScroll={(event) => setTableScrolled(event.currentTarget.scrollTop > 4)}
-          className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-6 pb-10 pt-5"
-        >
-          <LifecycleTable currentUser={currentUser} />
+            the name above it, and scrolls on its own beneath it. The scroll belongs to
+            the table's *box*, not to this wrapper: the box was the nearest scrollport
+            already (it owns the sideways overflow), so a `sticky` column header
+            measured itself against a port that never scrolled vertically and rode up
+            out of view with its rows. Handing it the height makes the same rule work. */}
+        <div className="flex min-h-0 flex-1 flex-col px-6 pb-8 pt-5">
+          <LifecycleTable currentUser={currentUser} onScrolledChange={setTableScrolled} />
         </div>
       </ContentPanel>
     </AppShell>
@@ -310,7 +314,7 @@ const STATE_ICON: Record<StageState, ReactNode> = {
   upcoming: <Circle size={11} />,
 };
 
-function LifecycleTable({ currentUser }: { currentUser: string }) {
+function LifecycleTable({ currentUser, onScrolledChange }: { currentUser: string; onScrolledChange: (scrolled: boolean) => void }) {
   return (
     // The columns a stage actually has: its number, its name, where it stands, who
     // holds it, and what came out of it. No phase column — the phase track above
@@ -318,7 +322,12 @@ function LifecycleTable({ currentUser }: { currentUser: string }) {
     // they line up as data.
     // The table sits in its own box, so the header band and the rows are held by a
     // rounded edge rather than running into the page.
-    <div className="no-scrollbar min-w-0 overflow-auto rounded-[10px] border border-[var(--border-default)] bg-[var(--surface)]">
+    // `min-h-0 flex-1`: the box takes the height its wrapper has left rather than growing to twelve
+    // rows, so the rows scroll inside it and the record block above never leaves the screen.
+    <div
+      onScroll={(event) => onScrolledChange(event.currentTarget.scrollTop > 4)}
+      className="no-scrollbar min-h-0 min-w-0 flex-1 overflow-auto rounded-[10px] border border-[var(--border-default)] bg-[var(--surface)]"
+    >
       <table className="w-full min-w-[880px] table-fixed border-collapse">
         <colgroup>
           <col className="w-[6%]" />
@@ -328,7 +337,11 @@ function LifecycleTable({ currentUser }: { currentUser: string }) {
           <col className="w-[30%]" />
         </colgroup>
         <thead className="sticky top-0 z-10 bg-[var(--surface-header)]">
-          <tr className="border-b border-[var(--border-default)] text-left">
+          {/* The rule under the header band is an inset shadow on the cells (see `TableHead`), not a
+              border on this row: `border-collapse` hands row borders to the table's own border model,
+              and a stuck `thead` paints without them — the band would lose its edge the moment it
+              started doing its job. */}
+          <tr className="text-left">
             <TableHead className="pl-4">#</TableHead>
             <TableHead icon={<Flag size={12} />}>Stage</TableHead>
             <TableHead icon={<CircleDot size={12} />}>Status</TableHead>
@@ -424,7 +437,10 @@ function LifecycleTable({ currentUser }: { currentUser: string }) {
 // by its kind rather than by weight alone.
 function TableHead({ icon, className, children }: { icon?: ReactNode; className?: string; children: ReactNode }) {
   return (
-    <th scope="col" className={cn("h-9 px-3 text-[11px] font-medium text-[var(--text-muted)]", className)}>
+    <th
+      scope="col"
+      className={cn("h-9 px-3 text-[11px] font-medium text-[var(--text-muted)] shadow-[inset_0_-1px_0_var(--border-default)]", className)}
+    >
       <span className="inline-flex items-center gap-1.5">
         {icon ? <span className="shrink-0 text-[var(--text-muted)]">{icon}</span> : null}
         {children}

@@ -94,7 +94,7 @@ next to 13px sans).
 | 16 | A record's answers — what the form captured |
 | 18 | Panel titles, section headings (Fraunces) |
 | 20 | Section titles (Fraunces) |
-| 28 | Record name (Fraunces) |
+| 22 | Record name (Fraunces) — was 28, before the name shared its row with a back button and the Details toggle |
 | 40 | Intake hero only (Fraunces) |
 
 **Record values read at the size of the control that edits them** — 16px prose,
@@ -161,8 +161,11 @@ From `src/components/ui/kit.tsx`:
 - **`StageNode`** — the lifecycle node: tick when complete, filled when current,
   hollow with its number when ahead. Every stage rail uses it.
 
-From `src/components/app-shell.tsx` (layout chrome): `RailHeader`, `PanelTabs`,
-`TabBarToggle`, `PanelBreadcrumb`, `ContentPanel`, `AppShell`, `useRailMode`.
+From `src/components/app-shell.tsx` (layout chrome): `AppTopBar`, `RailHeader`,
+`RailToggle`, `PanelTabs`, `PanelViewRow`, `PanelTabRow`, `TabBarToggle`,
+`PanelBreadcrumb`, `ContentPanel`, `AppShell`, `useRailMode`. `PanelBreadcrumb` has
+no callers today — the record routes carry "up" as a chevron on the record's name
+instead — but the primitive stays for the next surface that nests.
 
 From `src/components/chat/chat-ui.tsx` (conversation): `ChatLine`, `ChatComposer`,
 `ChatStarters`, `ChatStartScreen`, `ChatDock`, `ChatTimeDivider`, `JumpToTop`; and
@@ -175,21 +178,31 @@ from `chat-history.tsx`: `useChatSessions`, `ChatHistoryButton`,
 
 One row of chrome, then the panel:
 
-1. **Panel header + rail header** — the panel's own header on the left: breadcrumb
-   (or title + count), the view tabs, and that view's real controls pushed to its
-   right edge; then, at the window's right edge, the chat rail's label and its
-   controls.
+1. **Top bar + rail header** — `AppTopBar` on the canvas, *inside the panel's own
+   column* so the rail's header lands beside it: the **AI Factory** mark, whatever
+   that surface centres (the tracker's mode toggle), and the person at the right.
+   Every route with a panel passes it, including the record routes — the mark used
+   to lead `ContentPanel`'s header there, which gave the app two homes for its
+   identity at two different sizes.
 2. **Content panel** — a rounded white panel, fully inside the window, with a
-   footer where the view has actions of its own.
+   footer where the view has actions of its own. Its header row is *skipped
+   entirely* where a route passes nothing into it, which is now every route: the
+   tracker opens on `PanelViewRow`, and the record routes open on the record's own
+   name. Where a page nests, "up" is a boxed chevron to the left of that name, with
+   the record's id beside it in mono — not a breadcrumb row above a title that says
+   the same thing.
 
 A record's identity block (name, problem, owner · go-live · status) stays put
 while its content scrolls under it, on both the overview and the stage form. It
 takes a hairline only once something has scrolled behind it — and the border is
 always there, transparent when idle, so the block can't grow as you scroll.
 
-The chat rail is a fixed **364px** side rail on the **right**, collapsible to a 36px
-strip and expandable to full width (`useRailMode` — the states are mutually
-exclusive). It led the row until it didn't: on the left, the assistant sat between
+The chat rail is a fixed **364px** side rail on the **right**, expandable to full
+width and collapsible to nothing at all (`useRailMode` — the states are mutually
+exclusive). Collapsed, its whole grid track goes and the panel takes the 376px back;
+the way to reopen it is `RailToggle`, an accent-filled Sparkles button the route puts
+beside the person. It used to leave a 36px strip behind to hold that button, which
+read as a second empty column and kept the width out of the content's reach. It led the row until it didn't: on the left, the assistant sat between
 the window edge and the thing being discussed, so a board, a record or a portfolio
 started 380px in and the eye crossed the chat to reach it. The
 panel clips its own content: **nothing bleeds past its rounded edge**, and content

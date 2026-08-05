@@ -24,7 +24,7 @@ import {
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
-import { AppShell, AppTopBar, ContentPanel, PanelTabs, PanelViewRow, RailHeader, useRailMode } from "@/components/app-shell";
+import { AppShell, AppTopBar, ContentPanel, PanelTabs, PanelViewRow, RailHeader, RailToggle, useRailMode } from "@/components/app-shell";
 import { ChatHistoryButton, useChatSessions, type ChatSession, type ChatTurn } from "@/components/chat/chat-history";
 import { ChatCardList } from "@/components/chat/chat-use-case-card";
 import { JumpToTop } from "@/components/chat/chat-ui";
@@ -430,7 +430,14 @@ export function TrackerView({ initialPhase, initialTab }: { initialPhase?: strin
               ]}
             />
           }
-          right={<ProfileSwitcher currentUser={activeProfile} onUserChange={setActiveProfile} compact />}
+          right={
+            <>
+              <ProfileSwitcher currentUser={activeProfile} onUserChange={setActiveProfile} compact />
+              {/* Only while the rail is away, and after the person: the row ends on who you are on
+                  every surface, so the thing that comes back is what got added to the end. */}
+              {railMode.collapsed ? <RailToggle onClick={railMode.toggleCollapse} /> : null}
+            </>
+          }
         />
       }
     >
@@ -974,9 +981,20 @@ function UseCaseBoardCard({ card }: { card: UseCaseCard }) {
   return (
     // Title first, then what it is, then what it's tagged with, then the record's
     // own line: id and date on the left, the people on the right.
+    //
+    // Hover moves the *edge*, not the fill. It used to tint the card `--surface-muted`, which is the
+    // exact fill of the tray it sits in — so pointing at a card dissolved it into its column, and the
+    // one card you were about to open was the only one that had stopped looking like a card. With no
+    // elevation anywhere, staying white *is* the card's lift, so the border goes accent and the title
+    // goes with it: a hover that adds rather than subtracts.
+    //
+    // A border colour alone was too quiet to find — one hairline changing hue on a card that has three
+    // other hairlines on it. The ring puts a second pale-green line outside the first, so the edge
+    // *thickens* to three pixels as well as changing colour, which is the part the eye catches at a
+    // glance. Still not a fill: tinting the whole card is the thing that made it vanish into the tray.
     <Link
       href={card.href}
-      className="group block shrink-0 rounded-[10px] border border-[var(--border-default)] bg-[var(--surface)] transition hover:border-[var(--border-input)] hover:bg-[var(--surface-muted)]"
+      className="group block shrink-0 rounded-[10px] border border-[var(--border-default)] bg-[var(--surface)] transition hover:border-[var(--accent-ring)] hover:ring-2 hover:ring-[var(--accent-soft)]"
     >
       <div className="px-3.5 pb-3 pt-3">
         <div className="flex min-w-0 items-start gap-2">

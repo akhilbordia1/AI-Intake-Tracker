@@ -291,11 +291,20 @@ export function Segmented({
               aria-pressed={selected}
               onClick={() => onChange(option)}
               className={cn(
-                "h-9 rounded-[10px] border border-transparent px-3 text-[16px] transition",
+                // 14px, the size DESIGN.md gives a value "in a pill". It was 16 — the prose size, for the
+                // fields you *type* into — which made a three-option row the largest type on the form and
+                // set the answer a step above the record's own name.
+                "h-9 rounded-[10px] px-3 text-[14px] transition",
                 FOCUS_RING_VISIBLE,
+                // The answer is the accent, not a raised white pill. It *was* that pill —
+                // `bg-[var(--surface)]` with `--shadow-btn-raised` and a `--border-default` hairline —
+                // which stopped working the day elevation came out of the system: every `--shadow-*` is
+                // `none` now, so the chosen option was white-on-white with a hairline nobody sees, and a
+                // row of grey chips with one bare word among them read as the *unset* option rather
+                // than as the pick. Same fill and border the reporting chips use for their active state.
                 selected
-                  ? "bg-[var(--surface)] font-medium text-[var(--text-primary)] shadow-[var(--shadow-btn-raised)] ring-1 ring-[var(--border-default)]"
-                  : cn(FIELD_FILL, "text-[var(--text-body)]"),
+                  ? "border border-[var(--accent-border)] bg-[var(--accent-soft)] font-semibold text-[var(--accent-strong)]"
+                  : cn("border border-transparent", FIELD_FILL, "text-[var(--text-body)] hover:text-[var(--text-primary)]"),
               )}
             >
               {option}
@@ -329,7 +338,11 @@ export function SegmentedToggle({
       {hideHeader ? null : <FieldHeader label={label} required={required} hint={hint} />}
       {/* A filled track with a white pill riding in it — the track is the field's
           fill, so the toggle belongs to the same family as the text boxes. */}
-      <div className="inline-flex flex-wrap gap-1 rounded-full border border-transparent bg-[var(--field-fill)] p-1" role="radiogroup" aria-label={label}>
+      <div
+        className="inline-flex flex-wrap gap-1 rounded-full border border-transparent bg-[var(--field-fill)] p-1"
+        role="radiogroup"
+        aria-label={label}
+      >
         {options.map((option) => {
           const selected = value === option;
           return (
@@ -341,10 +354,15 @@ export function SegmentedToggle({
               aria-checked={selected}
               onClick={() => onChange(option)}
               className={cn(
-                "rounded-full px-3.5 py-1.5 text-[16px] transition",
+                // 14px, matching every other pill (see `Segmented`).
+                "rounded-full px-3.5 py-1.5 text-[14px] transition",
                 FOCUS_RING_VISIBLE,
+                // The pill riding in the track can't be *only* white any more: with elevation out of the
+                // system it is #ffffff on a #f8f7f5 track, three points apart per channel. It keeps the
+                // white — the track is what gives it its shape — and takes the accent in its text and a
+                // hairline of it at the edge, so the pick is legible without a shadow to lift it.
                 selected
-                  ? "bg-[var(--surface)] font-medium text-[var(--text-primary)] shadow-[var(--shadow-btn-raised)]"
+                  ? "bg-[var(--surface)] font-semibold text-[var(--accent-strong)] ring-1 ring-[var(--accent-border)]"
                   : "text-[var(--text-label)] hover:text-[var(--text-primary)]",
               )}
             >

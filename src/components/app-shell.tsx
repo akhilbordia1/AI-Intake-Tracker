@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, Maximize2, Minimize2, MessageSquarePlus, PanelRightClose, PanelRightOpen } from "lucide-react";
+import { ChevronRight, Maximize2, Minimize2, MessageSquarePlus, PanelRightClose, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 
@@ -43,19 +43,10 @@ export function RailHeader({
   // Past conversations on this surface.
   history?: ReactNode;
 }) {
-  // Collapsed, the header *is* the way back — it keeps its place in the row so
-  // the control never moves out from under the pointer.
-  const toggle = (
-    <IconButton label={collapsed ? `Show ${label.toLowerCase()}` : `Hide ${label.toLowerCase()}`} onClick={onToggleCollapse} size={28}>
-      {/* Right-hand glyphs, because the rail is the right-hand column: a left-facing panel icon on
-          a panel that lives on the right points at nothing. */}
-      {collapsed ? <PanelRightOpen size={16} /> : <PanelRightClose size={16} />}
-    </IconButton>
-  );
-
-  if (collapsed) {
-    return <div className="flex min-h-[52px] shrink-0 items-center justify-center py-2">{toggle}</div>;
-  }
+  // Collapsed, the rail's whole column goes — including this header. The way back is `RailToggle`,
+  // which the route puts beside the person in its own header row; a 36px strip left behind held one
+  // button and cost the panel 48px of width it could use for the board.
+  if (collapsed) return null;
 
   return (
     <div
@@ -67,7 +58,11 @@ export function RailHeader({
         scrolled ? "border-[var(--border-hairline)]" : "border-transparent",
       )}
     >
-      {toggle}
+      {/* Right-hand glyph, because the rail is the right-hand column: a left-facing panel icon on a
+          panel that lives on the right points at nothing. */}
+      <IconButton label={`Hide ${label.toLowerCase()}`} onClick={onToggleCollapse} size={28}>
+        <PanelRightClose size={16} />
+      </IconButton>
       {/* Plain text, not a link home. It said "AI Factory" and pointed at `/` while the rail was the
           window's left column, which made the product mark part of the chat; the mark is the panel's
           now, and what's left here is what this column actually is. */}
@@ -84,6 +79,27 @@ export function RailHeader({
         </IconButton>
       </span>
     </div>
+  );
+}
+
+// ── The way back to a put-away assistant ──
+// Rendered by the route in the header row that holds the person — the top bar on the tracker, the
+// panel's controls on the record pages — so the collapsed rail costs the layout nothing at all. It
+// only appears while the rail is away, which is why the glyph isn't the panel icon its twin in
+// `RailHeader` wears: a control that stands alone has to say what it opens, and what it opens is the
+// assistant. Accent-tinted for the same reason — it's the one AI affordance on the row.
+export function RailToggle({ onClick, size = 32 }: { onClick: () => void; size?: number }) {
+  return (
+    // Filled, not a bare glyph. On the canvas beside a bordered profile pill a plain 16px icon read as
+    // decoration — the one control that brings a whole column back has to look like a control.
+    <IconButton
+      label="Show assistant"
+      onClick={onClick}
+      size={size}
+      className="border border-[var(--accent-border)] bg-[var(--accent-soft)] text-[var(--accent-strong)] hover:border-[var(--accent-ring)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent-strong)]"
+    >
+      <Sparkles size={16} />
+    </IconButton>
   );
 }
 
@@ -206,11 +222,15 @@ export function PanelTabs({
 // The tab row's trailing slot: a panel you can show or hide.
 export function TabBarToggle({ label, icon, active = false, onClick }: { label: string; icon: ReactNode; active?: boolean; onClick: () => void }) {
   return (
+    // Quiet in both states. On means the accent — no filled pill: `--surface-strong` on the record's
+    // title row was a grey slab beside a name, heavier than the primary button on the tracker, and it
+    // read as a disabled field rather than as a toggle that is on. Colour is enough to say "showing",
+    // and the sheet it opens is itself the loudest possible confirmation.
     <Button
-      tone={active ? "secondary" : "quiet"}
-      active={active}
+      tone="quiet"
       onClick={onClick}
       aria-pressed={active}
+      className={active ? "text-[var(--accent-strong)] hover:bg-transparent hover:text-[var(--accent-strong)]" : undefined}
       data-tip={active ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`}
     >
       {icon}
@@ -311,14 +331,11 @@ export function ContentPanel({
     <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[12px] border border-[var(--border-default)] bg-[var(--surface)]">
       {hasHeader ? (
         <div className="relative flex min-h-[52px] shrink-0 flex-wrap items-center gap-x-2.5 gap-y-1.5 border-b border-[var(--border-hairline)] px-6 py-2">
-          {/* The product mark, for the routes whose header leads with a breadcrumb. */}
-          <Link
-            href="/"
-            className="font-display shrink-0 text-[18px] leading-tight text-[var(--text-primary)] transition hover:text-[var(--accent-strong)]"
-          >
-            AI Factory
-          </Link>
-          {breadcrumb || title || titleMeta ? <span aria-hidden className="h-4 w-px shrink-0 bg-[var(--border-default)]" /> : null}
+          {/* No product mark here any more. It led this row on the record routes while they had no top
+              bar, which left the app with two different homes for its identity — an 18px mark inside
+              the panel on `/overview` and `/detail`, a 20px one on the canvas everywhere else, each
+              with its own idea of where the person sits. Every route with a panel passes `AppTopBar`
+              now, so this row is only ever the panel's subject and the panel's controls. */}
           {icon ? <span className="shrink-0 text-[var(--accent)]">{icon}</span> : null}
           {title ? <h1 className="font-display min-w-0 shrink-0 truncate text-[18px] leading-tight text-[var(--text-primary)]">{title}</h1> : null}
           {breadcrumb}
@@ -461,9 +478,12 @@ export function AppShell({
 }) {
   // A narrow side rail, not a half-split. Fixed at 364px so it reads the same
   // whether or not the details sheet is open, and the composer, starter chips and
-  // user bubbles keep a deliberate measure. Collapsed it becomes a 36px strip —
-  // just wide enough to hold the toggle that reopens it.
-  const railTrack = railCollapsed ? "36px" : "364px";
+  // user bubbles keep a deliberate measure. Collapsed, the track goes entirely:
+  // it used to leave a 36px strip holding the reopen button, which read as a
+  // second empty column and kept 48px of width out of the content's reach for the
+  // sake of one 28px control. That control lives in the route's own header row now
+  // (`RailToggle`, beside the person), so putting the rail away gives the panel
+  // everything it left behind.
   const hasRail = Boolean(rail || railHeader);
   // The rail is the *last* column. It led the row until now, which put the assistant between the
   // window edge and the thing being discussed: on every route the object of the conversation — a
@@ -477,7 +497,12 @@ export function AppShell({
   // squeezed the record it describes into the middle of three panels — and the sheet is *about* the
   // record, so taking width from it to show it is the wrong trade. It shares the rail's column now and
   // covers it, which is also what a sheet is: something that comes over what you were doing.
-  const columns = railExpanded || !hasRail ? "minmax(0,1fr)" : `minmax(0,1fr) ${railTrack}`;
+  // One track or two. Expanded and collapsed are the one-track cases from opposite ends: the chat has
+  // taken the whole area, or it has left it — but an open details sheet keeps the track either way,
+  // because the sheet lives in it. Put the rail away with the sheet open and the column is the sheet's.
+  const railAway = railCollapsed && !aside;
+  const oneColumn = railExpanded || railAway || !hasRail;
+  const columns = oneColumn ? "minmax(0,1fr)" : "minmax(0,1fr) 364px";
   return (
     // One row of content: the rail and the panel, each carrying its own header.
     <main className="chat-glow flex h-screen flex-col overflow-hidden bg-[var(--shell-canvas)] text-[var(--text-primary)]">
@@ -492,14 +517,29 @@ export function AppShell({
             {children}
           </div>
         )}
-        {/* The rail's grid item always renders: a display:none item is skipped by
- auto-placement, which would slide the panel into the rail's track. The
- conversation inside is hidden instead, so putting the rail away and
- bringing it back doesn't lose it. */}
+        {/* The rail's grid item always renders — `display:none` rather than unmounted, so putting the
+ rail away and bringing it back doesn't lose the conversation. Hiding it is only safe
+ because the template drops to one column at the same time: with two tracks still declared,
+ a skipped item lets auto-placement slide the panel into the rail's.
+
+ Column 2 only while there *is* a column 2. Pinned unconditionally, the expanded chat asked for
+ a track the template no longer declared, so the grid made an implicit one beside the empty
+ `1fr` — a full-width conversation rendered in the right-hand half of the window with a blank
+ canvas to its left. */}
         {hasRail ? (
-          <section className="relative flex min-h-0 min-w-0 flex-col overflow-hidden" style={{ gridColumn: 2 }}>
-            {railHeader}
-            <div className={cn("flex min-h-0 flex-1 flex-col", railCollapsed && "hidden")}>{rail}</div>
+          <section
+            className={cn("relative flex min-h-0 min-w-0 flex-col overflow-hidden", railAway && "hidden")}
+            style={oneColumn ? undefined : { gridColumn: 2 }}
+          >
+            {/* With the sheet open, a spacer the height of the top bar stands in for the rail's header.
+                Two things needed it: the sheet has to *start where the panel starts* — its own column
+                begins at the top of the grid row, so without this it hung 56px above the panel it
+                belongs to and the two cards read as unrelated — and the conversation underneath has to
+                begin below the sheet's top edge, or its first line shows in the strip above. The rail's
+                own controls go while the sheet is up: they act on a thread nobody can see, and the sheet
+                carries the close. */}
+            {aside ? <div aria-hidden className="h-14 shrink-0" /> : railHeader}
+            <div className="flex min-h-0 flex-1 flex-col">{rail}</div>
             {/* Placed in the same grid cell and layered over it, so the conversation stays mounted
                 underneath — close the sheet and the thread is where you left it. */}
             {aside ? (
@@ -507,7 +547,9 @@ export function AppShell({
               // the panel it covers has to look covered. Rounded to the same 12px as the sheet: as a
               // square block its four corners poked out past the sheet's arcs, and against the canvas's
               // composer glow they read as white notches behind the card.
-              <div className="absolute inset-0 z-10 flex min-h-0 min-w-0 flex-col rounded-[12px] bg-[var(--shell-canvas)]">{aside}</div>
+              <div className="absolute inset-x-0 bottom-0 top-14 z-10 flex min-h-0 min-w-0 flex-col rounded-[12px] bg-[var(--shell-canvas)]">
+                {aside}
+              </div>
             ) : null}
           </section>
         ) : null}

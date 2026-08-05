@@ -130,14 +130,14 @@ const TAB_GRID = "grid w-full grid-cols-1 items-start gap-4 lg:grid-cols-2";
 // What the tiles give back when the rail is put away — not a number somebody picked, but exactly the
 // width the panel just gained, so the tiles read as they do with the conversation open.
 //
-// The arithmetic: collapsing swaps the rail's 364px track for a 36px strip, so the panel grows by 328.
-// (Not 376 — the shell's 12px column gap survives the collapse, and the strip still takes its 36.)
-// Subtracting that from the content box puts every tile back where it was.
+// The arithmetic: collapsing drops the rail's whole grid track — its 364px *and* the shell's 12px
+// column gap — so the panel grows by 376 and the tiles give exactly that back. It was 328 while
+// collapsing left a 36px strip behind; the strip is gone now, so the number moved with it.
 //
 // Without it, a 1900px window ran the Annual Performance table's four figures across a metre of screen
 // and turned the health bars into horizon lines. A flat 1280px cap was tried first and was the wrong
 // shape of answer: the right width here is defined by the layout, not by a constant.
-const RAIL_TRACK = "calc(100% - 328px)";
+const RAIL_TRACK = "calc(100% - 376px)";
 const SPAN = "lg:col-span-2";
 
 // `CAPABILITY_FILL` (three avatar hues for the capability split) went with `GroupBars`: the tally

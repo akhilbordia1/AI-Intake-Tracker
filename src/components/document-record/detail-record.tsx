@@ -1,6 +1,5 @@
 "use client";
 
-import { USE_CASE } from "@/data/document-workflow-form-schema";
 import {
   FIELD_GISTS,
   GATE_TONE,
@@ -47,7 +46,7 @@ import { ChatComposer, ChatDock, ChatLine, ChatStarters, ChatTimeDivider, JumpTo
 import { useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from "react";
 
 import { PersonAvatar, ProfileSwitcher, initials } from "@/components/profile";
-import { AppShell, ContentPanel, PanelBreadcrumb, RailHeader, TabBarToggle, shellButton, useRailMode } from "@/components/app-shell";
+import { AppShell, AppTopBar, ContentPanel, RailHeader, RailToggle, TabBarToggle, shellButton, useRailMode } from "@/components/app-shell";
 import { extractStageFields, isFieldEmpty } from "@/lib/stage-chat";
 
 import {
@@ -657,6 +656,7 @@ function StageFormHeader({
   isComplete = false,
   isSkipped = false,
   heading,
+  inset = 6,
 }: {
   stage: StageItem;
   s: StageFieldsState;
@@ -665,6 +665,10 @@ function StageFormHeader({
   isComplete?: boolean;
   isSkipped?: boolean;
   heading?: ReactNode;
+  // The side padding of the scroll container this header sits in, so the sticky row can bleed out to
+  // its edges and cover the fields passing behind it. A sticky box inside the padding leaves a strip of
+  // scrolling content showing either side of it, which reads as a leak rather than a header.
+  inset?: 6 | 8;
 }) {
   const ownedByMe = stage.owner === currentUser;
   const riskTier = canEdit && stage.name === "Assessment" ? computeRiskTier(s.values) : null;
@@ -676,8 +680,23 @@ function StageFormHeader({
 
   // One line: the stage (which opens the stage path) on the left, its state,
   // people and last edit as one run of metadata on the right.
+  //
+  // Sticky, because it is the row that says *which* stage you are filling in and whether you may: on a
+  // twelve-field stage it scrolled away by the third field, and from there the form was a column of
+  // answers with nothing naming what they belonged to — the stage-path dropdown out of reach at exactly
+  // the point you have read enough to want a different stage. It keeps a rule under it at rest rather
+  // than only once stuck: the fields start 28px below, so the line reads as this row's floor either way.
   return (
-    <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-2">
+    <div
+      className={cn(
+        "sticky top-0 z-20 flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-2 border-b border-[var(--border-hairline)] bg-[var(--surface)] pb-3",
+        // The scroll container's *top* padding belongs to this row, not to the container: padding above
+        // a sticky element scrolls away with the content, so the row arrived at the top of the panel
+        // with its text against the edge and the field it had just covered showing through the gap. On
+        // the row it does both jobs — the same space at rest, and an opaque roof once stuck.
+        inset === 8 ? "-mx-8 px-8 pt-6" : "-mx-6 px-6 pt-5",
+      )}
+    >
       {heading ?? <h2 className="font-display text-[18px] leading-tight text-[var(--text-primary)]">{stage.name}</h2>}
 
       {/* Whose stage it is belongs with its name, not in the run of metadata —
@@ -791,7 +810,9 @@ function StageFieldsGrid({
     // embedded → a plain block inside a shared scroll (stacked stages); otherwise
     // its own scroll container.
     <section
-      className={cn(embedded ? "px-6 pb-10 pt-5" : "no-scrollbar min-h-0 flex-1 overflow-y-auto px-8 pb-12 pt-6")}
+      // No top padding here — `StageFormHeader` carries it, so the space above the stage's name is part
+      // of the sticky row rather than something that scrolls out from under it.
+      className={cn(embedded ? "px-6 pb-10" : "no-scrollbar min-h-0 flex-1 overflow-y-auto px-8 pb-12")}
       aria-label={`${stage.name} stage`}
     >
       <StageFormHeader
@@ -802,6 +823,9 @@ function StageFieldsGrid({
         isComplete={isComplete}
         isSkipped={isSkipped}
         heading={heading}
+        // Matches this section's own side padding, so the sticky row covers the full width of whichever
+        // scroll container it landed in.
+        inset={embedded ? 6 : 8}
       />
 
       {/* A decision stage gets the agent's read on the decision before the fields
@@ -1172,7 +1196,8 @@ function SplitStageView({
     // The bespoke forms get the same header as every other stage — stage-path
     // dropdown, owner, status, gate — instead of a title bar of their own.
     form = (
-      <div className="px-6 pb-10 pt-5">
+      // No top padding: the sticky stage header carries it (see `StageFormHeader`).
+      <div className="px-6 pb-10">
         <StageFormHeader
           stage={stage}
           s={s}
@@ -1270,44 +1295,24 @@ function SplitStageView({
         </div>
       }
       aside={detailsOpen ? <RecordDetailsSheet onClose={onOpenDetails} /> : undefined}
+      // The same canvas row the tracker opens with — product on the left, person on the right — so the
+      // mark, the profile and the rail's header land on one line whichever surface you are on.
+      topBar={
+        <AppTopBar
+          right={
+            <>
+              <ProfileSwitcher currentUser={currentUser} onUserChange={onUserChange} lockedBy={lockedOwner ?? undefined} compact />
+              {railMode.collapsed ? <RailToggle onClick={railMode.toggleCollapse} /> : null}
+            </>
+          }
+        />
+      }
     >
-      {/* Row 3 names the view and where in the lifecycle it sits; the stage's own
- title, status, progress, owner and gate live in the stage header below. */}
+      {/* No header row: the panel opens on the record's own name. The breadcrumb it had said "All use
+ cases › UC-142 › Ideation" directly above a title saying the same record and a stage header
+ carrying the same stage-path dropdown — three rows to name one thing. The way back is a
+ chevron on the title, and the stage path stays where you change stages from. */}
       <ContentPanel
-        breadcrumb={
-          <PanelBreadcrumb
-            items={[
-              { label: "All use cases", href: "/" },
-              // The blank record isn't the seeded one, so it can't borrow its id, its name or
-              // the overview built from it — that page reads the filled record.
-              blank
-                ? { label: "New use case", icon: <FileText size={13} /> }
-                : { label: USE_CASE.id, href: "/overview", icon: <FileText size={13} />, title: USE_CASE.name },
-              {
-                label: stage.name,
-                node: (
-                  <StagePathMenu
-                    activeIndex={stageIndex}
-                    completedIndexes={completedIndexes}
-                    skippedIndexes={skippedIndexes}
-                    onSelect={onSelectStage}
-                    variant="crumb"
-                  />
-                ),
-              },
-            ]}
-          />
-        }
-        controls={
-          <>
-            {/* Details first, the profile last — the same order the tracker's header ends on, so the
-                switcher is the final thing in the header row on every surface. A rule between them:
-                one is a panel this page can show, the other is who you are. */}
-            <TabBarToggle label="Details" icon={<Info size={15} />} active={detailsOpen} onClick={onOpenDetails} />
-            <span aria-hidden className="mx-0.5 h-4 w-px shrink-0 bg-[var(--border-default)]" />
-            <ProfileSwitcher currentUser={currentUser} onUserChange={onUserChange} lockedBy={lockedOwner ?? undefined} compact />
-          </>
-        }
         scroll={false}
         footer={
           <>
@@ -1368,7 +1373,14 @@ function SplitStageView({
       >
         {/* The record first, then the stage — the same block the overview opens
             with, so moving between the two doesn't lose where you are. */}
-        <RecordSummary currentUser={currentUser} blank={blank} />
+        <RecordSummary
+          currentUser={currentUser}
+          blank={blank}
+          // Up from a stage is the record, not the registry — except on a blank record, which has no
+          // overview to go up to.
+          back={blank ? { href: "/", label: "All use cases" } : { href: "/overview", label: "Back to the record" }}
+          actions={<TabBarToggle label="Details" icon={<Info size={15} />} active={detailsOpen} onClick={onOpenDetails} />}
+        />
         {formBusy ? (
           <div className="h-[3px] w-full shrink-0 overflow-hidden bg-[var(--surface-muted)]">
             <div className="loadbar h-full w-1/3 rounded-full bg-[var(--accent)]" />
